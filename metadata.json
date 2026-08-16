@@ -1,0 +1,11 @@
+{
+  "name": "Remix: برنامه‌ریز و دستیار پیشرفته سلامت",
+  "description": "یک سامانه همه‌کاره برای برنامه‌ریزی روزانه، یادداشت‌برداری، مدیریت وظایف و ردیابی شاخص‌های سلامت به همراه دستیار صوتی هوشمند مبتنی بر هوش معنوی",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-vazirmatn), "Inter", system-ui, -apple-system, sans-serif;
+  --color-primary: var(--color-teal-600);
+  --color-primary-hover: var(--color-teal-700);
+}
+
+@layer utilities {
+  .rtl-flip {
+    transform: scaleX(-1);
+  }
+}
