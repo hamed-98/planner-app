@@ -1,11 +1,15 @@
-import { BrainProfile } from '../supabase/brainGym';
+import { BrainProfile } from "../supabase/brainGym";
 
 export const MAX_HISTORY_LENGTH = 20;
 
 /**
  * اضافه کردن مقدار جدید به آرایه با حفظ سقف ۲۰ تایی (Moving Window)
  */
-export function pushWithLimit(arr: number[], value: number, limit = MAX_HISTORY_LENGTH): number[] {
+export function pushWithLimit(
+  arr: number[],
+  value: number,
+  limit = MAX_HISTORY_LENGTH,
+): number[] {
   const cleanArr = Array.isArray(arr) ? arr : [];
   return [...cleanArr.slice(-(limit - 1)), Math.round(value)];
 }
@@ -35,7 +39,10 @@ export function calculateBrainIndex(profile: BrainProfile): number {
 /**
  * محاسبه اثر تداخل استروپ (تفاوت زمان ناهمخوان از همخوان)
  */
-export function calculateStroopInterference(congruentTimes: number[], incongruentTimes: number[]): number {
+export function calculateStroopInterference(
+  congruentTimes: number[],
+  incongruentTimes: number[],
+): number {
   const avgCongruent = calculateAverage(congruentTimes) || 400;
   const avgIncongruent = calculateAverage(incongruentTimes) || 580;
   return Math.max(0, avgIncongruent - avgCongruent);
