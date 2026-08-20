@@ -1,21 +1,40 @@
 import { createClient, handleSupabaseError } from './client';
 import { Medicine } from '../../components/Dashboard';
 
-export async function getMedicines() {
+export async function getMedicines(): Promise<Medicine[] | null> {
   const supabase = createClient();
-  const { data, error } = await supabase.from('medicines').select('*');
+  
+  let localMeds: Medicine[] = [];
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('sayeban_medicines');
+      if (saved) localMeds = JSON.parse(saved);
+    } catch (e) {
+      console.warn('Error reading local medicines:', e);
+    }
+  }
+
+  const { data, error } = await (supabase as any).from('medicines').select('*');
   if (error) {
     handleSupabaseError('getMedicines', error);
-    return null;
+    return localMeds.length > 0 ? localMeds : null;
   }
   
-  return (data as any[]).map(m => ({
-    id: m.id,
-    name: m.name,
-    dosage: m.dosage || '',
-    time: m.reminder_times?.[0] || '12:00',
-    completedDates: [] // Schema doesn't track medicine logs right now, UI handles locally or ignores
-  })) as Medicine[];
+  const localMap = new Map(localMeds.map(m => [m.id, m]));
+
+  return (data as any[]).map(m => {
+    const local = localMap.get(m.id);
+    const dbDates = Array.isArray(m.completed_dates) ? m.completed_dates : [];
+    const mergedDates = dbDates.length > 0 ? dbDates : (local?.completedDates || []);
+
+    return {
+      id: m.id,
+      name: m.name,
+      dosage: m.dosage || '',
+      time: m.reminder_times?.[0] || '12:00',
+      completedDates: mergedDates
+    };
+  }) as Medicine[];
 }
 
 export async function addMedicine(med: Medicine) {
@@ -28,12 +47,14 @@ export async function addMedicine(med: Medicine) {
     user_id: user.id,
     name: med.name,
     dosage: med.dosage,
-    reminder_times: [med.time]
+    reminder_times: [med.time],
+    completed_dates: med.completedDates || []
   };
-  const { data, error } = await supabase.from('medicines').upsert(payload).select().single();
+
+  const { data, error } = await (supabase as any).from('medicines').upsert(payload).select().single();
 
   if (error) {
-    console.error('Error adding medicine:', error);
+    console.error('Error adding/updating medicine:', error);
     return null;
   }
 
@@ -43,11 +64,26 @@ export async function addMedicine(med: Medicine) {
     name: resData.name,
     dosage: resData.dosage || '',
     time: resData.reminder_times?.[0] || '12:00',
-    completedDates: []
+    completedDates: resData.completed_dates || med.completedDates || []
   } as Medicine;
+}
+
+export async function updateMedicineLog(id: string, completedDates: string[]) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { error } = await (supabase as any)
+    .from('medicines')
+    .update({ completed_dates: completedDates })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error updating medicine log:', error);
+  }
 }
 
 export async function deleteMedicine(id: string) {
   const supabase = createClient();
-  await supabase.from('medicines').delete().eq('id', id);
+  await (supabase as any).from('medicines').delete().eq('id', id);
 }

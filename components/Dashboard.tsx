@@ -5,7 +5,7 @@ import { getTasks, addTask as dbAddTask, updateTask as dbUpdateTask, deleteTask 
 import { getNotes, addNote as dbAddNote, updateNote as dbUpdateNote, deleteNote as dbDeleteNote } from '../lib/supabase/notes';
 import { getEvents, addEvent as dbAddEvent, deleteEvent as dbDeleteEvent } from '../lib/supabase/events';
 import { getHabits, addHabit as dbAddHabit, deleteHabit as dbDeleteHabit, toggleHabitLog } from '../lib/supabase/habits';
-import { getMedicines, addMedicine as dbAddMedicine, deleteMedicine as dbDeleteMedicine } from '../lib/supabase/medicines';
+import { getMedicines, addMedicine as dbAddMedicine, deleteMedicine as dbDeleteMedicine, updateMedicineLog } from '../lib/supabase/medicines';
 import { getHealthLogs, saveHealthLog } from '../lib/supabase/health';
 import { getProfile, updateProfile } from '../lib/supabase/profiles';
 import { getTickets } from '../lib/supabase/tickets';
@@ -171,9 +171,22 @@ const scheduleTaskUpdate = (id: string, t: Task) => {
 
 export default function Dashboard({ userName, onLogout }: DashboardProps) {
   const router = useRouter();
-  // Tabs: 'overview', 'planner', 'notes', 'tasks', 'health', 'settings', 'support', 'calendar', 'brain_gym'
-  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'notes' | 'tasks' | 'health' | 'settings' | 'support' | 'calendar' | 'brain_gym'>('overview');
-  
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'notes' | 'tasks' | 'health' | 'settings' | 'support' | 'calendar' | 'brain_gym'>(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem('sayeban_active_tab');
+      if (saved) return saved as any;
+    }
+    return 'overview';
+  });
+
+  const handleTabChange = (tab: typeof activeTab) => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem('sayeban_active_tab', tab);
+    }
+  };
+
   const [useJalaliCalendar, setUseJalaliCalendar] = useState(true);
   const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
   const [hasUnreadTickets, setHasUnreadTickets] = useState(false);
@@ -646,12 +659,21 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [noteAttachments, setNoteAttachments] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
   }, [chatLog, isAiResponding]);
-
   // Save changes to local persistence
   const saveEventsToLocal = (data: CalendarEvent[]) => {
     const prev = lastSavedEventsRef.current;
@@ -1366,6 +1388,8 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
     }
     let earned = false;
     let name = "";
+    let nextDates: string[] = [];
+
     const updated = medicines.map(m => {
       if (m.id === id) {
         const compl = !isMedicineCompleted(m);
@@ -1374,12 +1398,15 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
         const dates = new Set(m.completedDates || []);
         if (compl) dates.add(selectedDateISO);
         else dates.delete(selectedDateISO);
-        return { ...m, completedDates: Array.from(dates), completedToday: compl && selectedDateISO === todayISO };
+        nextDates = Array.from(dates);
+        return { ...m, completedDates: nextDates, completedToday: compl && selectedDateISO === todayISO };
       }
       return m;
     });
+
     saveMedicinesToLocal(updated);
-    showToast("وضعیت مصرف یادآور قرص ثبت شد. 💊", "success");
+    updateMedicineLog(id, nextDates); // 👈 ارسال به دیتابیس
+    showToast("وضعیت مصرف مکمل با موفقیت ثبت شد. 💊", "success");
     if (earned) {
       earnXp(10, `مصرف مکمل ${name}`);
     } else {
@@ -1568,7 +1595,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             <button 
               id="sidebar-btn-overview"
               type="button"
-              onClick={() => setActiveTab('overview')}
+              onClick={() => handleTabChange('overview')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='overview' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
             >
               <Grid className="w-4.5 h-4.5" />
@@ -1578,7 +1605,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             <button 
               id="sidebar-btn-planner"
               type="button"
-              onClick={() => setActiveTab('planner')}
+              onClick={() => handleTabChange('planner')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='planner' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
             >
               <Calendar className="w-4.5 h-4.5" />
@@ -1589,7 +1616,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             <button 
               id="sidebar-btn-calendar"
               type="button"
-              onClick={() => setActiveTab('calendar')}
+              onClick={() => handleTabChange('calendar')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='calendar' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
             >
               <Calendar className="w-4.5 h-4.5 text-indigo-500" />
@@ -1600,7 +1627,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             <button 
               id="sidebar-btn-notes"
               type="button"
-              onClick={() => setActiveTab('notes')}
+              onClick={() => handleTabChange('notes')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='notes' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
             >
               <BookOpen className="w-4.5 h-4.5" />
@@ -1610,7 +1637,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             <button 
               id="sidebar-btn-tasks"
               type="button"
-              onClick={() => setActiveTab('tasks')}
+              onClick={() => handleTabChange('tasks')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='tasks' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
             >
               <CheckSquare className="w-4.5 h-4.5" />
@@ -1623,7 +1650,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             <button 
               id="sidebar-btn-health"
               type="button"
-              onClick={() => setActiveTab('health')}
+              onClick={() => handleTabChange('health')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='health' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
             >
               <Activity className="w-4.5 h-4.5" />
@@ -1633,7 +1660,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             <button 
               id="sidebar-btn-brain-gym"
               type="button"
-              onClick={() => setActiveTab('brain_gym')}
+              onClick={() => handleTabChange('brain_gym')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='brain_gym' ? 'bg-purple-50 text-purple-700 border-r-4 border-purple-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
             >
               <Brain className="w-4.5 h-4.5 text-purple-500" />
@@ -1644,7 +1671,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             <button 
               id="sidebar-btn-settings"
               type="button"
-              onClick={() => setActiveTab('settings')}
+              onClick={() => handleTabChange('settings')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='settings' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
             >
               <Settings className="w-4.5 h-4.5" />
@@ -1654,7 +1681,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             <button 
               id="sidebar-btn-support"
               type="button"
-              onClick={() => setActiveTab('support')}
+              onClick={() => handleTabChange('support')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='support' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
             >
               <div className="relative">
@@ -2092,7 +2119,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <div ref={chatEndRef} />
+                <div />
               </div>
 
               <form onSubmit={handleChatSubmit} className="flex gap-2">
