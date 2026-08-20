@@ -62,6 +62,7 @@ import {
   MessageSquare,
   Brain
 } from 'lucide-react';
+import { calculateLevelData } from '@/lib/utils/brainMath';
 
 // Interfaces for our applet state
 export interface CalendarEvent {
@@ -243,8 +244,10 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
     return 150;
   });
 
-  const level = Math.floor(xp / 100) + 1;
-  const xpInCurrentLevel = xp % 100;
+  // const level = Math.floor(xp / 100) + 1;
+  // const xpInCurrentLevel = xp % 100;
+
+  const { level, title, xpInCurrentLevel, xpForNextLevel, progressPercent, xpRemaining } = calculateLevelData(xp);
 
   const earnXp = (amount: number, reason: string) => {
     setXp(prev => {
@@ -1504,7 +1507,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
           <div>
           {/* Logo & Identity */}
           <div 
-            className="flex items-center gap-3 mb-10 pb-6 border-b border-slate-50 cursor-pointer hover:opacity-80 transition-opacity"
+            className="flex items-center gap-3 mb-5 pb-2 border-b border-slate-50 cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => router.push('/')}
           >
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center text-white shadow-sm">
@@ -1532,19 +1535,30 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             </div>
 
             {/* Progress bar */}
-            <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex justify-between items-center text-[9px] font-bold text-slate-400">
-                <span>رشد کورتکس: {xpInCurrentLevel}/۱۰۰ XP</span>
-                <span>کل: {xp} XP</span>
+            <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex justify-between items-end">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[11px] font-black text-slate-800 dark:text-slate-200">
+                    {title} <span className="text-slate-400 font-bold">(سطح {level})</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400">
+                    رشد کورتکس: {xpInCurrentLevel} از {xpForNextLevel}
+                  </span>
+                </div>
+                <span className="text-[11px] font-black text-indigo-500 dark:text-indigo-400">
+                  کل: {xp} XP
+                </span>
               </div>
-              <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden shadow-inner">
                 <div 
-                  className="bg-gradient-to-r from-teal-500 to-indigo-500 h-full rounded-full transition-all duration-500" 
-                  style={{ width: `${xpInCurrentLevel}%` }}
-                />
+                  className="bg-gradient-to-r from-teal-400 to-indigo-500 h-full rounded-full transition-all duration-700 ease-out relative" 
+                  style={{ width: `${progressPercent}%` }}
+                >
+                  <div className="absolute top-0 right-0 bottom-0 left-0 bg-white/20 animate-pulse" />
+                </div>
               </div>
-              <p className="text-[8.5px] text-slate-500 dark:text-slate-400 leading-relaxed text-center font-bold">
-                🔥 {100 - xpInCurrentLevel} XP تا سطح {level + 1}
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed text-center font-bold">
+                🔥 فقط <span className="text-teal-600 dark:text-teal-400">{xpRemaining} XP</span> تا ارتقا به سطح {level + 1}
               </p>
             </div>
           </div>
@@ -1623,8 +1637,8 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='brain_gym' ? 'bg-purple-50 text-purple-700 border-r-4 border-purple-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
             >
               <Brain className="w-4.5 h-4.5 text-purple-500" />
-              <span>باشگاه مغز (Brain Gym)</span>
-              <span className="mr-auto text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 px-2.5 py-0.5 rounded-full font-sans font-bold">جدید</span>
+              <span>باشگاه مغز </span>
+              {/* <span className="mr-auto text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 px-2.5 py-0.5 rounded-full font-sans font-bold">جدید</span> */}
             </button>
 
             <button 
@@ -2231,27 +2245,46 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     const isToday = dateStr === todayISO;
                     const dailyEvents = events.filter(e => e.date === dateStr);
                     return (
-                      <div 
-                        key={dateStr} 
-                        className={`p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 border transition-colors ${isToday ? 'bg-teal-50/40 border-teal-300' : 'bg-slate-50 dark:bg-slate-950/30 border-slate-100 dark:border-slate-800'}`}
+                      <div
+                        key={dateStr}
+                        className={`p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 border transition-colors ${isToday ? "bg-indigo-50/70 border-indigo-300 dark:bg-indigo-950/40 dark:border-indigo-600" : "bg-slate-50/80 border-slate-200 dark:bg-slate-900/30 dark:border-slate-700"}`}
                       >
                         <div className="shrink-0">
-                          <h4 className="font-extrabold text-xs text-slate-900 dark:text-slate-100">{useJalaliCalendar ? getJalaliDate(dateStr) : dateStr}</h4>
-                          <span className="text-[10px] text-slate-400 font-medium">{isToday && '(امروز کورتکس)'}</span>
+                          <h4 className="font-extrabold text-xs text-slate-900 dark:text-slate-100">
+                            {useJalaliCalendar
+                              ? getJalaliDate(dateStr)
+                              : dateStr}
+                          </h4>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {isToday && "(امروز کورتکس)"}
+                          </span>
                         </div>
 
                         <div className="flex-1 flex flex-wrap gap-2">
-                          {dailyEvents.map(ev => {
-                            const colors = ev.category === 'health' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : ev.category === 'work' ? 'bg-teal-55 bg-teal-50 text-teal-800 border-teal-200' : 'bg-indigo-50 text-indigo-800 border-indigo-200';
+                          {dailyEvents.map((ev) => {
+                            const colors =
+                              ev.category === "health"
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                : ev.category === "work"
+                                  ? "bg-teal-55 bg-teal-50 text-teal-800 border-teal-200"
+                                  : "bg-indigo-50 text-indigo-800 border-indigo-200";
                             return (
-                              <div 
-                                key={ev.id} 
+                              <div
+                                key={ev.id}
                                 className={`px-2.5 py-1 text-xs rounded-xl border flex items-center gap-2 ${colors}`}
                               >
-                                <span className="font-mono text-[9px] font-bold">{ev.time}</span>
-                                <span className="font-medium font-sans">{ev.title}</span>
-                                <button 
-                                  onClick={() => saveEventsToLocal(events.filter(e => e.id !== ev.id))}
+                                <span className="font-mono text-[9px] font-bold">
+                                  {ev.time}
+                                </span>
+                                <span className="font-medium font-sans">
+                                  {ev.title}
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    saveEventsToLocal(
+                                      events.filter((e) => e.id !== ev.id),
+                                    )
+                                  }
                                   className="text-slate-450 hover:text-rose-500"
                                 >
                                   ✕
@@ -2260,7 +2293,9 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                             );
                           })}
                           {dailyEvents.length === 0 && (
-                            <span className="text-xs text-slate-400 italic">بدون قرار کاری یا ورزشی</span>
+                            <span className="text-xs text-slate-400 italic">
+                              بدون قرار کاری یا ورزشی
+                            </span>
                           )}
                         </div>
                       </div>
@@ -3134,7 +3169,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                       disabled={isSelectedDatePast || isSelectedDateFuture}
                       value={health.sleepHours}
                       onChange={(e) => saveHealthToLocal({ ...health, sleepHours: Number(e.target.value) })}
-                      className="w-full h-1.5 bg-slate-150 rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="w-full h-1 bg-white rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"
                     />
 
                     <div className="grid grid-cols-2 gap-3 text-xs pt-2">
@@ -3534,7 +3569,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                 />
 
                 <div className="flex gap-2 justify-end">
-                  <button 
+                  {/* <button 
                     type="button"
                     onClick={() => {
                       setQuickAddText("فردا ساعت ۱۸:۰۰ یاد آوری خرید مکمل اضافه کن");
@@ -3542,13 +3577,13 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     className="px-3.5 py-1.5 text-[10px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 font-medium"
                   >
                     سفر میانبر دمو
-                  </button>
+                  </button> */}
 
                   <button 
                     type="submit"
                     className="px-5 py-2.5 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700 shadow shadow-teal-500/10 cursor-pointer"
                   >
-                    پردازش عصبی گوگل
+                    پردازش عصبی 
                   </button>
                 </div>
               </form>
