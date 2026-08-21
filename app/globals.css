@@ -11,3 +11,6 @@
     transform: scaleX(-1);
   }
 }
+
+/* اجبار Tailwind 4 به پیروی از کلاس .dark تولید شده توسط next-themes */
+@variant dark (&:where(.dark, .dark *));

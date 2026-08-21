@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { BrainProfile } from '@/lib/supabase/brainGym';
 import { pushWithLimit } from '@/lib/utils/brainMath';
+import { RotateCcw, XCircle } from 'lucide-react';
 
 type SpatialDifficulty = 'easy' | 'medium' | 'hard' | 'advanced';
 type SpatialMode = 'normal' | 'reverse';
@@ -42,6 +43,15 @@ export default function SpatialMemoryGame({
   useEffect(() => {
     return () => clearAllTimeouts();
   }, [clearAllTimeouts]);
+
+  const handleCancelGame = () => {
+    clearAllTimeouts();
+    setSpatialActiveTile(null);
+    setSpatialUserSeq([]);
+    setSpatialGameState('idle');
+    setSpatialLevel(1);
+    showToast('چالش متوقف شد. می‌توانید سطح یا حالت را تغییر دهید.', 'info');
+  };
 
   const getGridConfig = (diff: SpatialDifficulty) => {
     switch (diff) {
@@ -152,6 +162,7 @@ export default function SpatialMemoryGame({
   };
 
   const cfg = getGridConfig(spatialDifficulty);
+  const isPlayingActive = spatialGameState === 'showing' || spatialGameState === 'user_turn';
 
   return (
     <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4 flex flex-col justify-between">
@@ -160,7 +171,19 @@ export default function SpatialMemoryGame({
           <span className="text-[10px] bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 px-2.5 py-0.5 rounded-full font-bold">
             حافظه فضایی
           </span>
-          <span className="text-xs font-bold text-slate-400">سطح {spatialLevel}</span>
+          {isPlayingActive && (
+            <button
+              type="button"
+              onClick={handleCancelGame}
+              className="text-[11px] text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              <span>انصراف</span>
+            </button>
+          )}
+          {!isPlayingActive && (
+            <span className="text-xs font-bold text-slate-400">سطح {spatialLevel}</span>
+          )}
         </div>
 
         <h3 className="font-black text-sm text-slate-900 dark:text-slate-100">چالش الگوی فضایی مغز</h3>
@@ -171,8 +194,8 @@ export default function SpatialMemoryGame({
             <select
               value={spatialDifficulty}
               onChange={e => setSpatialDifficulty(e.target.value as SpatialDifficulty)}
-              disabled={spatialGameState !== 'idle'}
-              className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold"
+              disabled={isPlayingActive}
+              className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold disabled:opacity-50"
             >
               <option value="easy">آسان (۳×۳ - ۳ الگو)</option>
               <option value="medium">متوسط (۳×۳ - ۴ الگو)</option>
@@ -186,8 +209,8 @@ export default function SpatialMemoryGame({
             <select
               value={spatialMode}
               onChange={e => setSpatialMode(e.target.value as SpatialMode)}
-              disabled={spatialGameState !== 'idle'}
-              className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold"
+              disabled={isPlayingActive}
+              className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold disabled:opacity-50"
             >
               <option value="normal">ترتیب مستقیم</option>
               <option value="reverse">الگوی معکوس 🔄</option>
@@ -232,16 +255,25 @@ export default function SpatialMemoryGame({
         )}
         {spatialGameState === 'user_turn' && (
           <div className="text-center text-xs font-bold text-emerald-600 dark:text-emerald-400 py-2">
-            {spatialMode === 'reverse' ? 'الگو را برعکس تکرار کنید!' : 'نوبت شماست! الگو را تکرار کنید'} ({spatialUserSeq.length} از {spatialSequence.length})
+            {spatialMode === 'reverse' ? 'الگو را برعکس تکرار کنید!' : 'نوبت شماست!'} ({spatialUserSeq.length} از {spatialSequence.length})
           </div>
         )}
         {(spatialGameState === 'success' || spatialGameState === 'failed') && (
-          <button
-            onClick={startSpatialGame}
-            className="w-full py-3 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl text-xs font-bold cursor-pointer hover:opacity-90"
-          >
-            تلاش مجدد
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={startSpatialGame}
+              className="py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+            >
+              تلاش مجدد
+            </button>
+            <button
+              onClick={() => setSpatialGameState('idle')}
+              className="py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-1 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>تغییر تنظیمات</span>
+            </button>
+          </div>
         )}
       </div>
     </div>

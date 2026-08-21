@@ -1,8 +1,7 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 let supabaseInstance: ReturnType<typeof createSupabaseClient> | null = null;
 
-// Checks if an error is related to JWT timestamp clock skew or expiration (PGRST303, PGRST301)
 export function isJwtError(error: any): boolean {
   if (!error) return false;
   const code = error.code || '';
@@ -19,11 +18,10 @@ export function isJwtError(error: any): boolean {
   );
 }
 
-// Unified error handler to prevent crashing or noisy logs on clock skew / transient auth errors
 export function handleSupabaseError(context: string, error: any) {
   if (!error) return;
   if (isJwtError(error)) {
-    console.warn(`[Supabase Auth] JWT clock skew/expiration detected in ${context}. Auto-recovering session.`);
+    console.warn(`[Supabase Auth] JWT issue in ${context}. Auto-recovering session.`);
     if (supabaseInstance) {
       supabaseInstance.auth.refreshSession().catch(() => {});
     }
@@ -35,17 +33,14 @@ export function handleSupabaseError(context: string, error: any) {
 export function createClient() {
   if (supabaseInstance) return supabaseInstance;
 
-  const getEnv = (key: string) => {
-    if (typeof window !== 'undefined' && (window as any).ENV && (window as any).ENV[key]) {
-      return (window as any).ENV[key];
-    }
-    return process.env[`NEXT_PUBLIC_${key}`] || process.env[key] || '';
-  };
+  // خواندن مستقیم و بدون ساختار داینامیک برای جایگذاری درست در باندل کلاینت
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-  const url = getEnv('SUPABASE_URL') || 'https://placeholder.supabase.co';
-  const key = getEnv('SUPABASE_ANON_KEY') || 'placeholder';
+  if (!url || url.includes('placeholder')) {
+    console.error('Supabase URL is missing or invalid in .env.local');
+  }
 
-  // Custom fetch interceptor to handle clock skew (PGRST303: JWT issued at future) and expired tokens
   const customFetch: typeof fetch = async (input, init) => {
     try {
       const response = await fetch(input, init);
@@ -61,7 +56,6 @@ export function createClient() {
             errorText.includes('JWT expired') ||
             errorText.includes('PGRST301')
           ) {
-            // Attempt to refresh session
             if (supabaseInstance) {
               try {
                 const { data } = await supabaseInstance.auth.refreshSession();
@@ -72,23 +66,10 @@ export function createClient() {
                   const retried = await fetch(input, { ...init, headers });
                   if (retried.ok) return retried;
                 }
-              } catch {
-                // If refresh fails, continue to anon fallback
-              }
-            }
-
-            // Fallback retry with anonymous key for readable queries
-            if (init && key && key !== 'placeholder') {
-              const headers = new Headers(init.headers || {});
-              headers.set('Authorization', `Bearer ${key}`);
-              headers.set('apikey', key);
-              const anonRetried = await fetch(input, { ...init, headers });
-              if (anonRetried.ok) return anonRetried;
+              } catch {}
             }
           }
-        } catch {
-          // Ignore parse errors on cloned response
-        }
+        } catch {}
       }
 
       return response;
@@ -110,4 +91,3 @@ export function createClient() {
 
   return supabaseInstance;
 }
-

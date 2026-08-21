@@ -17,14 +17,14 @@ export interface CbtRecord {
   id: string;
   situation: string;
   automaticThought: string;
-  initialBelief: number; // 0-100
+  initialBelief: number;
   emotion: string;
-  emotionIntensity: number; // 0-100
+  emotionIntensity: number;
   distortion: string;
   evidenceFor: string;
   evidenceAgainst: string;
   reframedThought: string;
-  newBelief: number; // 0-100
+  newBelief: number;
   date: string;
 }
 
@@ -36,7 +36,6 @@ export interface NeuroHabit {
   isCustom?: boolean;
 }
 
-// Default Neuroscience Articles
 export const DEFAULT_NEURO_ARTICLES = [
   {
     id: 'neuroplasticity',
@@ -46,9 +45,9 @@ export const DEFAULT_NEURO_ARTICLES = [
     icon: '🧠',
     summary: 'مغز انسان تا آخرین لحظه عمر قادر به تغییر سیم‌کشی و ایجاد مسیرهای سیناپسی جدید است.',
     content: `نوروپلاستیسیته (Neuroplasticity) به توانایی شگفت‌انگیز مغز در بازسازی خود از طریق ایجاد اتصالات عصبی جدید در طول زندگی اشاره دارد. 
-    هر بار که یادگیری جدیدی تجربه می‌کنید، یادگیری یک زبان تازه، یک ابزار موسیقی یا الگوی فکری سالم، نورون‌ها سیناپس‌های جدیدی تشکیل می‌دهند.
+    هر بار که یادگیری جدیدی تجربه می‌کنید، نورون‌ها سیناپس‌های جدیدی تشکیل می‌دهند.
     
-    📌 نکته کاربردی: تکرار و چالش دو کلید اصلی نوروپلاستیسیته هستند. اگر کاری بیش از حد آسان شود، مغز روی «حالت خودکار» (Default Mode Network) رفته و سیناپس‌سازی متوقف می‌شود.`
+    📌 نکته کاربردی: تکرار و چالش دو کلید اصلی نوروپلاستیسیته هستند. اگر کاری بیش از حد آسان شود، سیناپس‌سازی متوقف می‌شود.`
   },
   {
     id: 'dopamine-fasting',
@@ -57,35 +56,13 @@ export const DEFAULT_NEURO_ARTICLES = [
     readTime: '۴ دقیقه',
     icon: '⚡',
     summary: 'چگونه از فرسودگی دیجیتال جلوگیری کنیم و حساسیت گیرنده‌های دوپامین D2 را بازگردانیم.',
-    content: `دوپامین مولکول «پاداش» نیست، بلکه مولکول «پیش‌بینی پاداش و انگیزه» است. شبکه‌های اجتماعی با ارائه پاداش‌های متغیر، گیرنده‌های دوپامین مغز را اشباع می‌کنند.
+    content: `دوپامین مولکول پیش‌بینی پاداش و انگیزه است. شبکه‌های اجتماعی گیرنده‌های دوپامین مغز را اشباع می‌کنند.
     
-    📌 نکته کاربردی: با انجام روزانه ۶۰ دقیقه «سم‌زدایی دوپامین» (دور ماندن از گوشی در ابتدای روز)، حساسیت گیرنده‌های مغزی بازگشته و کارهای عمیق دوباره لذت‌بخش می‌شوند.`
-  },
-  {
-    id: 'decision-fatigue',
-    title: 'خستگی تصمیم‌گیری (Decision Fatigue)',
-    category: 'روانشناسی شناختی',
-    readTime: '۳ دقیقه',
-    icon: '⚖️',
-    summary: 'قشر پیش‌پیشانی (Prefrontal Cortex) ظرفیت محدودی برای اخذ تصمیمات روزانه دارد.',
-    content: `قشر پیش‌پیشانی مغز مسئول حل مسئله، کنترل تکانه و تصمیم‌گیری است. با هر تصمیمی که در طول روز می‌گیرید، گلوکز و انرژی شناختی این بخش کاهش می‌یابد.
-    
-    📌 نکته کاربردی: تصمیمات مهم و پرچالش را در ۲ ساعت اول صبح قرار دهید. برای تصمیمات کوچک (مانند وعده‌های غذایی)، روتین‌های ثابت ایجاد کنید.`
-  },
-  {
-    id: 'sleep-consolidation',
-    title: 'تثبیت حافظه و خواب REM و NREM',
-    category: 'نوروساینس خواب',
-    readTime: '۴ دقیقه',
-    icon: '🌙',
-    summary: 'بدون خواب کافی، اطلاعات ورودی از هیپوکامپ به قشر مغز منتقل نشده و فراموش می‌شوند.',
-    content: `در طول خواب عمیق (Deep NREM)، هیپوکامپ تجربیات روز را به قشر خاکستری مغز منتقل می‌کند تا حافظه بلندمدت شکل گیرد. سپس در خواب REM، خلاقیت شکل می‌گیرد.
-    
-    📌 نکته کاربردی: ۷ تا ۸ ساعت خواب باکیفیت مؤثرترین ابزار برای تقویت حافظه و پاکسازی پروتئین‌های سمی بتاآمیلوئید است.`
+    📌 نکته کاربردی: با انجام روزانه ۶۰ دقیقه دوری از موبایل در ابتدای روز، حساسیت گیرنده‌ها بازمی‌گردد.`
   }
 ];
 
-export const DEFAULT_NEURO_HABITS = [
+export const DEFAULT_NEURO_HABITS: NeuroHabit[] = [
   { id: '1', title: 'استفاده ۱۰ دقیقه‌ای از دست غیرمسلط (مسواک/نوشتن)', completed: false, xp: 15 },
   { id: '2', title: 'پیاده‌روی ۱۰ دقیقه‌ای بدون هندزفری و گوشی (مشاهده محیط)', completed: false, xp: 15 },
   { id: '3', title: 'یادگیری و یادداشت ۳ واژه یا مفهوم تخصصی جدید', completed: false, xp: 20 },
@@ -106,39 +83,13 @@ export const ZERO_BRAIN_PROFILE: BrainProfile = {
   unlockedBadges: []
 };
 
-// Helper to convert habit id to deterministic DB id
-function getHabitDbId(userId: string, habitId: string): string {
-  if (['1', '2', '3', '4', '5'].includes(habitId)) {
-    if (userId.length === 36) {
-      return userId.slice(0, 35) + habitId;
-    }
-    return `habit_${userId}_${habitId}`;
-  }
-  return habitId;
-}
-
-// Helper to extract missing column name from PostgREST schema cache errors (e.g. PGRST204)
-function extractMissingColumn(error: any): string | null {
-  if (!error) return null;
-  const msg = (error.message || error.details || '') + ' ' + (typeof error === 'string' ? error : '');
-  const match = msg.match(/Could not find the '([^']+)' column/i);
-  if (match && match[1]) return match[1];
-  return null;
-}
-
-// Helper to parse arrays from jsonb, json string or fallback
 function parseNumberArray(val: any): number[] {
-  if (Array.isArray(val)) {
-    return val.map(Number).filter(n => !isNaN(n));
-  }
+  if (Array.isArray(val)) return val.map(Number).filter(n => !isNaN(n));
   if (typeof val === 'string' && val.trim()) {
     try {
       const parsed = JSON.parse(val);
-      if (Array.isArray(parsed)) {
-        return parsed.map(Number).filter(n => !isNaN(n));
-      }
+      if (Array.isArray(parsed)) return parsed.map(Number).filter(n => !isNaN(n));
     } catch {
-      // Not JSON, check if comma-separated
       const nums = val.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
       if (nums.length > 0) return nums;
     }
@@ -147,15 +98,11 @@ function parseNumberArray(val: any): number[] {
 }
 
 function parseStringArray(val: any): string[] {
-  if (Array.isArray(val)) {
-    return val.map(String).filter(Boolean);
-  }
+  if (Array.isArray(val)) return val.map(String).filter(Boolean);
   if (typeof val === 'string' && val.trim()) {
     try {
       const parsed = JSON.parse(val);
-      if (Array.isArray(parsed)) {
-        return parsed.map(String).filter(Boolean);
-      }
+      if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
     } catch {
       return val.split(',').map(s => s.trim()).filter(Boolean);
     }
@@ -163,10 +110,10 @@ function parseStringArray(val: any): string[] {
   return [];
 }
 
-// --- BRAIN PROFILE SUPABASE HELPERS ---
 export async function getBrainProfile(): Promise<BrainProfile> {
   const supabase = createClient();
   let localProfile: BrainProfile | null = null;
+  
   if (typeof window !== 'undefined') {
     try {
       const local = localStorage.getItem('sayeban_brain_profile');
@@ -178,9 +125,7 @@ export async function getBrainProfile(): Promise<BrainProfile> {
 
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return localProfile || ZERO_BRAIN_PROFILE;
-    }
+    if (!user) return localProfile || ZERO_BRAIN_PROFILE;
 
     const { data, error } = await (supabase as any)
       .from('brain_profiles')
@@ -188,52 +133,35 @@ export async function getBrainProfile(): Promise<BrainProfile> {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
-      console.warn('Error fetching brain profile from Supabase:', error);
+    if (error) {
+      console.error('Supabase getBrainProfile error:', error.message);
+      return localProfile || ZERO_BRAIN_PROFILE;
     }
 
-    const row = data as any;
-    if (row) {
-      const supabaseAccuracies = parseNumberArray(row.total_accuracies);
-      const supabaseReactions = parseNumberArray(row.reaction_times);
-      const supabaseBadges = parseStringArray(row.unlocked_badges);
-
-      // Merge with localStorage if Supabase arrays are empty (e.g. before schema update)
-      const mergedAccuracies = supabaseAccuracies.length > 0 
-        ? supabaseAccuracies 
-        : (localProfile?.totalAccuracies && localProfile.totalAccuracies.length > 0 ? localProfile.totalAccuracies : []);
-
-      const mergedReactions = supabaseReactions.length > 0 
-        ? supabaseReactions 
-        : (localProfile?.reactionTimes && localProfile.reactionTimes.length > 0 ? localProfile.reactionTimes : []);
-
-      const mergedBadges = supabaseBadges.length > 0 
-        ? supabaseBadges 
-        : (localProfile?.unlockedBadges && localProfile.unlockedBadges.length > 0 ? localProfile.unlockedBadges : []);
+    if (data) {
+      const dbAccuracies = parseNumberArray(data.total_accuracies);
+      const dbReactions = parseNumberArray(data.reaction_times);
+      const dbBadges = parseStringArray(data.unlocked_badges);
 
       const profile: BrainProfile = {
-        memoryScore: Math.max(row.memory_score ?? 0, localProfile?.memoryScore ?? 0),
-        flexibilityScore: Math.max(row.flexibility_score ?? 0, localProfile?.flexibilityScore ?? 0),
-        processingSpeed: Math.max(row.processing_speed ?? 0, localProfile?.processingSpeed ?? 0),
-        focusEnergy: Math.max(row.focus_energy ?? 0, localProfile?.focusEnergy ?? 0),
-        gamesPlayed: Math.max(row.games_played ?? 0, localProfile?.gamesPlayed ?? 0),
-        totalAccuracies: mergedAccuracies,
-        reactionTimes: mergedReactions,
-        streakDays: Math.max(row.streak_days ?? 0, localProfile?.streakDays ?? 0),
-        lastPlayedDate: row.last_played_date || localProfile?.lastPlayedDate || '',
-        unlockedBadges: mergedBadges
+        memoryScore: Number(data.memory_score ?? 0),
+        flexibilityScore: Number(data.flexibility_score ?? 0),
+        processingSpeed: Number(data.processing_speed ?? 0),
+        focusEnergy: Number(data.focus_energy ?? 0),
+        gamesPlayed: Number(data.games_played ?? 0),
+        totalAccuracies: dbAccuracies,
+        reactionTimes: dbReactions,
+        streakDays: Number(data.streak_days ?? 0),
+        lastPlayedDate: data.last_played_date || '',
+        unlockedBadges: dbBadges
       };
 
-      // Keep localStorage in sync
       if (typeof window !== 'undefined') {
         localStorage.setItem('sayeban_brain_profile', JSON.stringify(profile));
       }
-
       return profile;
-    } else {
-      // No Supabase row yet, return local profile or zero
-      return localProfile || ZERO_BRAIN_PROFILE;
     }
+    return localProfile || ZERO_BRAIN_PROFILE;
   } catch (err) {
     console.error('getBrainProfile failed:', err);
     return localProfile || ZERO_BRAIN_PROFILE;
@@ -241,7 +169,7 @@ export async function getBrainProfile(): Promise<BrainProfile> {
 }
 
 export async function saveBrainProfile(profile: BrainProfile): Promise<boolean> {
-  // Always update localStorage as immediate cache
+  // ۱. ذخیره آنی در کش لوکال برای سرعت بالای رابط کاربری
   if (typeof window !== 'undefined') {
     localStorage.setItem('sayeban_brain_profile', JSON.stringify(profile));
   }
@@ -250,136 +178,60 @@ export async function saveBrainProfile(profile: BrainProfile): Promise<boolean> 
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.warn('saveBrainProfile: No active user logged in.');
-      throw new Error('برای ذخیره دائمی در سوپابیس ابتدا باید وارد حساب کاربری شوید.');
+      console.warn('saveBrainProfile: کاربر لاگین نیست.');
+      return true;
     }
 
-    let payload: Record<string, any> = {
+    const payload = {
       user_id: user.id,
       memory_score: profile.memoryScore,
       flexibility_score: profile.flexibilityScore,
       processing_speed: profile.processingSpeed,
       focus_energy: profile.focusEnergy,
       games_played: profile.gamesPlayed,
-      total_accuracies: profile.totalAccuracies,
-      reaction_times: profile.reactionTimes,
-      streak_days: profile.streakDays,
-      last_played_date: profile.lastPlayedDate,
-      unlocked_badges: profile.unlockedBadges,
+      total_accuracies: profile.totalAccuracies || [],
+      reaction_times: profile.reactionTimes || [],
+      streak_days: profile.streakDays || 0,
+      last_played_date: profile.lastPlayedDate || new Date().toISOString().split('T')[0],
+      unlocked_badges: profile.unlockedBadges || [],
       updated_at: new Date().toISOString()
     };
 
-    // Attempt save with automatic missing-column stripping loop
-    let lastError: any = null;
-    for (let attempt = 0; attempt < 6; attempt++) {
-      // 1. Try upsert
-      const { error: upsertErr } = await (supabase as any)
-        .from('brain_profiles')
-        .upsert(payload, { onConflict: 'user_id' });
+    const { error } = await (supabase as any)
+      .from('brain_profiles')
+      .upsert(payload, { onConflict: 'user_id' });
 
-      if (!upsertErr) return true;
-
-      const missingCol = extractMissingColumn(upsertErr);
-      if (missingCol && payload[missingCol] !== undefined) {
-        console.warn(`Column '${missingCol}' not found in brain_profiles table. Retrying without it...`);
-        delete payload[missingCol];
-        lastError = upsertErr;
-        continue;
-      }
-
-      // 2. Fallback check & update or insert
-      const { data: existing } = await (supabase as any)
-        .from('brain_profiles')
-        .select('user_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (existing) {
-        const { error: updateErr } = await (supabase as any)
-          .from('brain_profiles')
-          .update(payload)
-          .eq('user_id', user.id);
-
-        if (!updateErr) return true;
-
-        const missingColUp = extractMissingColumn(updateErr);
-        if (missingColUp && payload[missingColUp] !== undefined) {
-          delete payload[missingColUp];
-          lastError = updateErr;
-          continue;
-        }
-        lastError = updateErr;
-      } else {
-        const { error: insertErr } = await (supabase as any)
-          .from('brain_profiles')
-          .insert(payload);
-
-        if (!insertErr) return true;
-
-        const missingColIns = extractMissingColumn(insertErr);
-        if (missingColIns && payload[missingColIns] !== undefined) {
-          delete payload[missingColIns];
-          lastError = insertErr;
-          continue;
-        }
-        lastError = insertErr;
-      }
-      break;
+    if (error) {
+      console.error('Error saving brain profile to Supabase:', error.message);
+      throw new Error(`خطا در همگام‌سازی ابری باشگاه مغز: ${error.message}`);
     }
-
-    if (lastError) {
-      throw new Error(`خطا در ذخیره پروفایل: ${lastError.message} (کد ${lastError.code || 'ERR'})`);
-    }
-
     return true;
   } catch (err: any) {
-    console.error('saveBrainProfile error:', err);
-    throw new Error(err.message || 'خطا در برقراری ارتباط با دیتابیس سوپابیس');
+    console.error('saveBrainProfile fatal error:', err);
+    throw err;
   }
 }
 
-// --- CBT RECORDS SUPABASE HELPERS ---
 export async function getCbtRecords(): Promise<CbtRecord[]> {
   const supabase = createClient();
+  let localCbts: CbtRecord[] = [];
+  if (typeof window !== 'undefined') {
+    const local = localStorage.getItem('sayeban_cbt_records');
+    if (local) localCbts = JSON.parse(local);
+  }
+
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      const local = typeof window !== 'undefined' ? localStorage.getItem('sayeban_cbt_records') : null;
-      return local ? JSON.parse(local) : [];
-    }
+    if (!user) return localCbts;
 
-    // Try cbt_records first, fallback to cbt_thought_records
-    let recordsData: any[] | null = null;
-    let fetchError: any = null;
-
-    const res1 = await (supabase as any)
+    const { data, error } = await (supabase as any)
       .from('cbt_records')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
-    if (!res1.error && res1.data) {
-      recordsData = res1.data;
-    } else {
-      fetchError = res1.error;
-      // Try cbt_thought_records
-      const res2 = await (supabase as any)
-        .from('cbt_thought_records')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (!res2.error && res2.data) {
-        recordsData = res2.data;
-      }
-    }
-
-    if (fetchError && !recordsData) {
-      console.warn('Error fetching CBT records from Supabase:', fetchError);
-    }
-
-    if (recordsData && recordsData.length > 0) {
-      return recordsData.map((item: any) => ({
+    if (!error && data && data.length > 0) {
+      const records = data.map((item: any) => ({
         id: item.id,
         situation: item.situation || '',
         automaticThought: item.automatic_thought || '',
@@ -393,29 +245,32 @@ export async function getCbtRecords(): Promise<CbtRecord[]> {
         newBelief: item.new_belief ?? 50,
         date: item.created_at ? new Date(item.created_at).toLocaleDateString('fa-IR') : ''
       }));
-    } else {
-      return [];
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('sayeban_cbt_records', JSON.stringify(records));
+      }
+      return records;
     }
+    return localCbts;
   } catch (err) {
-    console.error('getCbtRecords error:', err);
-    const local = typeof window !== 'undefined' ? localStorage.getItem('sayeban_cbt_records') : null;
-    return local ? JSON.parse(local) : [];
+    return localCbts;
   }
 }
 
 export async function addCbtRecord(record: CbtRecord): Promise<boolean> {
+  if (typeof window !== 'undefined') {
+    const local = localStorage.getItem('sayeban_cbt_records');
+    const existing = local ? JSON.parse(local) : [];
+    localStorage.setItem('sayeban_cbt_records', JSON.stringify([record, ...existing]));
+  }
+
   const supabase = createClient();
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.warn('addCbtRecord: No active user logged in.');
-      throw new Error('برای ثبت چرخه CBT باید ابتدا وارد حساب کاربری شوید.');
-    }
+    if (!user) return true;
 
-    const recordId = record.id && record.id.length > 5 ? record.id : (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'cbt_' + Date.now());
-
-    let payload: Record<string, any> = {
-      id: recordId,
+    const payload = {
+      id: record.id,
       user_id: user.id,
       situation: record.situation,
       automatic_thought: record.automaticThought,
@@ -430,79 +285,60 @@ export async function addCbtRecord(record: CbtRecord): Promise<boolean> {
       created_at: new Date().toISOString()
     };
 
-    // Try cbt_records first, if fails try cbt_thought_records
-    const tablesToTry = ['cbt_records', 'cbt_thought_records'];
-    let lastErr: any = null;
-
-    for (const table of tablesToTry) {
-      const { error: upsertErr } = await (supabase as any).from(table).upsert(payload);
-      if (!upsertErr) return true;
-
-      const missingCol = extractMissingColumn(upsertErr);
-      if (missingCol && payload[missingCol] !== undefined) {
-        delete payload[missingCol];
-      }
-
-      const { error: insertErr } = await (supabase as any).from(table).insert(payload);
-      if (!insertErr) return true;
-      lastErr = insertErr;
-    }
-
-    if (lastErr) {
-      console.error('Error adding CBT record to Supabase:', lastErr);
-      throw new Error(`خطا در ذخیره CBT: ${lastErr.message} (کد ${lastErr.code || 'ERR'})`);
-    }
+    await (supabase as any).from('cbt_records').upsert(payload, { onConflict: 'id' });
     return true;
-  } catch (err: any) {
-    console.error('addCbtRecord error:', err);
-    throw new Error(err.message || 'خطا در ثبت چرخه CBT در سوپابیس');
+  } catch (err) {
+    return false;
   }
 }
 
 export async function deleteCbtRecord(id: string): Promise<boolean> {
+  if (typeof window !== 'undefined') {
+    const local = localStorage.getItem('sayeban_cbt_records');
+    if (local) {
+      const filtered = JSON.parse(local).filter((r: any) => r.id !== id);
+      localStorage.setItem('sayeban_cbt_records', JSON.stringify(filtered));
+    }
+  }
+
   const supabase = createClient();
   try {
-    // Delete from both possible tables
     await (supabase as any).from('cbt_records').delete().eq('id', id);
-    await (supabase as any).from('cbt_thought_records').delete().eq('id', id);
     return true;
-  } catch (err: any) {
-    console.error('deleteCbtRecord error:', err);
-    throw new Error(err.message || 'خطا در حذف ریکورد از سوپابیس');
+  } catch {
+    return false;
   }
 }
 
-// --- NEURO HABITS SUPABASE HELPERS ---
 export async function getNeuroHabits(): Promise<NeuroHabit[]> {
   const supabase = createClient();
+  let localHabits: NeuroHabit[] = DEFAULT_NEURO_HABITS;
+  if (typeof window !== 'undefined') {
+    const local = localStorage.getItem('sayeban_neuro_habits_v2');
+    if (local) {
+      try {
+        localHabits = JSON.parse(local);
+      } catch {}
+    }
+  }
+
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      const local = typeof window !== 'undefined' ? localStorage.getItem('sayeban_neuro_habits_v2') : null;
-      return local ? JSON.parse(local) : DEFAULT_NEURO_HABITS;
-    }
+    if (!user) return localHabits;
 
     const { data, error } = await (supabase as any)
       .from('neuro_habits')
       .select('*')
       .eq('user_id', user.id);
 
-    if (error || !data) {
-      if (error) handleSupabaseError('getNeuroHabits', error);
-      return DEFAULT_NEURO_HABITS;
+    if (error || !data || data.length === 0) {
+      return localHabits;
     }
 
-    const habitsFromDbMap = new Map<string, NeuroHabit>();
+    const habitsMap = new Map<string, NeuroHabit>();
     data.forEach((item: any) => {
-      let cleanId = item.id;
-      if (user.id.length === 36 && item.id.startsWith(user.id.slice(0, 35))) {
-        cleanId = item.id.slice(35);
-      } else if (cleanId.startsWith(`habit_${user.id}_`)) {
-        cleanId = cleanId.replace(`habit_${user.id}_`, '');
-      }
-
-      habitsFromDbMap.set(cleanId, {
-        id: cleanId,
+      habitsMap.set(item.id, {
+        id: item.id,
         title: item.title,
         completed: !!item.completed,
         xp: item.xp || 15,
@@ -510,39 +346,42 @@ export async function getNeuroHabits(): Promise<NeuroHabit[]> {
       });
     });
 
-    const merged: NeuroHabit[] = [];
-    DEFAULT_NEURO_HABITS.forEach(def => {
-      if (habitsFromDbMap.has(def.id)) {
-        merged.push(habitsFromDbMap.get(def.id)!);
-        habitsFromDbMap.delete(def.id);
-      } else {
-        merged.push(def);
+    const merged: NeuroHabit[] = DEFAULT_NEURO_HABITS.map(def => {
+      if (habitsMap.has(def.id)) {
+        const dbItem = habitsMap.get(def.id)!;
+        habitsMap.delete(def.id);
+        return dbItem;
       }
+      return def;
     });
 
-    habitsFromDbMap.forEach(customH => merged.push(customH));
+    habitsMap.forEach(customH => merged.push(customH));
 
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sayeban_neuro_habits_v2', JSON.stringify(merged));
+    }
     return merged;
   } catch (err) {
-    console.error('getNeuroHabits error:', err);
-    const local = typeof window !== 'undefined' ? localStorage.getItem('sayeban_neuro_habits_v2') : null;
-    return local ? JSON.parse(local) : DEFAULT_NEURO_HABITS;
+    return localHabits;
   }
 }
 
 export async function saveNeuroHabit(habit: NeuroHabit): Promise<boolean> {
+  if (typeof window !== 'undefined') {
+    const local = localStorage.getItem('sayeban_neuro_habits_v2');
+    const habits: NeuroHabit[] = local ? JSON.parse(local) : DEFAULT_NEURO_HABITS;
+    const exists = habits.some(h => h.id === habit.id);
+    const updated = exists ? habits.map(h => h.id === habit.id ? habit : h) : [...habits, habit];
+    localStorage.setItem('sayeban_neuro_habits_v2', JSON.stringify(updated));
+  }
+
   const supabase = createClient();
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.warn('saveNeuroHabit: No active user logged in.');
-      throw new Error('برای ذخیره عادات در سوپابیس ابتدا وارد حساب کاربری شوید.');
-    }
+    if (!user) return true;
 
-    const dbId = getHabitDbId(user.id, habit.id);
-
-    let payload: Record<string, any> = {
-      id: dbId,
+    const payload = {
+      id: habit.id,
       user_id: user.id,
       title: habit.title,
       completed: habit.completed,
@@ -551,57 +390,20 @@ export async function saveNeuroHabit(habit: NeuroHabit): Promise<boolean> {
       updated_at: new Date().toISOString()
     };
 
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const { error: upsertErr } = await (supabase as any).from('neuro_habits').upsert(payload);
-      if (!upsertErr) return true;
+    const { error } = await (supabase as any)
+      .from('neuro_habits')
+      .upsert(payload, { onConflict: 'id' });
 
-      const missingCol = extractMissingColumn(upsertErr);
-      if (missingCol && payload[missingCol] !== undefined) {
-        delete payload[missingCol];
-        continue;
-      }
-
-      const { data: existing } = await (supabase as any)
-        .from('neuro_habits')
-        .select('id')
-        .eq('id', dbId)
-        .maybeSingle();
-
-      if (existing) {
-        const { error: updateErr } = await (supabase as any)
-          .from('neuro_habits')
-          .update(payload)
-          .eq('id', dbId);
-
-        if (!updateErr) return true;
-        const missingColUp = extractMissingColumn(updateErr);
-        if (missingColUp && payload[missingColUp] !== undefined) {
-          delete payload[missingColUp];
-          continue;
-        }
-      } else {
-        const { error: insertErr } = await (supabase as any)
-          .from('neuro_habits')
-          .insert(payload);
-
-        if (!insertErr) return true;
-        const missingColIns = extractMissingColumn(insertErr);
-        if (missingColIns && payload[missingColIns] !== undefined) {
-          delete payload[missingColIns];
-          continue;
-        }
-      }
-      break;
+    if (error) {
+      console.warn('saveNeuroHabit Supabase notice:', error.message);
     }
-
     return true;
-  } catch (err: any) {
+  } catch (err) {
     console.error('saveNeuroHabit error:', err);
-    throw new Error(err.message || 'خطا در ذخیره عادت در سوپابیس');
+    return false;
   }
 }
 
-// --- GLOBAL ARTICLES FROM ADMIN ---
 export async function getNeuroArticlesGlobal(): Promise<any[]> {
   const supabase = createClient();
   try {
@@ -611,12 +413,9 @@ export async function getNeuroArticlesGlobal(): Promise<any[]> {
       .eq('id', 'neuro_articles')
       .maybeSingle();
 
-    const res = data as any;
-    if (res && res.value && Array.isArray(res.value) && res.value.length > 0) {
-      return res.value;
+    if (data?.value && Array.isArray(data.value) && data.value.length > 0) {
+      return data.value;
     }
-  } catch (e) {
-    console.error('getNeuroArticlesGlobal error:', e);
-  }
+  } catch (e) {}
   return DEFAULT_NEURO_ARTICLES;
 }

@@ -60,9 +60,12 @@ import {
   SkipBack,
   Music,
   MessageSquare,
-  Brain
+  Brain,
+  Sun,
+  Monitor
 } from 'lucide-react';
 import { calculateLevelData } from '@/lib/utils/brainMath';
+import { useTheme } from 'next-themes';
 
 // Interfaces for our applet state
 export interface CalendarEvent {
@@ -171,6 +174,13 @@ const scheduleTaskUpdate = (id: string, t: Task) => {
 
 export default function Dashboard({ userName, onLogout }: DashboardProps) {
   const router = useRouter();
+
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'notes' | 'tasks' | 'health' | 'settings' | 'support' | 'calendar' | 'brain_gym'>(() => {
     if (typeof window !== "undefined") {
@@ -512,7 +522,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   });
 
   const saveDailyHealth = (dateISO: string, data: Partial<{ waterToday: number; sleepHours: number; sleepQuality: 'excellent' | 'good' | 'fair' | 'poor'; moodScore: number; weight: number; }>) => {
-    const prev = dailyHealthData[dateISO] || { waterToday: 0, sleepHours: 7, sleepQuality: 'good', moodScore: 3, weight: 72 };
+    const prev = dailyHealthData[dateISO] || { waterToday: 0, sleepHours: 7, sleepQuality: 'good', moodScore: 3, weight: userWeight };
     const updatedDaily = { ...prev, ...data };
     const newData = { ...dailyHealthData, [dateISO]: updatedDaily };
     setDailyHealthData(newData);
@@ -543,7 +553,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   const selectedDateJalali = selectedDateISO ? getJalaliDate(selectedDateISO) : "";
   const selectedDateGregorian = selectedDateISO ? new Intl.DateTimeFormat('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(selectedDateISO)) : "";
 
-  const activeDailyHealth = dailyHealthData[selectedDateISO] || { waterToday: 0, sleepHours: 7, sleepQuality: 'good' as const, moodScore: 3 };
+  const activeDailyHealth = dailyHealthData[selectedDateISO] || { waterToday: 0, sleepHours: 0, sleepQuality: 'fair' as const, moodScore: 3 };
   const health = { ...globalHealth, ...activeDailyHealth };
 
   const isSelectedDatePast = !!(selectedDateISO && todayISO && selectedDateISO < todayISO);
@@ -728,6 +738,9 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
     });
     setGlobalHealth(data);
     localStorage.setItem('sayeban_health', JSON.stringify(data));
+
+    // باطل کردن کش هوش مصنوعی همان روز تا تحلیل بلافاصله آپدیت شود
+    localStorage.removeItem(`sayeban_daily_ai_tip_${selectedDateISO}`);
   };
 
   const saveHabitsToLocal = (data: Habit[]) => {
@@ -787,13 +800,49 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   });
 
   const saveUserWeight = (w: number) => {
-    setUserWeight(w);
-    localStorage.setItem('sayeban_user_weight', String(w));
-    // Under the hood, sync this weight to today's database log so that database weight tracking still works!
-    const todayStr = new Date().toISOString().split('T')[0];
-    saveDailyHealth(todayStr, {
-      weight: w
-    });
+    const cleanWeight = Math.max(30, Math.min(250, Number(w.toFixed(1))));
+    setUserWeight(cleanWeight);
+    localStorage.setItem('sayeban_user_weight', String(cleanWeight));
+    
+    // به‌روزرسانی وزن در تاریخ انتخاب شده و دیتابیس
+    saveDailyHealth(selectedDateISO || todayISO, { weight: cleanWeight });
+  };
+
+  const handleAddWater = (amount: number) => {
+    if (isSelectedDatePast || isSelectedDateFuture) return;
+    
+    const currentWater = health.waterToday;
+    const nextWater = Math.min(4000, currentWater + amount); // سقف ۴ لیتر در روز
+    
+    if (nextWater === currentWater) {
+      showToast("به سقف مجاز مصرف آب روزانه (۴۰۰۰ml) رسیده‌اید.", "info");
+      return;
+    }
+
+    saveHealthToLocal({ ...health, waterToday: nextWater });
+
+    // اعطای امتیاز فقط در لحظه عبور از هدف ۲۵۰۰ml و فقط یکبار در روز
+    const waterXpKey = `water_xp_${selectedDateISO}`;
+    if (nextWater >= 2500 && currentWater < 2500 && !localStorage.getItem(waterXpKey)) {
+      earnXp(20, "تکمیل هدف نوشیدن ۲۵۰۰ میلی‌لیتر آب روزانه 💧");
+      localStorage.setItem(waterXpKey, 'true');
+    }
+  };
+
+  const handleSelectMood = (score: number, label: string) => {
+    if (isSelectedDatePast || isSelectedDateFuture) return;
+
+    saveHealthToLocal({ ...health, moodScore: score });
+    saveMoodLog(selectedDateISO, score);
+
+    const moodXpKey = `mood_xp_${selectedDateISO}`;
+    if (!localStorage.getItem(moodXpKey)) {
+      earnXp(10, `ثبت اولین پایش روحی امروز (${label})`);
+      localStorage.setItem(moodXpKey, 'true');
+      showToast(`حال روحی شما روی "${label}" ثبت شد (+۱۰ XP)`, "success");
+    } else {
+      showToast(`حال روحی به "${label}" به‌روزرسانی شد.`, "info");
+    }
   };
 
   const [moodLogs, setMoodLogs] = useState<{ date: string; mood: number }[]>(() => {
@@ -914,20 +963,21 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   useEffect(() => {
     if (!userName || !selectedDateISO) return;
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    if (selectedDateISO > todayStr) {
+    // مقایسه بر اساس تاریخ واقعی محلی
+    const currentLocalToday = todayISO || getLocalISOString(new Date());
+    if (selectedDateISO > currentLocalToday) {
       setTimeout(() => setAiTip("روز انتخاب شده در آینده است! امکان تحلیل آینده وجود ندارد."), 0);
       return;
     }
 
-    // Check if we have cached analysis for this selectedDateISO
+    // بررسی کش تحلیل برای روز انتخاب‌شده
     const cached = typeof window !== "undefined" ? localStorage.getItem(`sayeban_daily_ai_tip_${selectedDateISO}`) : null;
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
         if (parsed.date === selectedDateISO && parsed.tip) {
           setTimeout(() => setAiTip(parsed.tip), 0);
-          return; // Skip auto-generating since we have a cache!
+          return;
         }
       } catch (e) {}
     }
@@ -939,6 +989,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       sleepQuality: health.sleepQuality,
       moodScore: health.moodScore,
       weight: userWeight,
+      eventsToday: events.filter(e => e.date === selectedDateISO).length, 
       completedTasksToday: tasks.filter(t => t.dueDate === selectedDateISO && t.status === 'done').length,
       pendingTasksToday: tasks.filter(t => t.dueDate === selectedDateISO && t.status !== 'done').length,
       totalMedicinesToday: medicines.length,
@@ -947,14 +998,12 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       completedHabitsToday: habits.filter(h => isHabitCompleted(h)).length,
     };
 
-    // Use a slight timeout delay to completely isolate state updates from synchronous effect triggers
     const timer = setTimeout(() => {
       fetchSmartAiAnalysis(analyzeData, false);
     }, 800);
 
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userName, selectedDateISO]);
+  }, [userName, selectedDateISO, todayISO]);
 
 
   // Handle Smart Chat with Assistant
@@ -1316,7 +1365,8 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   };
 
   function isHabitCompleted(h: Habit) {
-    return (h.completedDates || []).includes(selectedDateISO) || (h.completedToday && selectedDateISO === new Date().toISOString().split('T')[0]);
+    const currentLocalToday = todayISO || getLocalISOString(new Date());
+    return (h.completedDates || []).includes(selectedDateISO) || (h.completedToday && selectedDateISO === currentLocalToday);
   }
   
   const toggleHabit = (id: string) => {
@@ -1512,12 +1562,24 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
           </div>
         </div>
 
-        <button 
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="px-3 py-1.5 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition-colors border border-slate-100 dark:border-slate-800 cursor-pointer"
-        >
-          {isMobileMenuOpen ? 'بستن منو ✕' : 'منوی ابزارها ☰'}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Quick Theme Switcher Button */}
+          <button 
+            type="button"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
+            title="تغییر تم"
+          >
+            {mounted && theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
+          </button>
+
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="px-3 py-1.5 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition-colors border border-slate-100 dark:border-slate-800 cursor-pointer"
+          >
+            {isMobileMenuOpen ? 'بستن منو ✕' : 'منوی ابزارها ☰'}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Drawer Overlay Backdrop */}
@@ -1742,7 +1804,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-4 sm:p-8 overflow-y-auto max-w-7xl mx-auto w-full dark:bg-[#0B1120] md:dark:rounded-tl-3xl border-t border-r border-transparent dark:border-slate-800/50">
+      <main className="flex-1 p-4 sm:p-8 overflow-y-auto max-w-7xl mx-auto w-full bg-[#FAFCFC] dark:bg-[#0B1120] md:rounded-tl-3xl border-t border-r border-transparent dark:border-slate-800/50">
         
         {announcement && announcement.show && (
           <div className={`mb-6 p-4 rounded-2xl border flex items-start sm:items-center gap-3 text-sm font-medium shadow-sm
@@ -1861,7 +1923,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
                       <span>توصیه و تحلیل امروز دستیار سایبان</span>
-                      <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-mono">Gemini live</span>
+                      {/* <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-mono">Gemini live</span> */}
                     </h3>
                     <button 
                       title={selectedDateISO > todayISO ? "امکان تحلیل برای روزهای آینده وجود ندارد" : "به‌روزرسانی تحلیل هوشمند"}
@@ -1886,7 +1948,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     </button>
                   </div>
                   {isAnalyzingAi ? (
-                    <p className="text-xs text-slate-400 font-mono italic animate-pulse">در حال فراخوانی موتور عصبی گوگل با مشخصات تغذیه و کارهای امروزِ شما...</p>
+                    <p className="text-xs text-slate-400 font-mono italic animate-pulse">در حال فراخوانی موتور عصبی با مشخصات تغذیه و کارهای امروزِ شما...</p>
                   ) : (
                     <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">{aiTip}</p>
                   )}
@@ -1930,20 +1992,22 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                 </div>
                 <div className="text-center py-2">
                   <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">{health.waterToday} <span className="text-xs font-normal text-slate-400">میلی‌لیتر</span></h4>
-                  <p className="text-[10px] text-teal-650 font-bold mt-1">طرح هدف: ۲۵۰۰ میلی‌لیتر</p>
+                  <p className="text-[10px] text-teal-600 font-bold mt-1">طرح هدف: ۲۵۰۰ میلی‌لیتر (سقف ۴۰۰۰ml)</p>
                 </div>
                 <div className="flex gap-1.5 mt-3">
                   <button 
+                    type="button"
                     disabled={isSelectedDatePast || isSelectedDateFuture}
-                    onClick={() => saveHealthToLocal({ ...health, waterToday: health.waterToday + 250 })}
-                    className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 hover:text-teal-700 rounded-lg text-[10px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    onClick={() => handleAddWater(250)}
+                    className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300 rounded-lg text-[10px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     + ۲۵۰ml
                   </button>
                   <button 
+                    type="button"
                     disabled={isSelectedDatePast || isSelectedDateFuture}
-                    onClick={() => saveHealthToLocal({ ...health, waterToday: health.waterToday + 500 })}
-                    className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 hover:text-teal-700 rounded-lg text-[10px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    onClick={() => handleAddWater(500)}
+                    className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300 rounded-lg text-[10px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     + ۵۰۰ml
                   </button>
@@ -1951,26 +2015,45 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
               </div>
 
               {/* Sleep Quality Widget */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-xs text-slate-400 font-bold">میزان خواب</span>
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-2">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs text-slate-400 font-bold">میزان و کیفیت خواب</span>
                   <Moon className="w-5 h-5 text-indigo-500" />
                 </div>
-                <div className="text-center py-2">
-                  <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">{health.sleepHours} <span className="text-xs font-normal text-slate-400">ساعت</span></h4>
-                  <p className="text-[10px] text-indigo-500 font-bold mt-1">کیفیت: {health.sleepQuality === 'excellent' ? 'بسیار عالی' : health.sleepQuality === 'good' ? 'خوب و رضایت‌بخش' : 'متوسط'}</p>
+                <div className="text-center py-1">
+                  <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+                    {health.sleepHours} <span className="text-xs font-normal text-slate-400">ساعت</span>
+                  </h4>
+                  <p className="text-[10px] text-indigo-500 font-bold mt-0.5">
+                    کیفیت: {health.sleepQuality === 'excellent' ? 'بسیار عالی' : health.sleepQuality === 'good' ? 'خوب و رضایت‌بخش' : health.sleepQuality === 'fair' ? 'متوسط' : 'آشفته / نامنظم'}
+                  </p>
                 </div>
+
+                {/* اسلایدر از ۰ تا ۱۴ با گام ۰.۵ */}
                 <input 
                   type="range" 
-                  min="4" 
-                  max="12" 
+                  min="0" 
+                  max="14" 
+                  step="0.5"
                   disabled={isSelectedDatePast || isSelectedDateFuture}
                   value={health.sleepHours} 
                   onChange={(e) => saveHealthToLocal({ ...health, sleepHours: Number(e.target.value) })}
-                  className="w-full mt-4 h-1 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"
                 />
-              </div>
 
+                {/* سلکتور کیفیت خواب در پیشخوان */}
+                <select
+                  disabled={isSelectedDatePast || isSelectedDateFuture}
+                  value={health.sleepQuality}
+                  onChange={(e) => saveHealthToLocal({ ...health, sleepQuality: e.target.value as any })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 rounded-xl p-1.5 border border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-300 mt-1 cursor-pointer"
+                >
+                  <option value="excellent">🏆 بسیار عالی و عمیق</option>
+                  <option value="good">🟢 خوب و با نشاط</option>
+                  <option value="fair">🟡 متوسط و سطحی</option>
+                  <option value="poor">🔴 آشفته و خواب‌پریشی</option>
+                </select>
+              </div>
               {/* Mood Tracker Widget */}
               <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                 <div className="flex justify-between items-center mb-4">
@@ -1978,20 +2061,28 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                   <Smile className="w-5 h-5 text-emerald-500" />
                 </div>
                 <div className="flex justify-center gap-1.5 py-3">
-                  {[1, 2, 3, 4, 5].map(score => {
-                    const emojis = ["😡", "😔", "😐", "😊", "🤩"];
-                    return (
-                      <button 
-                        key={score}
-                        disabled={isSelectedDatePast || isSelectedDateFuture}
-                        onClick={() => saveHealthToLocal({ ...health, moodScore: score })}
-                        className={`text-lg p-1.5 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed ${health.moodScore === score ? 'bg-emerald-50 scale-120 border border-emerald-250' : 'opacity-50 hover:opacity-100'}`}
-                        title={emojis[score-1]}
-                      >
-                        {emojis[score-1]}
-                      </button>
-                    );
-                  })}
+                  {[
+                    { score: 1, label: 'عصبی/بحرانی', emoji: '😡' },
+                    { score: 2, label: 'خسته/بی‌ذوق', emoji: '😔' },
+                    { score: 3, label: 'معمولی', emoji: '😐' },
+                    { score: 4, label: 'شاداب', emoji: '😊' },
+                    { score: 5, label: 'بمب انگیزه', emoji: '🤩' }
+                  ].map(item => (
+                    <button 
+                      key={item.score}
+                      type="button"
+                      disabled={isSelectedDatePast || isSelectedDateFuture}
+                      onClick={() => handleSelectMood(item.score, item.label)}
+                      className={`text-lg p-1.5 rounded-xl transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+                        health.moodScore === item.score 
+                          ? 'bg-emerald-50 dark:bg-emerald-950/50 scale-110 border border-emerald-300 dark:border-emerald-700' 
+                          : 'opacity-50 hover:opacity-100'
+                      }`}
+                      title={item.label}
+                    >
+                      {item.emoji}
+                    </button>
+                  ))}
                 </div>
                 <p className="text-center text-[10px] font-bold text-slate-400 mt-1">امتیاز ثبت شده: {health.moodScore} از ۵</p>
               </div>
@@ -2093,7 +2184,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
               <h2 className="text-base font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-4 pb-3 border-b border-slate-50">
                 <Sparkles className="w-5 h-5 text-teal-600" />
-                <span>دستیار هوشمند و فهم فرمان‌های کورتکس (Gemini AI Support)</span>
+                <span>دستیار هوشمند و فهم فرمان‌های کورتکس </span>
               </h2>
               
               <div className="h-64 overflow-y-auto bg-slate-50 dark:bg-slate-950/50 rounded-2xl p-4 mb-4 border border-slate-100 dark:border-slate-800/50 space-y-3.5">
@@ -2133,7 +2224,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                 />
                 
                 {/* Simulated Speech Button */}
-                <button 
+                {/* <button 
                   type="button"
                   onClick={() => {
                     const sampleCommand = "جلسه با مدیر ساعت ۱۵ فردا هماهنگ شه";
@@ -2144,7 +2235,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                   title="شبیه‌ساز ضبط صدا"
                 >
                   <Mic className="w-4 h-4" />
-                </button>
+                </button> */}
 
                 <button 
                   type="submit"
@@ -2605,7 +2696,6 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                           onClick={() => {
                             const updated = notes.map(n => n.id === activeNote.id ? { ...n, content: tmpl.template } : n);
                             saveNotesToLocal(updated);
-                            earnXp(15, `بکارگیری قالب هوشمند "${tmpl.name}"`);
                             showToast(`قالب "${tmpl.name}" اعمال شد!`, "success");
                           }}
                           className="px-2 py-0.5 bg-white dark:bg-slate-900 hover:bg-teal-50 border border-slate-200 dark:border-slate-700 hover:border-teal-300 rounded text-[9px] font-bold transition-all cursor-pointer"
@@ -3136,34 +3226,26 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
 
                   <div className="grid grid-cols-3 gap-2 pt-2">
                     <button 
+                      type="button"
                       disabled={isSelectedDatePast || isSelectedDateFuture}
-                      onClick={() => {
-                        saveHealthToLocal({ ...health, waterToday: health.waterToday + 250 });
-                        earnXp(5, "نوشیدن لیوان آب");
-                      }}
-                      className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 text-slate-705 border border-slate-150 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      onClick={() => handleAddWater(250)}
+                      className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       🥤 لیوان معمولی (+۲۵۰ml)
                     </button>
                     <button 
+                      type="button"
                       disabled={isSelectedDatePast || isSelectedDateFuture}
-                      onClick={() => {
-                        saveHealthToLocal({ ...health, waterToday: health.waterToday + 500 });
-                        earnXp(10, "نوشیدن ماگ بزرگ آب");
-                      }}
-                      className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 text-slate-705 border border-slate-150 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      onClick={() => handleAddWater(500)}
+                      className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       🍼 ماگ کورتکس (+۵۰۰ml)
                     </button>
                     <button 
+                      type="button"
                       disabled={isSelectedDatePast || isSelectedDateFuture}
-                      onClick={() => {
-                        if (health.waterToday > 0) {
-                          saveHealthToLocal({ ...health, waterToday: Math.max(0, health.waterToday - 250) });
-                          earnXp(-5, "کاهش آب مصرفی");
-                        }
-                      }}
-                      className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-rose-50 text-slate-500 dark:text-slate-400 hover:text-rose-600 border border-slate-150 rounded-xl text-[10px] font-bold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      onClick={() => handleAddWater(-250)}
+                      className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-500 dark:text-slate-400 hover:text-rose-600 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-bold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       ↩️ کاهش آب (-۲۵۰ml)
                     </button>
@@ -3379,16 +3461,12 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                         <button
                           type="button"
                           key={item.score}
-                          onClick={() => {
-                            saveHealthToLocal({ ...health, moodScore: item.score });
-                            saveMoodLog(selectedDateISO, item.score);
-                            earnXp(10, `ثبت وضعیت روحی "${item.label}"`);
-                            showToast(`حال روحی شما روی "${item.label}" ثبت شد`, "success");
-                          }}
-                          className={`flex flex-col items-center p-2 rounded-xl transition-all cursor-pointer ${
+                          disabled={isSelectedDatePast || isSelectedDateFuture}
+                          onClick={() => handleSelectMood(item.score, item.label)}
+                          className={`flex flex-col items-center p-2 rounded-xl transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                             health.moodScore === item.score 
-                              ? 'bg-rose-50 text-rose-650 border border-rose-200 scale-105 font-bold' 
-                              : 'hover:bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                              ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 scale-105 font-bold' 
+                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400'
                           }`}
                         >
                           <span className="text-2xl mb-1">{item.emoji}</span>
@@ -3458,18 +3536,69 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
               </div>
 
               {/* Visual Preferences */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 pb-2 border-b border-slate-50">پیکربندی هویت ظاهری</h3>
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-5">
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 pb-2 border-b border-slate-100 dark:border-slate-800">پیکربندی هویت ظاهری</h3>
                 
-                <div className="space-y-3 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600 dark:text-slate-400">اندازه پیش‌فرض قلم متون</span>
-                    <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 gap-1">
-                      {['small', 'medium', 'large'].map(sz => (
+                <div className="space-y-4 text-xs">
+                  {/* Theme Switcher 3-State */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span className="text-slate-600 dark:text-slate-400 font-bold">حالت نمایشی سامانه (پوسته):</span>
+                    <div className="flex bg-slate-100 dark:bg-slate-950 rounded-2xl p-1 gap-1 border border-slate-200/60 dark:border-slate-800">
+                      <button 
+                        type="button"
+                        onClick={() => setTheme('light')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          mounted && theme === 'light' 
+                            ? 'bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 shadow-sm' 
+                            : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        <Sun className="w-3.5 h-3.5 text-amber-500" />
+                        <span>روشن</span>
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={() => setTheme('dark')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          mounted && theme === 'dark' 
+                            ? 'bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 shadow-sm' 
+                            : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>تاریک</span>
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={() => setTheme('system')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          mounted && theme === 'system' 
+                            ? 'bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 shadow-sm' 
+                            : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        <Monitor className="w-3.5 h-3.5 text-slate-500" />
+                        <span>سیستم</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Font Size Selector */}
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-600 dark:text-slate-400 font-bold">اندازه قلم متون:</span>
+                    <div className="flex bg-slate-100 dark:bg-slate-950 rounded-xl p-1 gap-1 border border-slate-200/60 dark:border-slate-800">
+                      {(['small', 'medium', 'large'] as const).map(sz => (
                         <button 
                           key={sz}
-                          onClick={() => setFontSize(sz as any)}
-                          className={`px-2.5 py-1 rounded cursor-pointer ${fontSize === sz ? 'bg-white dark:bg-slate-900 text-teal-800 font-bold shadow-sm' : 'text-slate-450'}`}
+                          type="button"
+                          onClick={() => setFontSize(sz)}
+                          className={`px-3 py-1 rounded-lg cursor-pointer transition-all font-bold ${
+                            fontSize === sz 
+                              ? 'bg-white dark:bg-slate-800 text-teal-800 dark:text-teal-300 shadow-sm' 
+                              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                          }`}
                         >
                           {sz === 'small' ? 'کوچک' : sz === 'large' ? 'بزرگ' : 'متوسط'}
                         </button>
@@ -3477,13 +3606,15 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-50">
-                    <span className="text-slate-600 dark:text-slate-400">نوع سال‌نامه پیش‌فرض</span>
+                  {/* Calendar Type */}
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-600 dark:text-slate-400 font-bold">نوع تقویم پیش‌فرض:</span>
                     <button 
+                      type="button"
                       onClick={() => setUseJalaliCalendar(!useJalaliCalendar)}
-                      className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:bg-slate-700 rounded-lg font-bold"
+                      className="px-4 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-bold text-teal-700 dark:text-teal-300 border border-slate-200/60 dark:border-slate-700 cursor-pointer"
                     >
-                      {useJalaliCalendar ? 'جلالی (شمسی)' : 'میلادی (Gregorian)'}
+                      {useJalaliCalendar ? 'خورشیدی (جلالی)' : 'میلادی (Gregorian)'}
                     </button>
                   </div>
                 </div>
