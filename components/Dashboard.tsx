@@ -62,10 +62,14 @@ import {
   MessageSquare,
   Brain,
   Sun,
-  Monitor
+  Monitor,
+  Droplets,
+  Weight
 } from 'lucide-react';
-import { calculateLevelData } from '@/lib/utils/brainMath';
+import { calculateAverage, calculateLevelData } from '@/lib/utils/brainMath';
 import { useTheme } from 'next-themes';
+import AssistantView from './AssistantView';
+import { BrainProfile, getBrainProfile, ZERO_BRAIN_PROFILE } from '@/lib/supabase/brainGym';
 
 // Interfaces for our applet state
 export interface CalendarEvent {
@@ -182,7 +186,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
     setMounted(true);
   }, []);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'notes' | 'tasks' | 'health' | 'settings' | 'support' | 'calendar' | 'brain_gym'>(() => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'planner' | 'notes' | 'tasks' | 'health' | 'settings' | 'support' | 'calendar' | 'brain_gym' | 'assistant'>(() => {
     if (typeof window !== "undefined") {
       const saved = sessionStorage.getItem('sayeban_active_tab');
       if (saved) return saved as any;
@@ -251,6 +255,15 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
     }
     return [];
   });
+
+
+  const [brainProfile, setBrainProfile] = useState<BrainProfile>(ZERO_BRAIN_PROFILE);
+
+  useEffect(() => {
+    getBrainProfile().then(p => { if (p) setBrainProfile(p); });
+  }, []);
+
+
 
   // Form states for dynamic habits and medicines
   const [newHabitName, setNewHabitName] = useState("");
@@ -1171,7 +1184,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
         }
       }
     } catch {
-      setQuickAddResult("خطایی در ارتباط به موتور اصلی کورتکس گوگل ا رخ داد.");
+      setQuickAddResult("خطایی در ارتباط با AI رخ داد.");
     }
   };
 
@@ -1544,695 +1557,989 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   const fontStyleClass = fontSize === 'small' ? 'text-sm' : fontSize === 'large' ? 'text-xl' : 'text-base';
 
   return (
-    <div className={`min-h-screen md:h-screen ${fontStyleClass} flex flex-col md:overflow-hidden bg-[#FAFCFC] dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors`}>
-      
+    <div
+      className={`min-h-screen md:h-screen ${fontStyleClass} flex flex-col md:overflow-hidden bg-[#FAFCFC] dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors`}
+    >
       {/* Mobile Top Header */}
-      <div className="md:hidden flex items-center justify-between p-4 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 sticky top-0 z-30 shadow-sm" dir="rtl">
-        <div 
+      <div
+        className="md:hidden flex items-center justify-between p-4 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 sticky top-0 z-30 shadow-sm"
+        dir="rtl"
+      >
+        <div
           className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
-          onClick={() => router.push('/')}
+          onClick={() => router.push("/")}
         >
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center text-white shadow-sm shadow-teal-500/10">
             <Sparkles className="w-4.5 h-4.5" />
           </div>
           <div>
-            <h1 className="text-sm font-black bg-gradient-to-r from-teal-600 to-emerald-500 bg-clip-text text-transparent">سـایـبـان</h1>
+            <h1 className="text-sm font-black bg-gradient-to-r from-teal-600 to-emerald-500 bg-clip-text text-transparent">
+              سـایـبـان
+            </h1>
             {customApiKey ? (
-              <span className="text-[8px] text-teal-600 font-bold block">هوش مصنوعی متصل است 🟢</span>
+              <span className="text-[8px] text-teal-600 font-bold block">
+                هوش مصنوعی متصل است 🟢
+              </span>
             ) : (
-              <span className="text-[8px] text-amber-500 font-medium block">حالت بهینه‌ساز دمو 🟡</span>
+              <span className="text-[8px] text-amber-500 font-medium block">
+                حالت بهینه‌ساز دمو 🟡
+              </span>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           {/* Quick Theme Switcher Button */}
-          <button 
+          <button
             type="button"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
             title="تغییر تم"
           >
-            {mounted && theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
+            {mounted && theme === "dark" ? (
+              <Sun className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Moon className="w-4 h-4 text-indigo-500" />
+            )}
           </button>
 
-          <button 
+          <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="px-3 py-1.5 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition-colors border border-slate-100 dark:border-slate-800 cursor-pointer"
           >
-            {isMobileMenuOpen ? 'بستن منو ✕' : 'منوی ابزارها ☰'}
+            {isMobileMenuOpen ? "بستن منو ✕" : "منوی ابزارها ☰"}
           </button>
         </div>
       </div>
 
       {/* Mobile Drawer Overlay Backdrop */}
       {isMobileMenuOpen && (
-        <div 
-          onClick={() => setIsMobileMenuOpen(false)} 
-          className="fixed inset-0 bg-slate-950/25 backdrop-blur-xs z-30 md:hidden" 
+        <div
+          onClick={() => setIsMobileMenuOpen(false)}
+          className="fixed inset-0 bg-slate-950/25 backdrop-blur-xs z-30 md:hidden"
         />
       )}
 
       <div className="flex-1 flex flex-col md:flex-row md:overflow-hidden">
         {/* Side Navigation Bar */}
-        <aside className={`fixed inset-y-0 right-0 z-40 w-72 bg-white dark:bg-slate-900 border-l border-slate-100 dark:border-slate-800 flex flex-col justify-between p-6 shrink-0 shadow-xl transition-transform duration-300 md:relative md:translate-x-0 md:flex md:shadow-sm md:h-full md:overflow-y-auto ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`} dir="rtl">
+        <aside
+          className={`fixed inset-y-0 right-0 z-40 w-72 bg-white dark:bg-slate-900 border-l border-slate-100 dark:border-slate-800 flex flex-col justify-between p-6 shrink-0 shadow-xl transition-transform duration-300 md:relative md:translate-x-0 md:flex md:shadow-sm md:h-full md:overflow-y-auto ${isMobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"}`}
+          dir="rtl"
+        >
           <div>
-          {/* Logo & Identity */}
-          <div 
-            className="flex items-center gap-3 mb-5 pb-2 border-b border-slate-50 cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => router.push('/')}
-          >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center text-white shadow-sm">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-xl font-black bg-gradient-to-r from-teal-600 to-emerald-500 bg-clip-text text-transparent">سـایـبـان</h2>
-              <p className="text-[10px] text-slate-400 font-medium tracking-wide">برنامه‌ریز و دستیار پیشرفته سلامت</p>
-            </div>
-          </div>
-
-          {/* User short profile info with Gamification Meter */}
-          <div className="bg-slate-50 dark:bg-slate-950 rounded-3xl p-4 mb-8 space-y-3 border border-slate-100 dark:border-slate-800/50">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-teal-500 to-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-teal-500/10">
-                {userName[0]}
+            {/* Logo & Identity */}
+            <div
+              className="flex items-center gap-3 mb-5 pb-2 border-b border-slate-50 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => router.push("/")}
+            >
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center text-white shadow-sm">
+                <Sparkles className="w-5 h-5" />
               </div>
-              <div className="flex-1 text-right">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black text-slate-700 dark:text-slate-300">{userName}</h4>
-                  <span className="text-[9px] bg-indigo-50 text-indigo-700 font-extrabold px-2 py-0.5 rounded-lg">سطح {level}</span>
+              <div>
+                <h2 className="text-xl font-black bg-gradient-to-r from-teal-600 to-emerald-500 bg-clip-text text-transparent">
+                  سـایـبـان
+                </h2>
+                <p className="text-[10px] text-slate-400 font-medium tracking-wide">
+                  برنامه‌ریز و دستیار پیشرفته سلامت
+                </p>
+              </div>
+            </div>
+
+            {/* User short profile info with Gamification Meter */}
+            <div className="bg-slate-50 dark:bg-slate-950 rounded-3xl p-4 mb-8 space-y-3 border border-slate-100 dark:border-slate-800/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-teal-500 to-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-teal-500/10">
+                  {userName[0]}
                 </div>
-                {/* <p className="text-[10px] text-slate-400 mt-0.5">{useJalaliCalendar ? todayJalali : todayGregorian}</p> */}
+                <div className="flex-1 text-right">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-slate-700 dark:text-slate-300">
+                      {userName}
+                    </h4>
+                    <span className="text-[9px] bg-indigo-50 text-indigo-700 font-extrabold px-2 py-0.5 rounded-lg">
+                      سطح {level}
+                    </span>
+                  </div>
+                  {/* <p className="text-[10px] text-slate-400 mt-0.5">{useJalaliCalendar ? todayJalali : todayGregorian}</p> */}
+                </div>
               </div>
-            </div>
 
-            {/* Progress bar */}
-            <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex justify-between items-end">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[11px] font-black text-slate-800 dark:text-slate-200">
-                    {title} <span className="text-slate-400 font-bold">(سطح {level})</span>
+              {/* Progress bar */}
+              <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex justify-between items-end">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[11px] font-black text-slate-800 dark:text-slate-200">
+                      {title}{" "}
+                      <span className="text-slate-400 font-bold">
+                        (سطح {level})
+                      </span>
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400">
+                      {/* رشد کورتکس: {xpInCurrentLevel} از {xpForNextLevel} */}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-black text-indigo-500 dark:text-indigo-400">
+                    کل: {xp} XP
                   </span>
-                  <span className="text-[10px] font-bold text-slate-400">
-                    {/* رشد کورتکس: {xpInCurrentLevel} از {xpForNextLevel} */}
-                  </span>
                 </div>
-                <span className="text-[11px] font-black text-indigo-500 dark:text-indigo-400">
-                  کل: {xp} XP
-                </span>
-              </div>
-              <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden shadow-inner">
-                <div 
-                  className="bg-gradient-to-r from-teal-400 to-indigo-500 h-full rounded-full transition-all duration-700 ease-out relative" 
-                  style={{ width: `${progressPercent}%` }}
-                >
-                  <div className="absolute top-0 right-0 bottom-0 left-0 bg-white/20 animate-pulse" />
-                </div>
-              </div>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed text-center font-bold">
-                🔥 فقط <span className="text-teal-600 dark:text-teal-400">{xpRemaining} XP</span> تا ارتقا به سطح {level + 1}
-              </p>
-            </div>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="space-y-1.5">
-            <button 
-              id="sidebar-btn-overview"
-              type="button"
-              onClick={() => handleTabChange('overview')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='overview' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
-            >
-              <Grid className="w-4.5 h-4.5" />
-              <span>پیشخوان همه‌کاره</span>
-            </button>
-
-            <button 
-              id="sidebar-btn-planner"
-              type="button"
-              onClick={() => handleTabChange('planner')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='planner' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
-            >
-              <Calendar className="w-4.5 h-4.5" />
-              <span>تقویم و پلنر</span>
-              <span className="mr-auto text-[10px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full font-sans">{events.length}</span>
-            </button>
-
-            <button 
-              id="sidebar-btn-calendar"
-              type="button"
-              onClick={() => handleTabChange('calendar')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='calendar' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
-            >
-              <Calendar className="w-4.5 h-4.5 text-indigo-500" />
-              <span>بورد بزرگ تقویم</span>
-              <span className="mr-auto text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-400 px-2.5 py-0.5 rounded-full font-sans font-bold">جدید</span>
-            </button>
-
-            <button 
-              id="sidebar-btn-notes"
-              type="button"
-              onClick={() => handleTabChange('notes')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='notes' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
-            >
-              <BookOpen className="w-4.5 h-4.5" />
-              <span>یادداشت‌های من</span>
-            </button>
-
-            <button 
-              id="sidebar-btn-tasks"
-              type="button"
-              onClick={() => handleTabChange('tasks')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='tasks' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
-            >
-              <CheckSquare className="w-4.5 h-4.5" />
-              <span>وظایف و کانبان</span>
-              <span className="mr-auto text-[10px] bg-amber-150 text-amber-900 px-2 py-0.5 rounded-full font-sans">
-                {tasks.filter(t=>t.status !== 'done').length}
-              </span>
-            </button>
-
-            <button 
-              id="sidebar-btn-health"
-              type="button"
-              onClick={() => handleTabChange('health')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='health' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
-            >
-              <Activity className="w-4.5 h-4.5" />
-              <span>تندرستی و عادات</span>
-            </button>
-
-            <button 
-              id="sidebar-btn-brain-gym"
-              type="button"
-              onClick={() => handleTabChange('brain_gym')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='brain_gym' ? 'bg-purple-50 text-purple-700 border-r-4 border-purple-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
-            >
-              <Brain className="w-4.5 h-4.5 text-purple-500" />
-              <span>باشگاه مغز </span>
-              {/* <span className="mr-auto text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 px-2.5 py-0.5 rounded-full font-sans font-bold">جدید</span> */}
-            </button>
-
-            <button 
-              id="sidebar-btn-settings"
-              type="button"
-              onClick={() => handleTabChange('settings')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='settings' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
-            >
-              <Settings className="w-4.5 h-4.5" />
-              <span>پیکربندی سامانه</span>
-            </button>
-
-            <button 
-              id="sidebar-btn-support"
-              type="button"
-              onClick={() => handleTabChange('support')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab==='support' ? 'bg-teal-50 text-teal-700 border-r-4 border-teal-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
-            >
-              <div className="relative">
-                <MessageSquare className="w-4.5 h-4.5" />
-                {hasUnreadTickets && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse border-2 border-white dark:border-slate-900" />
-                )}
-              </div>
-              <span>تیکت و پشتیبانی</span>
-              {hasUnreadTickets && (
-                <span className="mr-auto text-[9px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-bold animate-pulse">
-                  پاسخ جدید
-                </span>
-              )}
-            </button>
-          </nav>
-        </div>
-
-        {/* Action Bottom Layout */}
-        <div className="space-y-4 pt-6 mt-6 border-t border-slate-55 flex flex-col gap-1">
-          {/* Immersive Zen/Pomodoro trigger */}
-          <button 
-            id="btn-trigger-zen-quick"
-            type="button"
-            onClick={() => {
-              setIsZenMode(true);
-              setIsZenAudioPlaying(true);
-              setIsZenTimerRunning(true);
-              playAudioFeedback('click');
-            }}
-            className="w-full py-3 px-4 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-extrabold text-xs rounded-xl hover:scale-[1.01] transition-all cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-rose-500/10"
-          >
-            <Moon className="w-4.5 h-4.5 animate-pulse" />
-            <span>تمرکز مطلق کایزن (Zen Mode)</span>
-          </button>
-
-          {/* Quick AI Trigger button */}
-          <button 
-            id="btn-trigger-ai-quick"
-            type="button"
-            onClick={() => setShowQuickAdd(true)}
-            className="w-full py-3 px-4 bg-gradient-to-r from-teal-600 to-emerald-500 text-white font-extrabold text-xs rounded-xl hover:scale-[1.01] transition-all cursor-pointer flex items-center justify-center gap-2"
-          >
-            <Sparkles className="w-4.5 h-4.5 animate-spin" />
-            <span>دستیار هوش مصنوعی</span>
-          </button>
-
-          <button 
-            id="btn-sidebar-logout"
-            type="button"
-            onClick={() => setShowLogoutConfirm(true)}
-            className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-50 cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>خروج کامل</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content Area */}
-      <main className="flex-1 p-4 sm:p-8 overflow-y-auto max-w-7xl mx-auto w-full bg-[#FAFCFC] dark:bg-[#0B1120] md:rounded-tl-3xl border-t border-r border-transparent dark:border-slate-800/50">
-        
-        {announcement && announcement.show && (
-          <div className={`mb-6 p-4 rounded-2xl border flex items-start sm:items-center gap-3 text-sm font-medium shadow-sm
-            ${announcement.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20' : 
-              announcement.type === 'warning' ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 border-amber-200 dark:border-amber-500/20' : 
-              announcement.type === 'error' ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-400 border-rose-200 dark:border-rose-500/20' : 
-              'bg-blue-50 dark:bg-blue-500/10 text-blue-800 dark:text-blue-400 border-blue-200 dark:border-blue-500/20'}`}
-          >
-            <Bell className={`w-5 h-5 shrink-0 mt-0.5 sm:mt-0 animate-pulse 
-              ${announcement.type === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 
-                announcement.type === 'warning' ? 'text-amber-600 dark:text-amber-400' : 
-                announcement.type === 'error' ? 'text-rose-600 dark:text-rose-400' : 
-                'text-blue-600 dark:text-blue-400'}`} 
-            />
-            <div className="flex-1 leading-relaxed">{announcement.text}</div>
-            <button onClick={() => setAnnouncement(null)} className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors shrink-0">
-              <X className="w-4 h-4 opacity-60" />
-            </button>
-          </div>
-        )}
-
-        {/* Horizontal Timeline Date Selector */}
-        <div className="mb-6 flex items-center justify-between bg-white dark:bg-slate-900 px-2 py-2 sm:px-4 sm:py-3 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden" dir="rtl">
-          {/* RTL Chronology: Right = Past, Left = Future */}
-          {/* Right Arrow: Go towards past (-1) */}
-          <button onClick={() => modifySelectedDate(-1)} className="p-1 sm:p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-950 transition" title="روز قبل">
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-          
-          <div className="flex-1 flex justify-center items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar px-1">
-            {Array.from({length: 7}).map((_, i) => {
-              if (!selectedDateISO) return null;
-              const d = new Date(selectedDateISO + "T12:00:00Z");
-              // Render past on the right, future on the left. In RTL, index 0 is right.
-              // So index 0 = -3 days, index 6 = +3 days.
-              d.setUTCDate(d.getUTCDate() - 3 + i);
-              const dateIsoStr = d.toISOString().split('T')[0];
-              const isSelected = dateIsoStr === selectedDateISO;
-              const isToday = dateIsoStr === todayISO;
-              
-              // Count tasks/events for this day
-              const hasTask = tasks.some(t => t.dueDate === dateIsoStr);
-              const hasEvent = events.some(e => e.date === dateIsoStr);
-              
-              const dayName = useJalaliCalendar 
-                ? new Intl.DateTimeFormat('fa-IR', { weekday: 'short' }).format(d)
-                : new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(d);
-              
-              const dayNumStr = useJalaliCalendar
-                ? new Intl.DateTimeFormat('fa-IR', { day: 'numeric' }).format(d)
-                : new Intl.DateTimeFormat('en-US', { day: 'numeric' }).format(d);
-
-              const monthName = useJalaliCalendar
-                ? new Intl.DateTimeFormat('fa-IR', { month: 'short' }).format(d)
-                : new Intl.DateTimeFormat('en-US', { month: 'short' }).format(d);
-
-              return (
-                <div 
-                  key={dateIsoStr}
-                  onClick={() => setSelectedDateISO(dateIsoStr)}
-                  className={`flex flex-col items-center justify-center min-w-[38px] sm:min-w-[46px] py-1.5 sm:py-2 cursor-pointer rounded-xl transition-all ${isSelected ? 'bg-teal-500 text-white shadow-md shadow-teal-500/20' : isToday ? 'bg-teal-50 text-teal-700 border border-teal-100' : 'hover:bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 border border-transparent hover:border-slate-100 dark:border-slate-800'}`}
-                >
-                  <span className={`text-[8px] sm:text-[9px] mb-0.5 font-medium ${isSelected ? 'opacity-90' : 'opacity-70'}`}>{dayName}</span>
-                  <span className="text-sm sm:text-base font-black leading-none">{dayNumStr}</span>
-                  <span className={`text-[8px] sm:text-[9px] mt-0.5 font-medium ${isSelected ? 'opacity-90' : 'opacity-70'}`}>{monthName}</span>
-                  <div className="flex gap-0.5 mt-1 h-1">
-                    {hasTask ? <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-teal-200' : 'bg-rose-400'}`}></div> : <div className="w-1 h-1" />}
-                    {hasEvent ? <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white dark:bg-slate-900' : 'bg-indigo-400'}`}></div> : <div className="w-1 h-1" />}
+                <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden shadow-inner">
+                  <div
+                    className="bg-gradient-to-r from-teal-400 to-indigo-500 h-full rounded-full transition-all duration-700 ease-out relative"
+                    style={{ width: `${progressPercent}%` }}
+                  >
+                    <div className="absolute top-0 right-0 bottom-0 left-0 bg-white/20 animate-pulse" />
                   </div>
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Left Arrow: Go towards future (+1) */}
-          <button onClick={() => modifySelectedDate(1)} className="p-1 sm:p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-950 transition" title="روز بعد">
-            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-        </div>
-
-        {isSelectedDatePast && (
-          <div className="mb-6 p-4 rounded-2xl bg-slate-100/60 dark:bg-slate-850/30 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800/60 flex items-center gap-3 text-xs font-semibold shadow-sm" dir="rtl">
-            <span className="text-base text-amber-500">⚠️</span>
-            <div>شما در حال مشاهده اطلاعات روز گذشته هستید. برای حفظ یکپارچگی ارزیابی‌ها، امکان تغییر یا ثبت مجدد داده‌های تندرستی (آب، خواب، خلق‌وخو، عادات و قرص‌ها) و وظایف برای گذشته وجود ندارد.</div>
-          </div>
-        )}
-
-        {isSelectedDateFuture && (
-          <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 text-amber-800 dark:text-amber-400 border border-amber-500/20 flex items-center gap-3 text-xs font-semibold shadow-sm" dir="rtl">
-            <span className="text-base">⚠️</span>
-            <div>شما در حال مشاهده یک روز در آینده هستید. از آنجا که این روز هنوز فرانرسیده است، امکان ثبت یا تغییر داده‌های تندرستی، خواب، آب، عادات، قرص‌ها و وظایف برای آن وجود ندارد.</div>
-          </div>
-        )}
-
-        {/* Tab 1: Overview Dashboard */}
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* Top Row: Dynamic Greeting Speech Banner */}
-            <div className="bg-gradient-to-r from-slate-900 to-teal-950 p-6 rounded-3xl text-white shadow-xl relative overflow-hidden">
-              <div className="absolute right-10 top-0 w-44 h-44 bg-teal-500/10 rounded-full blur-2xl" />
-              <div className="relative">
-                <span className="text-xs bg-teal-500/20 text-teal-300 font-bold px-3 py-1 rounded-full uppercase">پیشخوان سلامت و کورتکس</span>
-                <h1 className="text-2xl sm:text-3xl font-black mt-3 mb-2">{userName} عزیز، {greeting}</h1>
-                <p className="text-xs text-slate-350">{useJalaliCalendar ? selectedDateJalali : selectedDateGregorian} | شما در این روز {tasks.filter(t=>t.status === 'done' && t.dueDate === selectedDateISO).length} کار کورتکس را تکمیل کردید.</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed text-center font-bold">
+                  🔥 فقط{" "}
+                  <span className="text-teal-600 dark:text-teal-400">
+                    {xpRemaining} XP
+                  </span>{" "}
+                  تا ارتقا به سطح {level + 1}
+                </p>
               </div>
             </div>
 
-            {/* Smart Ai Advice Card */}
-            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden">
-              <div className="absolute top-1/2 left-0 -translate-y-1/2 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl" />
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-600">
-                  <Sparkles className="w-6 h-6 animate-pulse" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                      <span>توصیه و تحلیل امروز دستیار سایبان</span>
-                      {/* <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-mono">Gemini live</span> */}
-                    </h3>
-                    <button 
-                      title={selectedDateISO > todayISO ? "امکان تحلیل برای روزهای آینده وجود ندارد" : "به‌روزرسانی تحلیل هوشمند"}
-                      disabled={selectedDateISO > todayISO || isAnalyzingAi}
-                      onClick={() => fetchSmartAiAnalysis({ 
-                        userName, 
-                        waterToday: health.waterToday, 
-                        sleepHours: health.sleepHours,
-                        sleepQuality: health.sleepQuality,
-                        moodScore: health.moodScore,
-                        weight: userWeight,
-                        completedTasksToday: tasks.filter(t => t.dueDate === selectedDateISO && t.status === 'done').length,
-                        pendingTasksToday: tasks.filter(t => t.dueDate === selectedDateISO && t.status !== 'done').length,
-                        totalMedicinesToday: medicines.length,
-                        completedMedicinesToday: medicines.filter(m => isMedicineCompleted(m)).length,
-                        totalHabitsToday: habits.length,
-                        completedHabitsToday: habits.filter(h => isHabitCompleted(h)).length,
-                      }, true)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 dark:bg-slate-950 cursor-pointer transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzingAi ? 'animate-spin text-teal-500' : ''}`} />
-                    </button>
-                  </div>
-                  {isAnalyzingAi ? (
-                    <p className="text-xs text-slate-400 font-mono italic animate-pulse">در حال فراخوانی موتور عصبی با مشخصات تغذیه و کارهای امروزِ شما...</p>
-                  ) : (
-                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">{aiTip}</p>
+            {/* Navigation Links */}
+            <nav className="space-y-1.5">
+              <button
+                id="sidebar-btn-overview"
+                type="button"
+                onClick={() => handleTabChange("overview")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "overview" ? "bg-teal-50 text-teal-700 border-r-4 border-teal-500" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}
+              >
+                <Grid className="w-4.5 h-4.5" />
+                <span>پیشخوان</span>
+              </button>
+
+              <button
+                id="sidebar-btn-planner"
+                type="button"
+                onClick={() => handleTabChange("planner")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "planner" ? "bg-teal-50 text-teal-700 border-r-4 border-teal-500" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}
+              >
+                <Calendar className="w-4.5 h-4.5" />
+                <span>تقویم و پلنر</span>
+                <span className="mr-auto text-[10px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full font-sans">
+                  {events.length}
+                </span>
+              </button>
+
+              <button
+                id="sidebar-btn-calendar"
+                type="button"
+                onClick={() => handleTabChange("calendar")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "calendar" ? "bg-teal-50 text-teal-700 border-r-4 border-teal-500" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}
+              >
+                <Calendar className="w-4.5 h-4.5 text-indigo-500" />
+                <span>نمای ماهانه تقویم</span>
+                <span className="mr-auto text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-400 px-2.5 py-0.5 rounded-full font-sans font-bold">
+                  جدید
+                </span>
+              </button>
+
+              <button
+                id="sidebar-btn-notes"
+                type="button"
+                onClick={() => handleTabChange("notes")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "notes" ? "bg-teal-50 text-teal-700 border-r-4 border-teal-500" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}
+              >
+                <BookOpen className="w-4.5 h-4.5" />
+                <span>یادداشت‌های من</span>
+              </button>
+
+              <button
+                id="sidebar-btn-tasks"
+                type="button"
+                onClick={() => handleTabChange("tasks")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "tasks" ? "bg-teal-50 text-teal-700 border-r-4 border-teal-500" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}
+              >
+                <CheckSquare className="w-4.5 h-4.5" />
+                <span>وظایف و کانبان</span>
+                <span className="mr-auto text-[10px] bg-amber-150 text-amber-900 px-2 py-0.5 rounded-full font-sans">
+                  {tasks.filter((t) => t.status !== "done").length}
+                </span>
+              </button>
+
+              <button
+                id="sidebar-btn-health"
+                type="button"
+                onClick={() => handleTabChange("health")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "health" ? "bg-teal-50 text-teal-700 border-r-4 border-teal-500" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}
+              >
+                <Activity className="w-4.5 h-4.5" />
+                <span>تندرستی و عادات</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabChange("assistant")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "assistant" ? "bg-teal-50 text-teal-700 border-r-4 border-teal-500" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}
+              >
+                <Sparkles className="w-4.5 h-4.5 text-teal-500 animate-pulse" />
+                <span>دستیار هوشمند </span>
+                <span className="mr-auto text-[9px] bg-teal-500 text-white px-2 py-0.5 rounded-full font-bold">
+                  AI
+                </span>
+              </button>
+
+              <button
+                id="sidebar-btn-brain-gym"
+                type="button"
+                onClick={() => handleTabChange("brain_gym")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "brain_gym" ? "bg-purple-50 text-purple-700 border-r-4 border-purple-500" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}
+              >
+                <Brain className="w-4.5 h-4.5 text-purple-500" />
+                <span>باشگاه مغز </span>
+                {/* <span className="mr-auto text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 px-2.5 py-0.5 rounded-full font-sans font-bold">جدید</span> */}
+              </button>
+
+              <button
+                id="sidebar-btn-settings"
+                type="button"
+                onClick={() => handleTabChange("settings")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "settings" ? "bg-teal-50 text-teal-700 border-r-4 border-teal-500" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}
+              >
+                <Settings className="w-4.5 h-4.5" />
+                <span>پیکربندی سامانه</span>
+              </button>
+
+              <button
+                id="sidebar-btn-support"
+                type="button"
+                onClick={() => handleTabChange("support")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "support" ? "bg-teal-50 text-teal-700 border-r-4 border-teal-500" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}
+              >
+                <div className="relative">
+                  <MessageSquare className="w-4.5 h-4.5" />
+                  {hasUnreadTickets && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse border-2 border-white dark:border-slate-900" />
                   )}
                 </div>
-              </div>
-            </div>
+                <span>تیکت و پشتیبانی</span>
+                {hasUnreadTickets && (
+                  <span className="mr-auto text-[9px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-bold animate-pulse">
+                    پاسخ جدید
+                  </span>
+                )}
+              </button>
+            </nav>
+          </div>
 
-            {/* Zen Mode Launcher Section */}
-            <div className="bg-gradient-to-r from-rose-500/10 via-amber-500/5 to-rose-500/10 p-5 rounded-3xl border border-rose-100 flex flex-col md:flex-row items-center justify-between gap-4 text-right" dir="rtl">
-              <div className="flex items-center gap-3.5">
-                <div className="p-3 bg-gradient-to-tr from-rose-500 to-amber-500 text-white rounded-2xl shadow-md animate-pulse">
-                  <Moon className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-black text-slate-800 dark:text-slate-200">حالت تمرکز مطلق و تکنیک پومودورو کایزن (Zen Mode)</h3>
-                  <p className="text-[10px] text-slate-550 leading-relaxed font-bold mt-1">
-                    ذهن خود را متمرکز کنید و با موسیقی‌های اتمسفریک شبیه‌سازی‌شده (جنگل بارانی، آسمان کوانتومی، آتشدان دنج، فرکانس شفا بخش ۵۲۸ هرتز) از حواس‌پرت‌کن‌ها رها شوید.
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={() => {
-                  setIsZenMode(true);
-                  setIsZenAudioPlaying(true);
-                  setIsZenTimerRunning(true);
-                  playAudioFeedback('click');
-                }}
-                className="whitespace-nowrap bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white text-xs font-black py-2.5 px-5 rounded-xl cursor-pointer transition-all shadow-md shadow-rose-500/15"
+          {/* Action Bottom Layout */}
+          <div className="space-y-4 pt-6 mt-6 border-t border-slate-55 flex flex-col gap-1">
+            {/* Immersive Zen/Pomodoro trigger */}
+            <button
+              id="btn-trigger-zen-quick"
+              type="button"
+              onClick={() => {
+                setIsZenMode(true);
+                setIsZenAudioPlaying(true);
+                setIsZenTimerRunning(true);
+                playAudioFeedback("click");
+              }}
+              className="w-full py-3 px-4 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-extrabold text-xs rounded-xl hover:scale-[1.01] transition-all cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-rose-500/10"
+            >
+              <Moon className="w-4.5 h-4.5 animate-pulse" />
+              <span>تمرکز مطلق کایزن (Zen Mode)</span>
+            </button>
+
+            {/* Quick AI Trigger button */}
+            <button
+              id="btn-trigger-ai-quick"
+              type="button"
+              onClick={() => setShowQuickAdd(true)}
+              className="w-full py-3 px-4 bg-gradient-to-r from-teal-600 to-emerald-500 text-white font-extrabold text-xs rounded-xl hover:scale-[1.01] transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Sparkles className="w-4.5 h-4.5 animate-spin" />
+              <span>دستیار هوش مصنوعی</span>
+            </button>
+
+            <button
+              id="btn-sidebar-logout"
+              type="button"
+              onClick={() => setShowLogoutConfirm(true)}
+              className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-50 cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>خروج کامل</span>
+            </button>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <main className="flex-1 p-4 sm:p-8 overflow-y-auto max-w-7xl mx-auto w-full bg-[#FAFCFC] dark:bg-[#0B1120] md:rounded-tl-3xl border-t border-r border-transparent dark:border-slate-800/50">
+          {announcement && announcement.show && (
+            <div
+              className={`mb-3 p-4 rounded-2xl border flex items-start sm:items-center gap-3 text-sm font-medium shadow-sm
+            ${
+              announcement.type === "success"
+                ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20"
+                : announcement.type === "warning"
+                  ? "bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 border-amber-200 dark:border-amber-500/20"
+                  : announcement.type === "error"
+                    ? "bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-400 border-rose-200 dark:border-rose-500/20"
+                    : "bg-blue-50 dark:bg-blue-500/10 text-blue-800 dark:text-blue-400 border-blue-200 dark:border-blue-500/20"
+            }`}
+            >
+              <Bell
+                className={`w-5 h-5 shrink-0 mt-0.5 sm:mt-0 animate-pulse 
+              ${
+                announcement.type === "success"
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : announcement.type === "warning"
+                    ? "text-amber-600 dark:text-amber-400"
+                    : announcement.type === "error"
+                      ? "text-rose-600 dark:text-rose-400"
+                      : "text-blue-600 dark:text-blue-400"
+              }`}
+              />
+              <div className="flex-1 leading-relaxed">{announcement.text}</div>
+              <button
+                onClick={() => setAnnouncement(null)}
+                className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors shrink-0"
               >
-                راه اندازی زنگ کایزن و تمرکز مطلق 🧘
+                <X className="w-4 h-4 opacity-60" />
               </button>
             </div>
+          )}
 
-            {/* Quad Widgets Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Quick Hydration Track Widget */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-xs text-slate-400 font-bold">مصرف آب امروز</span>
-                  <Droplet className="w-5 h-5 text-teal-600" />
-                </div>
-                <div className="text-center py-2">
-                  <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">{health.waterToday} <span className="text-xs font-normal text-slate-400">میلی‌لیتر</span></h4>
-                  <p className="text-[10px] text-teal-600 font-bold mt-1">طرح هدف: ۲۵۰۰ میلی‌لیتر (سقف ۴۰۰۰ml)</p>
-                </div>
-                <div className="flex gap-1.5 mt-3">
-                  <button 
-                    type="button"
-                    disabled={isSelectedDatePast || isSelectedDateFuture}
-                    onClick={() => handleAddWater(250)}
-                    className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300 rounded-lg text-[10px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          {/* Horizontal Timeline Date Selector */}
+          <div
+            className="mb-6 flex items-center justify-between bg-white dark:bg-slate-900 px-2 py-2 sm:px-4 sm:py-3 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden"
+            dir="rtl"
+          >
+            {/* RTL Chronology: Right = Past, Left = Future */}
+            {/* Right Arrow: Go towards past (-1) */}
+            <button
+              onClick={() => modifySelectedDate(-1)}
+              className="p-1 sm:p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-950 transition"
+              title="روز قبل"
+            >
+              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+
+            <div className="flex-1 flex justify-center items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar px-1">
+              {Array.from({ length: 7 }).map((_, i) => {
+                if (!selectedDateISO) return null;
+                const d = new Date(selectedDateISO + "T12:00:00Z");
+                // Render past on the right, future on the left. In RTL, index 0 is right.
+                // So index 0 = -3 days, index 6 = +3 days.
+                d.setUTCDate(d.getUTCDate() - 3 + i);
+                const dateIsoStr = d.toISOString().split("T")[0];
+                const isSelected = dateIsoStr === selectedDateISO;
+                const isToday = dateIsoStr === todayISO;
+
+                // Count tasks/events for this day
+                const hasTask = tasks.some((t) => t.dueDate === dateIsoStr);
+                const hasEvent = events.some((e) => e.date === dateIsoStr);
+
+                const dayName = useJalaliCalendar
+                  ? new Intl.DateTimeFormat("fa-IR", {
+                      weekday: "short",
+                    }).format(d)
+                  : new Intl.DateTimeFormat("en-US", {
+                      weekday: "short",
+                    }).format(d);
+
+                const dayNumStr = useJalaliCalendar
+                  ? new Intl.DateTimeFormat("fa-IR", { day: "numeric" }).format(
+                      d,
+                    )
+                  : new Intl.DateTimeFormat("en-US", { day: "numeric" }).format(
+                      d,
+                    );
+
+                const monthName = useJalaliCalendar
+                  ? new Intl.DateTimeFormat("fa-IR", { month: "short" }).format(
+                      d,
+                    )
+                  : new Intl.DateTimeFormat("en-US", { month: "short" }).format(
+                      d,
+                    );
+
+                return (
+                  <div
+                    key={dateIsoStr}
+                    onClick={() => setSelectedDateISO(dateIsoStr)}
+                    className={`flex flex-col items-center justify-center min-w-[38px] sm:min-w-[46px] py-1.5 sm:py-2 cursor-pointer rounded-xl transition-all ${isSelected ? "bg-teal-500 text-white shadow-md shadow-teal-500/20" : isToday ? "bg-teal-50 text-teal-700 border border-teal-100" : "hover:bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 border border-transparent hover:border-slate-100 dark:border-slate-800"}`}
                   >
-                    + ۲۵۰ml
-                  </button>
-                  <button 
-                    type="button"
-                    disabled={isSelectedDatePast || isSelectedDateFuture}
-                    onClick={() => handleAddWater(500)}
-                    className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300 rounded-lg text-[10px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >
-                    + ۵۰۰ml
-                  </button>
+                    <span
+                      className={`text-[8px] sm:text-[9px] mb-0.5 font-medium ${isSelected ? "opacity-90" : "opacity-70"}`}
+                    >
+                      {dayName}
+                    </span>
+                    <span className="text-sm sm:text-base font-black leading-none">
+                      {dayNumStr}
+                    </span>
+                    <span
+                      className={`text-[8px] sm:text-[9px] mt-0.5 font-medium ${isSelected ? "opacity-90" : "opacity-70"}`}
+                    >
+                      {monthName}
+                    </span>
+                    <div className="flex gap-0.5 mt-1 h-1">
+                      {hasTask ? (
+                        <div
+                          className={`w-1 h-1 rounded-full ${isSelected ? "bg-teal-200" : "bg-rose-400"}`}
+                        ></div>
+                      ) : (
+                        <div className="w-1 h-1" />
+                      )}
+                      {hasEvent ? (
+                        <div
+                          className={`w-1 h-1 rounded-full ${isSelected ? "bg-white dark:bg-slate-900" : "bg-indigo-400"}`}
+                        ></div>
+                      ) : (
+                        <div className="w-1 h-1" />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Left Arrow: Go towards future (+1) */}
+            <button
+              onClick={() => modifySelectedDate(1)}
+              className="p-1 sm:p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-950 transition"
+              title="روز بعد"
+            >
+              <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+          </div>
+
+          {isSelectedDatePast && (
+            <div
+              className="mb-6 p-4 rounded-2xl bg-slate-100/60 dark:bg-slate-850/30 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800/60 flex items-center gap-3 text-xs font-semibold shadow-sm"
+              dir="rtl"
+            >
+              <span className="text-base text-amber-500">⚠️</span>
+              <div>
+                شما در حال مشاهده اطلاعات روز گذشته هستید. برای حفظ یکپارچگی
+                ارزیابی‌ها، امکان تغییر یا ثبت مجدد داده‌های تندرستی (آب، خواب،
+                خلق‌وخو، عادات و قرص‌ها) و وظایف برای گذشته وجود ندارد.
+              </div>
+            </div>
+          )}
+
+          {isSelectedDateFuture && (
+            <div
+              className="mb-6 p-4 rounded-2xl bg-amber-500/10 text-amber-800 dark:text-amber-400 border border-amber-500/20 flex items-center gap-3 text-xs font-semibold shadow-sm"
+              dir="rtl"
+            >
+              <span className="text-base">⚠️</span>
+              <div>
+                شما در حال مشاهده یک روز در آینده هستید. از آنجا که این روز هنوز
+                فرانرسیده است، امکان ثبت یا تغییر داده‌های تندرستی، خواب، آب،
+                عادات، قرص‌ها و وظایف برای آن وجود ندارد.
+              </div>
+            </div>
+          )}
+
+          {/* Tab 1: Overview Dashboard */}
+          {activeTab === "overview" && (
+            <div className="space-y-6">
+              {/* Top Row: Dynamic Greeting Speech Banner */}
+              <div className="bg-gradient-to-r from-slate-900 to-teal-950 p-6 rounded-3xl text-white shadow-xl relative overflow-hidden">
+                <div className="absolute right-10 top-0 w-44 h-44 bg-teal-500/10 rounded-full blur-2xl" />
+                <div className="relative">
+                  <span className="text-xs bg-teal-500/20 text-teal-300 font-bold px-3 py-1 rounded-full uppercase">
+                    پیشخوان سایبان{" "}
+                  </span>
+                  <h1 className="text-2xl sm:text-3xl font-black mt-3 mb-2">
+                    {userName} عزیز، {greeting}
+                  </h1>
+                  <p className="text-xs text-slate-350">
+                    {useJalaliCalendar
+                      ? selectedDateJalali
+                      : selectedDateGregorian}{" "}
+                    | شما در این روز{" "}
+                    {
+                      tasks.filter(
+                        (t) =>
+                          t.status === "done" && t.dueDate === selectedDateISO,
+                      ).length
+                    }{" "}
+                    کار را تکمیل کردید.
+                  </p>
                 </div>
               </div>
 
-              {/* Sleep Quality Widget */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-2">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs text-slate-400 font-bold">میزان و کیفیت خواب</span>
-                  <Moon className="w-5 h-5 text-indigo-500" />
+              {/* Smart Ai Advice Card */}
+              <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden">
+                <div className="absolute top-1/2 left-0 -translate-y-1/2 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl" />
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-600">
+                    <Sparkles className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <span>توصیه و تحلیل امروز دستیار سایبان</span>
+                        {/* <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-mono">Gemini live</span> */}
+                      </h3>
+                      <button
+                        title={
+                          selectedDateISO > todayISO
+                            ? "امکان تحلیل برای روزهای آینده وجود ندارد"
+                            : "به‌روزرسانی تحلیل هوشمند"
+                        }
+                        disabled={selectedDateISO > todayISO || isAnalyzingAi}
+                        onClick={() =>
+                          fetchSmartAiAnalysis(
+                            {
+                              userName,
+                              waterToday: health.waterToday,
+                              sleepHours: health.sleepHours,
+                              sleepQuality: health.sleepQuality,
+                              moodScore: health.moodScore,
+                              weight: userWeight,
+                              completedTasksToday: tasks.filter(
+                                (t) =>
+                                  t.dueDate === selectedDateISO &&
+                                  t.status === "done",
+                              ).length,
+                              pendingTasksToday: tasks.filter(
+                                (t) =>
+                                  t.dueDate === selectedDateISO &&
+                                  t.status !== "done",
+                              ).length,
+                              totalMedicinesToday: medicines.length,
+                              completedMedicinesToday: medicines.filter((m) =>
+                                isMedicineCompleted(m),
+                              ).length,
+                              totalHabitsToday: habits.length,
+                              completedHabitsToday: habits.filter((h) =>
+                                isHabitCompleted(h),
+                              ).length,
+                            },
+                            true,
+                          )
+                        }
+                        className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 dark:bg-slate-950 cursor-pointer transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      >
+                        <RefreshCw
+                          className={`w-3.5 h-3.5 ${isAnalyzingAi ? "animate-spin text-teal-500" : ""}`}
+                        />
+                      </button>
+                    </div>
+                    {isAnalyzingAi ? (
+                      <p className="text-xs text-slate-400 font-mono italic animate-pulse">
+                        در حال فراخوانی موتور عصبی با مشخصات تغذیه و کارهای
+                        امروزِ شما...
+                      </p>
+                    ) : (
+                      <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                        {aiTip}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="text-center py-1">
-                  <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">
-                    {health.sleepHours} <span className="text-xs font-normal text-slate-400">ساعت</span>
-                  </h4>
-                  <p className="text-[10px] text-indigo-500 font-bold mt-0.5">
-                    کیفیت: {health.sleepQuality === 'excellent' ? 'بسیار عالی' : health.sleepQuality === 'good' ? 'خوب و رضایت‌بخش' : health.sleepQuality === 'fair' ? 'متوسط' : 'آشفته / نامنظم'}
+              </div>
+
+              {/* Zen Mode Launcher Section */}
+              <div
+                className="bg-gradient-to-r from-rose-500/10 via-amber-500/5 to-rose-500/10 p-5 rounded-3xl border border-rose-100 flex flex-col md:flex-row items-center justify-between gap-4 text-right"
+                dir="rtl"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="p-3 bg-gradient-to-tr from-rose-500 to-amber-500 text-white rounded-2xl shadow-md animate-pulse">
+                    <Moon className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black text-slate-800 dark:text-slate-200">
+                      حالت تمرکز مطلق و تکنیک پومودورو کایزن (Zen Mode)
+                    </h3>
+                    <p className="text-[10px] text-slate-550 leading-relaxed font-bold mt-1">
+                      ذهن خود را متمرکز کنید و با موسیقی‌های اتمسفریک
+                      شبیه‌سازی‌شده (جنگل بارانی، آسمان کوانتومی، آتشدان دنج،
+                      فرکانس شفا بخش ۵۲۸ هرتز) از حواس‌پرت‌کن‌ها رها شوید.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsZenMode(true);
+                    setIsZenAudioPlaying(true);
+                    setIsZenTimerRunning(true);
+                    playAudioFeedback("click");
+                  }}
+                  className="whitespace-nowrap bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white text-xs font-black py-2.5 px-5 rounded-xl cursor-pointer transition-all shadow-md shadow-rose-500/15"
+                >
+                  راه اندازی زنگ کایزن و تمرکز مطلق 🧘
+                </button>
+              </div>
+
+              {/* Quad Widgets Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Quick Hydration Track Widget */}
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-xs text-slate-400 font-bold">
+                      مصرف آب امروز
+                    </span>
+                    <Droplet className="w-5 h-5 text-teal-600" />
+                  </div>
+                  <div className="text-center py-2">
+                    <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+                      {health.waterToday}{" "}
+                      <span className="text-xs font-normal text-slate-400">
+                        میلی‌لیتر
+                      </span>
+                    </h4>
+                    <p className="text-[10px] text-teal-600 font-bold mt-1">
+                      طرح هدف: ۲۵۰۰ میلی‌لیتر (سقف ۴۰۰۰ml)
+                    </p>
+                  </div>
+                  <div className="flex gap-1.5 mt-3">
+                    <button
+                      type="button"
+                      disabled={isSelectedDatePast || isSelectedDateFuture}
+                      onClick={() => handleAddWater(250)}
+                      className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300 rounded-lg text-[10px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      + ۲۵۰ml
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSelectedDatePast || isSelectedDateFuture}
+                      onClick={() => handleAddWater(500)}
+                      className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300 rounded-lg text-[10px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      + ۵۰۰ml
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sleep Quality Widget */}
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-2">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs text-slate-400 font-bold">
+                      میزان و کیفیت خواب
+                    </span>
+                    <Moon className="w-5 h-5 text-indigo-500" />
+                  </div>
+                  <div className="text-center py-1">
+                    <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+                      {health.sleepHours}{" "}
+                      <span className="text-xs font-normal text-slate-400">
+                        ساعت
+                      </span>
+                    </h4>
+                    <p className="text-[10px] text-indigo-500 font-bold mt-0.5">
+                      کیفیت:{" "}
+                      {health.sleepQuality === "excellent"
+                        ? "بسیار عالی"
+                        : health.sleepQuality === "good"
+                          ? "خوب و رضایت‌بخش"
+                          : health.sleepQuality === "fair"
+                            ? "متوسط"
+                            : "آشفته / نامنظم"}
+                    </p>
+                  </div>
+
+                  {/* اسلایدر از ۰ تا ۱۴ با گام ۰.۵ */}
+                  <input
+                    type="range"
+                    min="0"
+                    max="14"
+                    step="0.5"
+                    disabled={isSelectedDatePast || isSelectedDateFuture}
+                    value={health.sleepHours}
+                    onChange={(e) =>
+                      saveHealthToLocal({
+                        ...health,
+                        sleepHours: Number(e.target.value),
+                      })
+                    }
+                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                  />
+
+                  {/* سلکتور کیفیت خواب در پیشخوان */}
+                  <select
+                    disabled={isSelectedDatePast || isSelectedDateFuture}
+                    value={health.sleepQuality}
+                    onChange={(e) =>
+                      saveHealthToLocal({
+                        ...health,
+                        sleepQuality: e.target.value as any,
+                      })
+                    }
+                    className="w-full bg-slate-50 dark:bg-slate-950 rounded-xl p-1.5 border border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-300 mt-1 cursor-pointer"
+                  >
+                    <option value="excellent">🏆 بسیار عالی و عمیق</option>
+                    <option value="good">🟢 خوب و با نشاط</option>
+                    <option value="fair">🟡 متوسط و سطحی</option>
+                    <option value="poor">🔴 آشفته و خواب‌پریشی</option>
+                  </select>
+                </div>
+                {/* Mood Tracker Widget */}
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-xs text-slate-400 font-bold">
+                      خلق‌وخوی امروز
+                    </span>
+                    <Smile className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  <div className="flex justify-center gap-1.5 py-3">
+                    {[
+                      { score: 1, label: "عصبی/بحرانی", emoji: "😡" },
+                      { score: 2, label: "خسته/بی‌ذوق", emoji: "😔" },
+                      { score: 3, label: "معمولی", emoji: "😐" },
+                      { score: 4, label: "شاداب", emoji: "😊" },
+                      { score: 5, label: "بمب انگیزه", emoji: "🤩" },
+                    ].map((item) => (
+                      <button
+                        key={item.score}
+                        type="button"
+                        disabled={isSelectedDatePast || isSelectedDateFuture}
+                        onClick={() => handleSelectMood(item.score, item.label)}
+                        className={`text-lg p-1.5 rounded-xl transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+                          health.moodScore === item.score
+                            ? "bg-emerald-50 dark:bg-emerald-950/50 scale-110 border border-emerald-300 dark:border-emerald-700"
+                            : "opacity-50 hover:opacity-100"
+                        }`}
+                        title={item.label}
+                      >
+                        {item.emoji}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-center text-[10px] font-bold text-slate-400 mt-1">
+                    امتیاز ثبت شده: {health.moodScore} از ۵
                   </p>
                 </div>
 
-                {/* اسلایدر از ۰ تا ۱۴ با گام ۰.۵ */}
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="14" 
-                  step="0.5"
-                  disabled={isSelectedDatePast || isSelectedDateFuture}
-                  value={health.sleepHours} 
-                  onChange={(e) => saveHealthToLocal({ ...health, sleepHours: Number(e.target.value) })}
-                  className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                />
-
-                {/* سلکتور کیفیت خواب در پیشخوان */}
-                <select
-                  disabled={isSelectedDatePast || isSelectedDateFuture}
-                  value={health.sleepQuality}
-                  onChange={(e) => saveHealthToLocal({ ...health, sleepQuality: e.target.value as any })}
-                  className="w-full bg-slate-50 dark:bg-slate-950 rounded-xl p-1.5 border border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-300 mt-1 cursor-pointer"
-                >
-                  <option value="excellent">🏆 بسیار عالی و عمیق</option>
-                  <option value="good">🟢 خوب و با نشاط</option>
-                  <option value="fair">🟡 متوسط و سطحی</option>
-                  <option value="poor">🔴 آشفته و خواب‌پریشی</option>
-                </select>
-              </div>
-              {/* Mood Tracker Widget */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-xs text-slate-400 font-bold">خلق‌وخوی امروز</span>
-                  <Smile className="w-5 h-5 text-emerald-500" />
-                </div>
-                <div className="flex justify-center gap-1.5 py-3">
-                  {[
-                    { score: 1, label: 'عصبی/بحرانی', emoji: '😡' },
-                    { score: 2, label: 'خسته/بی‌ذوق', emoji: '😔' },
-                    { score: 3, label: 'معمولی', emoji: '😐' },
-                    { score: 4, label: 'شاداب', emoji: '😊' },
-                    { score: 5, label: 'بمب انگیزه', emoji: '🤩' }
-                  ].map(item => (
-                    <button 
-                      key={item.score}
-                      type="button"
-                      disabled={isSelectedDatePast || isSelectedDateFuture}
-                      onClick={() => handleSelectMood(item.score, item.label)}
-                      className={`text-lg p-1.5 rounded-xl transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
-                        health.moodScore === item.score 
-                          ? 'bg-emerald-50 dark:bg-emerald-950/50 scale-110 border border-emerald-300 dark:border-emerald-700' 
-                          : 'opacity-50 hover:opacity-100'
-                      }`}
-                      title={item.label}
-                    >
-                      {item.emoji}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-center text-[10px] font-bold text-slate-400 mt-1">امتیاز ثبت شده: {health.moodScore} از ۵</p>
-              </div>
-
-              {/* Weight BMI Status Tracker */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-xs text-slate-400 font-bold">وزن و شاخص BMI</span>
-                  <Heart className="w-5 h-5 text-rose-500" />
-                </div>
-                <div className="text-center py-2">
-                  <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">{userWeight} <span className="text-xs font-normal text-slate-400">کیلوگرم</span></h4>
-                  {(() => {
-                    const heightInMeters = userHeight / 100;
-                    const bmi = Number((userWeight / (heightInMeters * heightInMeters)).toFixed(1)) || 0;
-                    let bmiState = "نرمال (ایده‌آل)";
-                    if (bmi < 18.5) bmiState = "کمبود وزن (لاغر)";
-                    else if (bmi >= 25 && bmi < 30) bmiState = "اضافه‌وزن";
-                    else if (bmi >= 30) bmiState = "چاق کورتکس";
-                    return <p className="text-[10px] text-rose-650 font-bold mt-1">شاخص توده: {bmi} ({bmiState})</p>;
-                  })()}
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <button onClick={() => saveUserWeight(Number((userWeight - 0.5).toFixed(1)))} className="text-xs font-bold p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:bg-slate-700 rounded cursor-pointer">-0.5</button>
-                  <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-rose-500" style={{ width: '65%' }} />
+                {/* Weight BMI Status Tracker */}
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-xs text-slate-400 font-bold">
+                      وزن و شاخص BMI
+                    </span>
+                    <Heart className="w-5 h-5 text-rose-500" />
                   </div>
-                  <button onClick={() => saveUserWeight(Number((userWeight + 0.5).toFixed(1)))} className="text-xs font-bold p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:bg-slate-700 rounded cursor-pointer">+0.5</button>
-                </div>
-              </div>
-            </div>
-
-            {/* Sub-grid of Events and Checked Lists */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left Panel Today’s Events */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-50">
-                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-teal-600" />
-                    <span>برنامه و قرار ملاقات‌های امروز</span>
-                  </h3>
-                  <button onClick={() => setActiveTab('planner')} className="text-xs text-teal-600 font-bold hover:underline">دیدن تقویم کامل</button>
-                </div>
-                
-                <div className="space-y-3">
-                  {events.filter(e => e.date === selectedDateISO).map(ev => (
-                    <div key={ev.id} className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl flex items-center justify-between border-r-4 border-teal-500">
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-mono font-bold">{ev.time}</span>
-                        <h5 className="font-bold text-xs text-slate-800 dark:text-slate-200 mt-0.5">{ev.title}</h5>
-                      </div>
-                      <span className="text-[10px] bg-white dark:bg-slate-800 px-2.5 py-1 rounded-full text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800 font-semibold">{ev.category}</span>
-                    </div>
-                  ))}
-                  {events.filter(e => e.date === selectedDateISO).length === 0 && (
-                    <div className="text-center py-8 text-slate-405 italic text-xs">رویدادی برای این تاریخ مقرر نشده است.</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Right Panel Today’s Tasks */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-50">
-                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <CheckSquare className="w-5 h-5 text-emerald-600" />
-                    <span>کارهای اولویت‌دار امروز</span>
-                  </h3>
-                  <button onClick={() => setActiveTab('tasks')} className="text-xs text-emerald-600 font-bold hover:underline">مشاهده بورد کانبان</button>
-                </div>
-
-                <div className="space-y-3">
-                  {tasks.filter(t => t.status !== 'done' && t.dueDate === selectedDateISO).slice(0, 3).map(task => (
-                    <div key={task.id} className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <input 
-                          type="checkbox" 
-                          onChange={() => {
-                            const updated = tasks.map(t => t.id === task.id ? { ...t, status: 'done' as const } : t);
-                            saveTasksToLocal(updated);
-                            earnXp(20, `تکمیل کار "${task.title}"`);
-                          }}
-                          className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer border-slate-300 dark:border-slate-600"
-                        />
-                        <span className="font-semibold text-xs text-slate-700 dark:text-slate-300">{task.title}</span>
-                      </div>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${task.priority === 'HIGH' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-700'}`}>
-                        {task.priority === 'HIGH' ? 'مهم' : 'عادی'}
+                  <div className="text-center py-2">
+                    <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+                      {userWeight}{" "}
+                      <span className="text-xs font-normal text-slate-400">
+                        کیلوگرم
                       </span>
+                    </h4>
+                    {(() => {
+                      const heightInMeters = userHeight / 100;
+                      const bmi =
+                        Number(
+                          (
+                            userWeight /
+                            (heightInMeters * heightInMeters)
+                          ).toFixed(1),
+                        ) || 0;
+                      let bmiState = "نرمال (ایده‌آل)";
+                      if (bmi < 18.5) bmiState = "کمبود وزن (لاغر)";
+                      else if (bmi >= 25 && bmi < 30) bmiState = "اضافه‌وزن";
+                      else if (bmi >= 30) bmiState = "چاق کورتکس";
+                      return (
+                        <p className="text-[10px] text-rose-650 font-bold mt-1">
+                          شاخص توده: {bmi} ({bmiState})
+                        </p>
+                      );
+                    })()}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() =>
+                        saveUserWeight(Number((userWeight - 0.5).toFixed(1)))
+                      }
+                      className="text-xs font-bold p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:bg-slate-700 rounded cursor-pointer"
+                    >
+                      -0.5
+                    </button>
+                    <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-rose-500"
+                        style={{ width: "65%" }}
+                      />
                     </div>
-                  ))}
-                  {tasks.filter(t => t.status !== 'done' && t.dueDate === selectedDateISO).length === 0 && (
-                    <div className="text-center py-8 text-slate-405 italic text-xs">کارهای این روز با موفقیت تکمیل شده است. 🎉</div>
-                  )}
+                    <button
+                      onClick={() =>
+                        saveUserWeight(Number((userWeight + 0.5).toFixed(1)))
+                      }
+                      className="text-xs font-bold p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:bg-slate-700 rounded cursor-pointer"
+                    >
+                      +0.5
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Smart Voice Chatbot Interface Card */}
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
-              <h2 className="text-base font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-4 pb-3 border-b border-slate-50">
-                <Sparkles className="w-5 h-5 text-teal-600" />
-                <span>دستیار هوشمند و فهم فرمان‌های کورتکس </span>
-              </h2>
-              
-              <div className="h-64 overflow-y-auto bg-slate-50 dark:bg-slate-950/50 rounded-2xl p-4 mb-4 border border-slate-100 dark:border-slate-800/50 space-y-3.5">
-                <AnimatePresence>
-                  {chatLog.map((log, index) => (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }} 
-                      animate={{ opacity: 1, y: 0, scale: 1 }} 
-                      transition={{ duration: 0.2 }}
-                      key={index} 
-                      className={`flex ${log.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+              {/* Sub-grid of Events and Checked Lists */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left Panel Today’s Events */}
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                  <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-50">
+                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-teal-600" />
+                      <span>برنامه و قرار ملاقات‌های امروز</span>
+                    </h3>
+                    <button
+                      onClick={() => setActiveTab("planner")}
+                      className="text-xs text-teal-600 font-bold hover:underline"
                     >
-                      <div className={`max-w-[80%] rounded-2xl p-3.5 text-xs leading-relaxed ${log.sender === 'user' ? 'bg-teal-600 text-white rounded-br-none' : 'bg-slate-150 text-slate-700 dark:text-slate-300 rounded-bl-none'}`}>
-                        {log.text}
+                      دیدن تقویم کامل
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {events
+                      .filter((e) => e.date === selectedDateISO)
+                      .map((ev) => (
+                        <div
+                          key={ev.id}
+                          className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl flex items-center justify-between border-r-4 border-teal-500"
+                        >
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-mono font-bold">
+                              {ev.time}
+                            </span>
+                            <h5 className="font-bold text-xs text-slate-800 dark:text-slate-200 mt-0.5">
+                              {ev.title}
+                            </h5>
+                          </div>
+                          <span className="text-[10px] bg-white dark:bg-slate-800 px-2.5 py-1 rounded-full text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800 font-semibold">
+                            {ev.category}
+                          </span>
+                        </div>
+                      ))}
+                    {events.filter((e) => e.date === selectedDateISO).length ===
+                      0 && (
+                      <div className="text-center py-8 text-slate-405 italic text-xs">
+                        رویدادی برای این تاریخ مقرر نشده است.
                       </div>
-                    </motion.div>
-                  ))}
-                  {isAiResponding && (
-                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="flex justify-start">
-                      <div className="bg-slate-100 dark:bg-slate-800 text-slate-400 p-3 rounded-xl rounded-bl-none text-xs italic animate-pulse">
-                        دستیار سایبان در حال اندیشیدن...
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Panel Today’s Tasks */}
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                  <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-50">
+                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <CheckSquare className="w-5 h-5 text-emerald-600" />
+                      <span>کارهای اولویت‌دار امروز</span>
+                    </h3>
+                    <button
+                      onClick={() => setActiveTab("tasks")}
+                      className="text-xs text-emerald-600 font-bold hover:underline"
+                    >
+                      مشاهده بورد کانبان
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {tasks
+                      .filter(
+                        (t) =>
+                          t.status !== "done" && t.dueDate === selectedDateISO,
+                      )
+                      .slice(0, 3)
+                      .map((task) => (
+                        <div
+                          key={task.id}
+                          className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              onChange={() => {
+                                const updated = tasks.map((t) =>
+                                  t.id === task.id
+                                    ? { ...t, status: "done" as const }
+                                    : t,
+                                );
+                                saveTasksToLocal(updated);
+                                earnXp(20, `تکمیل کار "${task.title}"`);
+                              }}
+                              className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer border-slate-300 dark:border-slate-600"
+                            />
+                            <span className="font-semibold text-xs text-slate-700 dark:text-slate-300">
+                              {task.title}
+                            </span>
+                          </div>
+                          <span
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded ${task.priority === "HIGH" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-700"}`}
+                          >
+                            {task.priority === "HIGH" ? "مهم" : "عادی"}
+                          </span>
+                        </div>
+                      ))}
+                    {tasks.filter(
+                      (t) =>
+                        t.status !== "done" && t.dueDate === selectedDateISO,
+                    ).length === 0 && (
+                      <div className="text-center py-8 text-slate-405 italic text-xs">
+                        کارهای این روز با موفقیت تکمیل شده است. 🎉
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <div />
+                    )}
+                  </div>
+                </div>
               </div>
 
-              <form onSubmit={handleChatSubmit} className="flex gap-2">
-                <textarea
-                  rows={1}
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleChatSubmit(e);
-                    }
-                  }}
-                  placeholder="سر فصلی اضافه کنید یا با چت ربات مشورت کنید... (مثل: من چطور می‌توانم استرسم را کاهش دهم؟)"
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-teal-500 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200 resize-none max-h-32 leading-relaxed"
-                />
-                
-                {/* Simulated Speech Button */}
-                {/* <button 
+              {/* Smart Voice Chatbot Interface Card */}
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+                <h2 className="text-base font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-4 pb-3 border-b border-slate-50">
+                  <Sparkles className="w-5 h-5 text-teal-600" />
+                  <span>دستیار هوشمند و فهم فرمان‌های کورتکس </span>
+                </h2>
+
+                <div className="h-64 overflow-y-auto bg-slate-50 dark:bg-slate-950/50 rounded-2xl p-4 mb-4 border border-slate-100 dark:border-slate-800/50 space-y-3.5">
+                  <AnimatePresence>
+                    {chatLog.map((log, index) => (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ duration: 0.2 }}
+                        key={index}
+                        className={`flex ${log.sender === "user" ? "justify-end" : "justify-start"}`}
+                      >
+                        <div
+                          className={`max-w-[80%] rounded-2xl p-3.5 text-xs leading-relaxed ${log.sender === "user" ? "bg-teal-600 text-white rounded-br-none" : "bg-slate-150 text-slate-700 dark:text-slate-300 rounded-bl-none"}`}
+                        >
+                          {log.text}
+                        </div>
+                      </motion.div>
+                    ))}
+                    {isAiResponding && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="flex justify-start"
+                      >
+                        <div className="bg-slate-100 dark:bg-slate-800 text-slate-400 p-3 rounded-xl rounded-bl-none text-xs italic animate-pulse">
+                          دستیار سایبان در حال اندیشیدن...
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <div />
+                </div>
+
+                <form onSubmit={handleChatSubmit} className="flex gap-2">
+                  <textarea
+                    rows={1}
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleChatSubmit(e);
+                      }
+                    }}
+                    placeholder="سر فصلی اضافه کنید یا با چت ربات مشورت کنید... (مثل: من چطور می‌توانم استرسم را کاهش دهم؟)"
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-teal-500 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200 resize-none max-h-32 leading-relaxed"
+                  />
+
+                  {/* Simulated Speech Button */}
+                  {/* <button 
                   type="button"
                   onClick={() => {
                     const sampleCommand = "جلسه با مدیر ساعت ۱۵ فردا هماهنگ شه";
@@ -2245,1471 +2552,2092 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                   <Mic className="w-4 h-4" />
                 </button> */}
 
-                <button 
-                  type="submit"
-                  className="bg-teal-600 text-white text-xs font-bold px-5 py-3 rounded-xl hover:bg-teal-700 hover:scale-[1.01] transition-all cursor-pointer"
-                >
-                  ارسال پیام
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Tab 2: Calendar & Planner */}
-        {activeTab === 'planner' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">تقویم زمان‌بندی و مسدودسازی زمانی (Time Blocking)</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">کارهای امروز کایزن خود را با اسلات‌های تقویم پیوند دهید تا بهره‌وری دوچندان داشته باشید.</p>
-              </div>
-
-              <button 
-                onClick={() => setUseJalaliCalendar(!useJalaliCalendar)}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:bg-slate-950 cursor-pointer"
-              >
-                نمایش تقویم: {useJalaliCalendar ? 'جلالی (شمسی)' : 'میلادی (Gregorian)'}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Event Maker Panel */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <h3 className="font-extrabold text-sm mb-4 text-slate-900 dark:text-slate-100 pb-2 border-b border-slate-50">درج رویداد جدید به تقویم</h3>
-                
-                <form onSubmit={addManualEvent} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">عنوان قرار ملاقات / رویداد</label>
-                    <input 
-                      type="text" 
-                      required
-                      value={newEventTitle}
-                      onChange={(e) => setNewEventTitle(e.target.value)}
-                      placeholder="مثال: دندان‌پزشکی، سینما"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">تاریخ</label>
-                      <DatePicker 
-                        calendar={persian}
-                        locale={persian_fa}
-                        format="YYYY/MM/DD"
-                        value={newEventDate ? new Date(newEventDate + 'T12:00:00') : ""}
-                        onChange={(date: any) => {
-                          if (date) {
-                            const jsDate = date.toDate();
-                            // Prevent timezone offset issue by formatting using local time
-                            const yy = jsDate.getFullYear();
-                            const mm = String(jsDate.getMonth() + 1).padStart(2, '0');
-                            const dd = String(jsDate.getDate()).padStart(2, '0');
-                            setNewEventDate(`${yy}-${mm}-${dd}`);
-                          }
-                        }}
-                        containerClassName="w-full"
-                        inputClass="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-mono text-center"
-                        placeholder="انتخاب تاریخ"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">ساعت شروع</label>
-                      <input 
-                        type="time" 
-                        required
-                        value={newEventTime}
-                        onChange={(e) => setNewEventTime(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">دسته‌بندی کاری</label>
-                    <select 
-                      value={newEventCat} 
-                      onChange={(e) => setNewEventCat(e.target.value as any)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                    >
-                      <option value="work">کارهای شغلی / اداری</option>
-                      <option value="personal">مسائل شخصی</option>
-                      <option value="health">سلامت و ورزش</option>
-                      <option value="learning">مطالعه و پژوهش</option>
-                    </select>
-                  </div>
-
-                  <button 
+                  <button
                     type="submit"
-                    className="w-full py-3 bg-teal-600 text-white rounded-lg text-xs font-bold hover:bg-teal-700 cursor-pointer"
+                    className="bg-teal-600 text-white text-xs font-bold px-5 py-3 rounded-xl hover:bg-teal-700 hover:scale-[1.01] transition-all cursor-pointer"
                   >
-                    ثبت در تقویم سایبان
+                    ارسال پیام
                   </button>
                 </form>
               </div>
+            </div>
+          )}
 
-              {/* Central Grid: Days Representation */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm lg:col-span-2 space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-50">
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">نمای ۵ روزه پیرامون تاریخ انتخاب شده</span>
-                  <div className="flex gap-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-teal-500" title="Work" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" title="Personal" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" title="Health" />
-                  </div>
+          {/* Tab 2: Calendar & Planner */}
+          {activeTab === "planner" && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+                    تقویم زمان‌بندی{" "}
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    کارهای امروز کایزن خود را با اسلات‌های تقویم پیوند دهید تا
+                    بهره‌وری دوچندان داشته باشید.
+                  </p>
                 </div>
 
-                {/* Days Representation Columns simulated Row */}
-                <div className="space-y-3">
-                  {Array.from({length: 5}).map((_, i) => {
-                    if (!selectedDateISO) return "";
-                    const d = new Date(selectedDateISO + "T12:00:00Z");
-                    d.setUTCDate(d.getUTCDate() - 2 + i);
-                    return d.toISOString().split('T')[0];
-                  }).filter(Boolean).map(dateStr => {
-                    const isToday = dateStr === todayISO;
-                    const dailyEvents = events.filter(e => e.date === dateStr);
-                    return (
-                      <div
-                        key={dateStr}
-                        className={`p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 border transition-colors ${isToday ? "bg-indigo-50/70 border-indigo-300 dark:bg-indigo-950/40 dark:border-indigo-600" : "bg-slate-50/80 border-slate-200 dark:bg-slate-900/30 dark:border-slate-700"}`}
+                <button
+                  onClick={() => setUseJalaliCalendar(!useJalaliCalendar)}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:bg-slate-950 cursor-pointer"
+                >
+                  نمایش تقویم:{" "}
+                  {useJalaliCalendar ? "جلالی (شمسی)" : "میلادی (Gregorian)"}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Event Maker Panel */}
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                  <h3 className="font-extrabold text-sm mb-4 text-slate-900 dark:text-slate-100 pb-2 border-b border-slate-50">
+                    درج رویداد جدید به تقویم
+                  </h3>
+
+                  <form onSubmit={addManualEvent} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">
+                        عنوان قرار ملاقات / رویداد
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newEventTitle}
+                        onChange={(e) => setNewEventTitle(e.target.value)}
+                        placeholder="مثال: دندان‌پزشکی، سینما"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">
+                          تاریخ
+                        </label>
+                        <DatePicker
+                          calendar={persian}
+                          locale={persian_fa}
+                          format="YYYY/MM/DD"
+                          value={
+                            newEventDate
+                              ? new Date(newEventDate + "T12:00:00")
+                              : ""
+                          }
+                          onChange={(date: any) => {
+                            if (date) {
+                              const jsDate = date.toDate();
+                              // Prevent timezone offset issue by formatting using local time
+                              const yy = jsDate.getFullYear();
+                              const mm = String(jsDate.getMonth() + 1).padStart(
+                                2,
+                                "0",
+                              );
+                              const dd = String(jsDate.getDate()).padStart(
+                                2,
+                                "0",
+                              );
+                              setNewEventDate(`${yy}-${mm}-${dd}`);
+                            }
+                          }}
+                          containerClassName="w-full"
+                          inputClass="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-mono text-center"
+                          placeholder="انتخاب تاریخ"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">
+                          ساعت شروع
+                        </label>
+                        <input
+                          type="time"
+                          required
+                          value={newEventTime}
+                          onChange={(e) => setNewEventTime(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">
+                        دسته‌بندی کاری
+                      </label>
+                      <select
+                        value={newEventCat}
+                        onChange={(e) => setNewEventCat(e.target.value as any)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
                       >
-                        <div className="shrink-0">
-                          <h4 className="font-extrabold text-xs text-slate-900 dark:text-slate-100">
-                            {useJalaliCalendar
-                              ? getJalaliDate(dateStr)
-                              : dateStr}
-                          </h4>
-                          <span className="text-[10px] text-slate-400 font-medium">
-                            {isToday && "(امروز کورتکس)"}
-                          </span>
+                        <option value="work">کارهای شغلی / اداری</option>
+                        <option value="personal">مسائل شخصی</option>
+                        <option value="health">سلامت و ورزش</option>
+                        <option value="learning">مطالعه و پژوهش</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-3 bg-teal-600 text-white rounded-lg text-xs font-bold hover:bg-teal-700 cursor-pointer"
+                    >
+                      ثبت در تقویم سایبان
+                    </button>
+                  </form>
+                </div>
+
+                {/* Central Grid: Days Representation */}
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm lg:col-span-2 space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-50">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                      نمای ۵ روزه پیرامون تاریخ انتخاب شده
+                    </span>
+                    <div className="flex gap-1">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full bg-teal-500"
+                        title="Work"
+                      />
+                      <span
+                        className="w-2.5 h-2.5 rounded-full bg-indigo-500"
+                        title="Personal"
+                      />
+                      <span
+                        className="w-2.5 h-2.5 rounded-full bg-emerald-500"
+                        title="Health"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Days Representation Columns simulated Row */}
+                  <div className="space-y-3">
+                    {Array.from({ length: 5 })
+                      .map((_, i) => {
+                        if (!selectedDateISO) return "";
+                        const d = new Date(selectedDateISO + "T12:00:00Z");
+                        d.setUTCDate(d.getUTCDate() - 2 + i);
+                        return d.toISOString().split("T")[0];
+                      })
+                      .filter(Boolean)
+                      .map((dateStr) => {
+                        const isToday = dateStr === todayISO;
+                        const dailyEvents = events.filter(
+                          (e) => e.date === dateStr,
+                        );
+                        return (
+                          <div
+                            key={dateStr}
+                            className={`p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 border transition-colors ${isToday ? "bg-indigo-50/70 border-indigo-300 dark:bg-indigo-950/40 dark:border-indigo-600" : "bg-slate-50/80 border-slate-200 dark:bg-slate-900/30 dark:border-slate-700"}`}
+                          >
+                            <div className="shrink-0">
+                              <h4 className="font-extrabold text-xs text-slate-900 dark:text-slate-100">
+                                {useJalaliCalendar
+                                  ? getJalaliDate(dateStr)
+                                  : dateStr}
+                              </h4>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {isToday && "(امروز)"}
+                              </span>
+                            </div>
+
+                            <div className="flex-1 flex flex-wrap gap-2">
+                              {dailyEvents.map((ev) => {
+                                const colors =
+                                  ev.category === "health"
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                    : ev.category === "work"
+                                      ? "bg-teal-55 bg-teal-50 text-teal-800 border-teal-200"
+                                      : "bg-indigo-50 text-indigo-800 border-indigo-200";
+                                return (
+                                  <div
+                                    key={ev.id}
+                                    className={`px-2.5 py-1 text-xs rounded-xl border flex items-center gap-2 ${colors}`}
+                                  >
+                                    <span className="font-mono text-[9px] font-bold">
+                                      {ev.time}
+                                    </span>
+                                    <span className="font-medium font-sans">
+                                      {ev.title}
+                                    </span>
+                                    <button
+                                      onClick={() =>
+                                        saveEventsToLocal(
+                                          events.filter((e) => e.id !== ev.id),
+                                        )
+                                      }
+                                      className="text-slate-450 hover:text-rose-500"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                              {dailyEvents.length === 0 && (
+                                <span className="text-xs text-slate-400 italic">
+                                  بدون قرار کاری یا ورزشی
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tab 3: Rich Notes Module */}
+          {activeTab === "notes" && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+                    دفترچه یادداشت‌های من
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    اسناد، ایده‌ها و رویاهای خود را در پوشه‌های گوناگون با
+                    چسبندگی مینی‌مال ذخیره کنید.
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNotesGraph((prev) => !prev);
+                      playAudioFeedback("click");
+                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${showNotesGraph ? "bg-indigo-50 text-indigo-700 border border-indigo-200" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300"}`}
+                    title="نمایش نمایه ارتباطات هوشمند بین یادداشت‌ها"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>نمای گراف روابط Obsidian</span>
+                  </button>
+
+                  <button
+                    onClick={createBlankNote}
+                    className="px-4 py-2 bg-teal-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-teal-700 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>یادداشت جدید</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                {showNotesGraph ? (
+                  <div className="md:col-span-2 space-y-4 animate-fadeIn">
+                    {(() => {
+                      const radius = 100;
+                      const cx = 180;
+                      const cy = 180;
+                      const mappedNodes = notes.map((note, index) => {
+                        const angle =
+                          (index / (notes.length || 1)) * 2 * Math.PI;
+                        return {
+                          id: note.id,
+                          title: note.title,
+                          isPinned: note.isPinned,
+                          x: cx + radius * Math.cos(angle),
+                          y: cy + radius * Math.sin(angle),
+                        };
+                      });
+
+                      const edges: {
+                        from: { x: number; y: number; id: string };
+                        to: { x: number; y: number; id: string };
+                      }[] = [];
+                      for (let i = 0; i < mappedNodes.length; i++) {
+                        for (let j = i + 1; j < mappedNodes.length; j++) {
+                          const nodeA = notes[i];
+                          const nodeB = notes[j];
+                          const posA = mappedNodes[i];
+                          const posB = mappedNodes[j];
+
+                          const linkAtoB =
+                            nodeA.content.includes(`[[${nodeB.title}]]`) ||
+                            nodeA.content.includes(nodeB.title);
+                          const linkBtoA =
+                            nodeB.content.includes(`[[${nodeA.title}]]`) ||
+                            nodeB.content.includes(nodeA.title);
+
+                          const overlapping =
+                            nodeA.title &&
+                            nodeB.title &&
+                            nodeA.title.slice(0, 3) === nodeB.title.slice(0, 3);
+
+                          if (linkAtoB || linkBtoA || overlapping) {
+                            edges.push({ from: posA, to: posB });
+                          }
+                        }
+                      }
+
+                      return (
+                        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 text-center shadow-inner min-h-[460px] flex flex-col justify-between overflow-hidden relative">
+                          <div className="flex justify-between items-center z-10">
+                            <div className="text-right">
+                              <span className="text-[10px] font-bold text-cyan-400 block tracking-widest uppercase">
+                                نمایش روابط هوشمند
+                              </span>
+                              <h4 className="text-xs font-black text-white">
+                                شبکه روابط یادداشت‌ها کورتکس
+                              </h4>
+                            </div>
+                            <span className="text-[9px] bg-slate-800 border border-slate-700 text-teal-400 py-0.5 px-2 rounded-full font-mono">
+                              پیوندها: {edges.length} | یادداشت‌ها:{" "}
+                              {notes.length}
+                            </span>
+                          </div>
+
+                          <div className="relative w-full flex-1 flex items-center justify-center min-h-[290px]">
+                            <svg className="w-full h-full max-w-[340px] max-h-[300px] drop-shadow-[0_0_15px_rgba(20,184,166,0.12)]">
+                              {edges.map((e, idx) => (
+                                <line
+                                  key={`link-${idx}`}
+                                  x1={e.from.x}
+                                  y1={e.from.y}
+                                  x2={e.to.x}
+                                  y2={e.to.y}
+                                  stroke="#14B8A6"
+                                  strokeWidth="1.2"
+                                  strokeOpacity="0.45"
+                                  strokeDasharray="3 3"
+                                />
+                              ))}
+
+                              {mappedNodes.map((n) => {
+                                const isActive = n.id === activeNoteId;
+                                return (
+                                  <g
+                                    key={n.id}
+                                    className="cursor-pointer group"
+                                    onClick={() => {
+                                      setActiveNoteId(n.id);
+                                      playAudioFeedback("click");
+                                      showToast(
+                                        `تمرکز یادداشت روی: "${n.title}"`,
+                                        "info",
+                                      );
+                                    }}
+                                  >
+                                    <circle
+                                      cx={n.x}
+                                      cy={n.y}
+                                      r={isActive ? "9" : "6"}
+                                      fill={isActive ? "#14B8A6" : "#475569"}
+                                      stroke={isActive ? "#CCFBF1" : "#1E293B"}
+                                      strokeWidth="1.5"
+                                      className="transition-all duration-300 hover:fill-teal-400"
+                                    />
+
+                                    <text
+                                      x={n.x}
+                                      y={n.y - 11}
+                                      textAnchor="middle"
+                                      fill={isActive ? "#2DD4BF" : "#94A3B8"}
+                                      className="text-[8px] font-black pointer-events-none select-none font-sans"
+                                    >
+                                      {n.title.slice(0, 16)}
+                                    </text>
+                                  </g>
+                                );
+                              })}
+                            </svg>
+                          </div>
+
+                          <p className="text-[9.5px] text-slate-400 text-center leading-normal">
+                            💡 گره‌ها را لمس کنید تا یادداشت فعال تغییر کند.
+                            برای بازگشت به لیست ستونی دکمه بالا را کلیک کنید.
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <>
+                    {/* Folders List and Search panel */}
+                    <div className="space-y-4">
+                      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                        <div className="relative">
+                          <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input
+                            type="text"
+                            placeholder="جستجو در متون..."
+                            value={noteSearch}
+                            onChange={(e) => setNoteSearch(e.target.value)}
+                            className="w-full pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2 px-2">
+                          پوشه‌بندی
+                        </span>
+                        {["همه", "یادداشت‌ها", "برنامه‌ها", "هوشمند"].map(
+                          (f) => (
+                            <button
+                              key={f}
+                              onClick={() => setSelectedFolder(f)}
+                              className={`w-full text-right px-3 py-2 rounded-lg text-xs font-medium cursor-pointer ${selectedFolder === f ? "bg-slate-100 dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-200" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}
+                            >
+                              {f}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Note Selection List */}
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm p-4 overflow-y-auto max-h-[500px] space-y-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block mb-2 px-1">
+                        لیست نوشته‌ها
+                      </span>
+                      <AnimatePresence mode="popLayout">
+                        {filteredNotes.length === 0 && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="text-center py-6 text-slate-400"
+                          >
+                            <BookOpen className="w-8 h-8 opacity-20 mx-auto mb-2" />
+                            <span className="text-[10px]">
+                              نوشته‌ای یافت نشد
+                            </span>
+                          </motion.div>
+                        )}
+                        {filteredNotes.map((n) => (
+                          <motion.button
+                            layout
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2 }}
+                            key={n.id}
+                            onClick={() => setActiveNoteId(n.id)}
+                            className={`w-full text-right p-3 rounded-xl border cursor-pointer transition-colors block ${activeNoteId === n.id ? "bg-teal-50/40 border-teal-300" : "bg-slate-50 dark:bg-slate-950/20 border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:bg-slate-950"}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">
+                                {n.title}
+                              </h4>
+                              {n.isPinned && (
+                                <Pin className="w-3 h-3 text-amber-500" />
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 truncate mt-1">
+                              {n.content.slice(0, 40)}...
+                            </p>
+                          </motion.button>
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                  </>
+                )}
+
+                {/* Active Note Rich Editor */}
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm p-6 md:col-span-2 space-y-4">
+                  {activeNote ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-50 pb-3">
+                        <input
+                          type="text"
+                          value={activeNote.title}
+                          onChange={(e) => {
+                            const updated = notes.map((n) =>
+                              n.id === activeNote.id
+                                ? { ...n, title: e.target.value }
+                                : n,
+                            );
+                            saveNotesToLocal(updated);
+                          }}
+                          className="font-black text-base text-slate-900 dark:text-slate-100 focus:outline-none bg-transparent flex-1"
+                        />
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              const updated = notes.map((n) =>
+                                n.id === activeNote.id
+                                  ? { ...n, isPinned: !n.isPinned }
+                                  : n,
+                              );
+                              saveNotesToLocal(updated);
+                            }}
+                            className={`p-2 rounded-lg hover:bg-slate-50 dark:bg-slate-950 ${activeNote.isPinned ? "text-amber-500" : "text-slate-450"}`}
+                            title="پین یا لغو قرار گرفتن در بالای نوشته‌ها"
+                          >
+                            <Pin className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              const updated = notes.filter(
+                                (n) => n.id !== activeNote.id,
+                              );
+                              saveNotesToLocal(updated);
+                              setActiveNoteId(updated[0]?.id || null);
+                            }}
+                            className="p-2 rounded-lg text-slate-450 hover:text-rose-500 hover:bg-rose-50"
+                            title="حذف دائمی"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <textarea
+                        value={activeNote.content}
+                        onChange={(e) => {
+                          const updated = notes.map((n) =>
+                            n.id === activeNote.id
+                              ? { ...n, content: e.target.value }
+                              : n,
+                          );
+                          saveNotesToLocal(updated);
+                        }}
+                        className="w-full h-80 focus:outline-none p-3 resize-none text-xs rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 font-mono focus:border-teal-500 leading-relaxed text-slate-700 dark:text-slate-300"
+                      />
+
+                      {/* Integrated Templates Row */}
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs bg-slate-50 dark:bg-slate-950 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400">
+                          قالب‌های کورتکس:
+                        </span>
+                        {[
+                          {
+                            name: "📝 روزنگار",
+                            template:
+                              "# روزنگار هوشمند کایزن\n\n## 🌟 سپاسگزاری امروز:\n۱. \n۲. \n\n## 🎯 تمرکز کاری امروز:\n- \n\n## 💭 بازتاب احساسی:\n",
+                          },
+                          {
+                            name: "💼 جلسه",
+                            template:
+                              "# یادداشت جلسه کورتکس\n\n**موضوع:** \n**تاریخ:** \n**حاضرین:** \n\n## 📝 نکات کلیدی:\n- \n\n## 📌 اکشن آیتم‌ها:\n- [ ] پیگیری کار تیم",
+                          },
+                          {
+                            name: "📖 کتاب",
+                            template:
+                              "# خلاصه کتاب جدید\n\n**عنوان:** \n**نویسنده:** \n\n## 💡 آموخته‌های کلیدی:\n۱. \n\n## 🎯 اقدام عملی:\n- ",
+                          },
+                          {
+                            name: "💡 ایده",
+                            template:
+                              "# بوم طوفان فکری ایده\n\n**فرضیه اصلی:** \n**ارزش پیشنهادی:** \n\n## 🚀 گام اقدام:\n- [ ] تست ایده ",
+                          },
+                        ].map((tmpl) => (
+                          <button
+                            key={tmpl.name}
+                            type="button"
+                            onClick={() => {
+                              const updated = notes.map((n) =>
+                                n.id === activeNote.id
+                                  ? { ...n, content: tmpl.template }
+                                  : n,
+                              );
+                              saveNotesToLocal(updated);
+                              showToast(
+                                `قالب "${tmpl.name}" اعمال شد!`,
+                                "success",
+                              );
+                            }}
+                            className="px-2 py-0.5 bg-white dark:bg-slate-900 hover:bg-teal-50 border border-slate-200 dark:border-slate-700 hover:border-teal-300 rounded text-[9px] font-bold transition-all cursor-pointer"
+                          >
+                            {tmpl.name}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Integrated Back-links Tracker */}
+                      {(() => {
+                        const backlinks = notes.filter(
+                          (n) =>
+                            n.id !== activeNote.id &&
+                            (n.content.includes(activeNote.title) ||
+                              n.content.includes(`[[${activeNote.title}]]`)),
+                        );
+                        if (backlinks.length > 0) {
+                          return (
+                            <div className="bg-slate-50 dark:bg-slate-950/50 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/65 mt-2">
+                              <span className="text-[10px] font-bold text-slate-400 block mb-1.5 font-sans">
+                                🔗 نوشته‌های ارجاع‌دهنده به این سند (Backlinks):
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {backlinks.map((bl) => (
+                                  <button
+                                    key={bl.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveNoteId(bl.id);
+                                      playAudioFeedback("click");
+                                    }}
+                                    className="text-[9px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-teal-400 text-slate-650 hover:text-teal-700 px-2 py-0.5 rounded transition-all cursor-pointer"
+                                  >
+                                    {bl.title}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+
+                      {/* Integrated Drag-and-Drop Attachment Block */}
+                      <div className="space-y-3 pt-3 border-t border-slate-50">
+                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                          پیوست تصاویر و اسناد ایده (Drag & Drop)
+                        </span>
+
+                        <div
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${isDragOver ? "border-teal-500 bg-teal-50/10" : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:bg-slate-950/40"}`}
+                        >
+                          <Upload className="w-6 h-6 text-slate-450 mx-auto mb-2" />
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            فایل خود را به اینجا بکشید یا برای انتخاب کلیک کنید.
+                          </p>
+                          <input
+                            type="file"
+                            multiple
+                            ref={fileInputRef}
+                            onChange={handleManualFileSelect}
+                            className="hidden"
+                          />
                         </div>
 
-                        <div className="flex-1 flex flex-wrap gap-2">
-                          {dailyEvents.map((ev) => {
-                            const colors =
-                              ev.category === "health"
-                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                : ev.category === "work"
-                                  ? "bg-teal-55 bg-teal-50 text-teal-800 border-teal-200"
-                                  : "bg-indigo-50 text-indigo-800 border-indigo-200";
-                            return (
-                              <div
-                                key={ev.id}
-                                className={`px-2.5 py-1 text-xs rounded-xl border flex items-center gap-2 ${colors}`}
+                        {noteAttachments.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-2">
+                            {noteAttachments.map((file, i) => (
+                              <span
+                                key={i}
+                                className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-full flex items-center gap-1.5 border border-slate-200 dark:border-slate-700"
                               >
-                                <span className="font-mono text-[9px] font-bold">
-                                  {ev.time}
-                                </span>
-                                <span className="font-medium font-sans">
-                                  {ev.title}
-                                </span>
+                                <span>{file}</span>
                                 <button
                                   onClick={() =>
-                                    saveEventsToLocal(
-                                      events.filter((e) => e.id !== ev.id),
+                                    setNoteAttachments(
+                                      noteAttachments.filter(
+                                        (_, idx) => idx !== i,
+                                      ),
                                     )
                                   }
                                   className="text-slate-450 hover:text-rose-500"
                                 >
                                   ✕
                                 </button>
-                              </div>
-                            );
-                          })}
-                          {dailyEvents.length === 0 && (
-                            <span className="text-xs text-slate-400 italic">
-                              بدون قرار کاری یا ورزشی
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3: Rich Notes Module */}
-        {activeTab === 'notes' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">دفترچه یادداشت‌های کورتکس من</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">اسناد، ایده‌ها و رویاهای خود را در پوشه‌های گوناگون با چسبندگی مینی‌مال ذخیره کنید.</p>
-              </div>
-
-              <div className="flex gap-2">
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setShowNotesGraph(prev => !prev);
-                    playAudioFeedback('click');
-                  }}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${showNotesGraph ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300'}`}
-                  title="نمایش نمایه ارتباطات هوشمند بین یادداشت‌ها"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>نمای گراف روابط Obsidian</span>
-                </button>
-
-                <button 
-                  onClick={createBlankNote}
-                  className="px-4 py-2 bg-teal-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-teal-700 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>یادداشت جدید</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              {showNotesGraph ? (
-                <div className="md:col-span-2 space-y-4 animate-fadeIn">
-                  {(() => {
-                    const radius = 100;
-                    const cx = 180;
-                    const cy = 180;
-                    const mappedNodes = notes.map((note, index) => {
-                      const angle = (index / (notes.length || 1)) * 2 * Math.PI;
-                      return {
-                        id: note.id,
-                        title: note.title,
-                        isPinned: note.isPinned,
-                        x: cx + radius * Math.cos(angle),
-                        y: cy + radius * Math.sin(angle)
-                      };
-                    });
-
-                    const edges: { from: {x:number, y:number, id:string}, to: {x:number, y:number, id:string} }[] = [];
-                    for (let i = 0; i < mappedNodes.length; i++) {
-                      for (let j = i + 1; j < mappedNodes.length; j++) {
-                        const nodeA = notes[i];
-                        const nodeB = notes[j];
-                        const posA = mappedNodes[i];
-                        const posB = mappedNodes[j];
-                        
-                        const linkAtoB = nodeA.content.includes(`[[${nodeB.title}]]`) || nodeA.content.includes(nodeB.title);
-                        const linkBtoA = nodeB.content.includes(`[[${nodeA.title}]]`) || nodeB.content.includes(nodeA.title);
-                        
-                        const overlapping = (nodeA.title && nodeB.title && nodeA.title.slice(0, 3) === nodeB.title.slice(0, 3));
-
-                        if (linkAtoB || linkBtoA || overlapping) {
-                          edges.push({ from: posA, to: posB });
-                        }
-                      }
-                    }
-
-                    return (
-                      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 text-center shadow-inner min-h-[460px] flex flex-col justify-between overflow-hidden relative">
-                        <div className="flex justify-between items-center z-10">
-                          <div className="text-right">
-                            <span className="text-[10px] font-bold text-cyan-400 block tracking-widest uppercase">نمایش روابط هوشمند</span>
-                            <h4 className="text-xs font-black text-white">شبکه روابط یادداشت‌ها کورتکس</h4>
-                          </div>
-                          <span className="text-[9px] bg-slate-800 border border-slate-700 text-teal-400 py-0.5 px-2 rounded-full font-mono">
-                            پیوندها: {edges.length} | یادداشت‌ها: {notes.length}
-                          </span>
-                        </div>
-
-                        <div className="relative w-full flex-1 flex items-center justify-center min-h-[290px]">
-                          <svg className="w-full h-full max-w-[340px] max-h-[300px] drop-shadow-[0_0_15px_rgba(20,184,166,0.12)]">
-                            {edges.map((e, idx) => (
-                              <line 
-                                key={`link-${idx}`} 
-                                x1={e.from.x} 
-                                y1={e.from.y} 
-                                x2={e.to.x} 
-                                y2={e.to.y} 
-                                stroke="#14B8A6" 
-                                strokeWidth="1.2" 
-                                strokeOpacity="0.45"
-                                strokeDasharray="3 3"
-                              />
+                              </span>
                             ))}
-
-                            {mappedNodes.map((n) => {
-                              const isActive = n.id === activeNoteId;
-                              return (
-                                <g 
-                                  key={n.id} 
-                                  className="cursor-pointer group"
-                                  onClick={() => {
-                                    setActiveNoteId(n.id);
-                                    playAudioFeedback('click');
-                                    showToast(`تمرکز یادداشت روی: "${n.title}"`, "info");
-                                  }}
-                                >
-                                  <circle 
-                                    cx={n.x} 
-                                    cy={n.y} 
-                                    r={isActive ? "9" : "6"} 
-                                    fill={isActive ? "#14B8A6" : "#475569"} 
-                                    stroke={isActive ? "#CCFBF1" : "#1E293B"}
-                                    strokeWidth="1.5"
-                                    className="transition-all duration-300 hover:fill-teal-400"
-                                  />
-                                  
-                                  <text 
-                                    x={n.x} 
-                                    y={n.y - 11} 
-                                    textAnchor="middle" 
-                                    fill={isActive ? "#2DD4BF" : "#94A3B8"} 
-                                    className="text-[8px] font-black pointer-events-none select-none font-sans"
-                                  >
-                                    {n.title.slice(0, 16)}
-                                  </text>
-                                </g>
-                              );
-                            })}
-                          </svg>
-                        </div>
-
-                        <p className="text-[9.5px] text-slate-400 text-center leading-normal">
-                          💡 گره‌ها را لمس کنید تا یادداشت فعال تغییر کند. برای بازگشت به لیست ستونی دکمه بالا را کلیک کنید.
-                        </p>
+                          </div>
+                        )}
                       </div>
-                    );
-                  })()}
+                    </div>
+                  ) : (
+                    <div className="text-center py-20 text-slate-405 italic text-sm">
+                      یادداشتی انتخاب نشده است. یکی ساخته یا از ستون راست انتخاب
+                      بفرمایید.
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <>
-                  {/* Folders List and Search panel */}
-                  <div className="space-y-4">
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                      <div className="relative">
-                        <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input 
-                          type="text" 
-                          placeholder="جستجو در متون..."
-                          value={noteSearch}
-                          onChange={(e) => setNoteSearch(e.target.value)}
-                          className="w-full pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                        />
-                      </div>
-                    </div>
+              </div>
+            </div>
+          )}
 
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-1.5">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2 px-2">پوشه‌بندی</span>
-                      {['همه', 'یادداشت‌ها', 'برنامه‌ها', 'هوشمند'].map(f => (
-                        <button 
-                          key={f}
-                          onClick={() => setSelectedFolder(f)}
-                          className={`w-full text-right px-3 py-2 rounded-lg text-xs font-medium cursor-pointer ${selectedFolder === f ? 'bg-slate-100 dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950'}`}
-                        >
-                          {f}
-                        </button>
-                      ))}
-                    </div>
+          {/* Tab 4: Tasks Section with Kanban list board */}
+          {activeTab === "tasks" && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+                    بورد کارهای من (آسان کایزن و کانبان)
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    کارهای در دست اقدام، به بهره‌وری منظم و پایش‌های اولویت‌دار
+                    ملحق کنید تا اهداف حاصل شوند.
+                  </p>
+                </div>
+
+                {/* Quick Task Adding form bar */}
+                <form
+                  onSubmit={addManualTask}
+                  className="flex gap-2 bg-white dark:bg-slate-900 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm"
+                >
+                  <input
+                    type="text"
+                    required
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    placeholder="افزودن کار تازه..."
+                    className="px-3 py-1.5 rounded-xl border border-slate-150 text-xs focus:outline-none focus:border-teal-500 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                  />
+
+                  <select
+                    value={newTaskPriority}
+                    onChange={(e) => setNewTaskPriority(e.target.value as any)}
+                    className="px-2 py-1 bg-slate-50 dark:bg-slate-950 rounded-xl text-xs border border-slate-150 text-slate-700 dark:text-slate-300"
+                  >
+                    <option value="HIGH">اولویت بالا</option>
+                    <option value="MEDIUM">متوسط</option>
+                    <option value="LOW">پایین</option>
+                  </select>
+
+                  <button
+                    type="submit"
+                    className="bg-teal-600 text-white text-xs font-bold px-4.5 py-1.5 rounded-xl hover:bg-teal-700 cursor-pointer"
+                  >
+                    درج وظیفه
+                  </button>
+                </form>
+              </div>
+
+              {/* Simulated interactive Kanban columns */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* ToDo Column */}
+                <div className="bg-slate-50 dark:bg-slate-950/60 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-150 mb-2">
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-505 bg-indigo-500" />
+                      <span>کارهای مانده</span>
+                    </span>
+                    <span className="text-[10px] bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold">
+                      {
+                        tasks.filter(
+                          (t) =>
+                            t.status === "todo" &&
+                            t.dueDate === selectedDateISO,
+                        ).length
+                      }
+                    </span>
                   </div>
 
-                  {/* Note Selection List */}
-                  <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm p-4 overflow-y-auto max-h-[500px] space-y-2">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block mb-2 px-1">لیست نوشته‌ها</span>
-                    <AnimatePresence mode="popLayout">
-                      {filteredNotes.length === 0 && (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-6 text-slate-400">
-                          <BookOpen className="w-8 h-8 opacity-20 mx-auto mb-2" />
-                          <span className="text-[10px]">نوشته‌ای یافت نشد</span>
-                        </motion.div>
-                      )}
-                      {filteredNotes.map(n => (
-                        <motion.button 
+                  <AnimatePresence mode="popLayout">
+                    {tasks.filter(
+                      (t) =>
+                        t.status === "todo" && t.dueDate === selectedDateISO,
+                    ).length === 0 && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="py-6 flex flex-col items-center justify-center text-slate-400"
+                      >
+                        <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-2">
+                          <CheckSquare className="w-4 h-4 text-slate-300" />
+                        </div>
+                        <span className="text-[10px]">
+                          کارهایتان را اینجا وارد کنید
+                        </span>
+                      </motion.div>
+                    )}
+                    {tasks
+                      .filter(
+                        (t) =>
+                          t.status === "todo" && t.dueDate === selectedDateISO,
+                      )
+                      .map((task) => (
+                        <motion.div
                           layout
-                          initial={{ opacity: 0, scale: 0.95 }} 
-                          animate={{ opacity: 1, scale: 1 }} 
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.95 }}
                           transition={{ duration: 0.2 }}
-                          key={n.id}
-                          onClick={() => setActiveNoteId(n.id)}
-                          className={`w-full text-right p-3 rounded-xl border cursor-pointer transition-colors block ${activeNoteId === n.id ? 'bg-teal-50/40 border-teal-300' : 'bg-slate-50 dark:bg-slate-950/20 border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:bg-slate-950'}`}
+                          key={task.id}
+                          className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-150/40 shadow-sm relative group space-y-2"
                         >
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{n.title}</h4>
-                            {n.isPinned && <Pin className="w-3 h-3 text-amber-500" />}
+                          <div className="flex items-start justify-between">
+                            <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 leading-normal">
+                              {task.title}
+                            </h4>
+                            <button
+                              onClick={() =>
+                                saveTasksToLocal(
+                                  tasks.filter((t) => t.id !== task.id),
+                                )
+                              }
+                              className="text-slate-350 hover:text-rose-500 opacity-60 hover:opacity-100 transition-colors"
+                            >
+                              ✕
+                            </button>
                           </div>
-                          <p className="text-[10px] text-slate-400 truncate mt-1">{n.content.slice(0, 40)}...</p>
-                        </motion.button>
+                          <p className="text-[10px] text-slate-400">
+                            {useJalaliCalendar
+                              ? getJalaliDate(task.dueDate)
+                              : task.dueDate}
+                          </p>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-50/50">
+                            <span
+                              className={`text-[9px] font-bold px-2 py-0.5 rounded ${task.priority === "HIGH" ? "bg-rose-50 text-rose-600" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"}`}
+                            >
+                              {task.priority === "HIGH" ? "مهم" : "عادی"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = tasks.map((t) =>
+                                  t.id === task.id
+                                    ? { ...t, status: "doing" as const }
+                                    : t,
+                                );
+                                saveTasksToLocal(updated);
+                              }}
+                              className="text-[9px] font-black text-teal-600 hover:underline bg-teal-50 px-2.5 py-1 rounded"
+                            >
+                              حرکت به اقدام →
+                            </button>
+                          </div>
+                        </motion.div>
                       ))}
-                    </AnimatePresence>
+                  </AnimatePresence>
+                </div>
+
+                {/* Doing Column */}
+                <div className="bg-slate-50 dark:bg-slate-950/60 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-150 mb-2">
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                      <span>در دست اقدام</span>
+                    </span>
+                    <span className="text-[10px] bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold">
+                      {
+                        tasks.filter(
+                          (t) =>
+                            t.status === "doing" &&
+                            t.dueDate === selectedDateISO,
+                        ).length
+                      }
+                    </span>
                   </div>
-                </>
+
+                  <AnimatePresence mode="popLayout">
+                    {tasks.filter(
+                      (t) =>
+                        t.status === "doing" && t.dueDate === selectedDateISO,
+                    ).length === 0 && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="py-6 flex flex-col items-center justify-center text-slate-400"
+                      >
+                        <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-2">
+                          <Activity className="w-4 h-4 text-slate-300" />
+                        </div>
+                        <span className="text-[10px]">خالی</span>
+                      </motion.div>
+                    )}
+                    {tasks
+                      .filter(
+                        (t) =>
+                          t.status === "doing" && t.dueDate === selectedDateISO,
+                      )
+                      .map((task) => (
+                        <motion.div
+                          layout
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ duration: 0.2 }}
+                          key={task.id}
+                          className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-150/40 shadow-sm relative flex flex-col gap-2"
+                        >
+                          <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 leading-normal">
+                            {task.title}
+                          </h4>
+                          <p className="text-[10px] text-slate-400">
+                            {useJalaliCalendar
+                              ? getJalaliDate(task.dueDate)
+                              : task.dueDate}
+                          </p>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-50/50 mt-auto">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = tasks.map((t) =>
+                                  t.id === task.id
+                                    ? { ...t, status: "todo" as const }
+                                    : t,
+                                );
+                                saveTasksToLocal(updated);
+                              }}
+                              className="text-[9px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200"
+                            >
+                              ← برگشت
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = tasks.map((t) =>
+                                  t.id === task.id
+                                    ? { ...t, status: "done" as const }
+                                    : t,
+                                );
+                                saveTasksToLocal(updated);
+                                earnXp(20, `تکمیل کار "${task.title}"`);
+                              }}
+                              className="text-[9px] font-black text-emerald-700 hover:underline bg-emerald-50 px-2.5 py-1 rounded text-emerald-700"
+                            >
+                              کامل شد ✓
+                            </button>
+                          </div>
+                        </motion.div>
+                      ))}
+                  </AnimatePresence>
+                </div>
+
+                {/* Done Column */}
+                <div className="bg-slate-50 dark:bg-slate-950/60 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-150 mb-2">
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      <span>کامل شده</span>
+                    </span>
+                    <span className="text-[10px] bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold">
+                      {
+                        tasks.filter(
+                          (t) =>
+                            t.status === "done" &&
+                            t.dueDate === selectedDateISO,
+                        ).length
+                      }
+                    </span>
+                  </div>
+
+                  <AnimatePresence mode="popLayout">
+                    {tasks.filter(
+                      (t) =>
+                        t.status === "done" && t.dueDate === selectedDateISO,
+                    ).length === 0 && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="py-6 flex flex-col items-center justify-center text-slate-400"
+                      >
+                        <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-2">
+                          <Check className="w-4 h-4 text-emerald-300" />
+                        </div>
+                        <span className="text-[10px]">در انتظار تکمیل</span>
+                      </motion.div>
+                    )}
+                    {tasks
+                      .filter(
+                        (t) =>
+                          t.status === "done" && t.dueDate === selectedDateISO,
+                      )
+                      .map((task) => (
+                        <motion.div
+                          layout
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ duration: 0.2 }}
+                          key={task.id}
+                          className="bg-white dark:bg-slate-900/80 p-4 rounded-2xl border border-slate-150/40 shadow-sm relative opacity-60 space-y-2 transition-opacity hover:opacity-100 group"
+                        >
+                          <div className="flex items-start justify-between">
+                            <h4 className="font-bold text-xs text-slate-750 line-through leading-normal decoration-emerald-500/50">
+                              {task.title}
+                            </h4>
+                            <button
+                              onClick={() =>
+                                saveTasksToLocal(
+                                  tasks.filter((t) => t.id !== task.id),
+                                )
+                              }
+                              className="text-slate-350 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[9px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded font-bold inline-block">
+                              تکمیل شده
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = tasks.map((t) =>
+                                  t.id === task.id
+                                    ? { ...t, status: "doing" as const }
+                                    : t,
+                                );
+                                saveTasksToLocal(updated);
+                                earnXp(-20, `تکمیل کار "${task.title}"`);
+                              }}
+                              className="text-[9px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                            >
+                              ← برگشت به در حال انجام
+                            </button>
+                          </div>
+                        </motion.div>
+                      ))}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tab 5: Health & Wellness Trackers */}
+          {activeTab === "health" && (
+            <div className="space-y-6">
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 lg:gap-6">
+  {/* بخش عنوان */}
+  <div className="space-y-1 text-right flex-shrink-0 lg:max-w-[40%]">
+    <span className="text-[10px] bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 px-2.5 py-1 rounded-full font-bold inline-block">
+      پیشخوان پایش سلامت سایبان
+    </span>
+    <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100">
+      خانه تندرستی و ردیابی ارگانیک خلاق
+    </h2>
+    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-md">
+      شاخص‌های زیستی، زنجیره‌های کایزن عادات، زمان‌بندی مکمل‌ها،
+      توده بدنی، خواب و عاطفه روزانه خود را مانیتور کنید.
+    </p>
+  </div>
+
+  {/* نوار زیرمنو */}
+  <div className="flex flex-wrap gap-1 bg-slate-50 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-700/50 w-full lg:w-auto lg:flex-nowrap">
+    <button
+      type="button"
+      onClick={() => setActiveHealthSubTab("habits_meds")}
+      className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 ${
+        activeHealthSubTab === "habits_meds"
+          ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
+          : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+      }`}
+    >
+      <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+      <span className="hidden sm:inline">عادات و مکمل‌ها</span>
+      <span className="sm:hidden">عادات</span>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setActiveHealthSubTab("water_sleep")}
+      className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 ${
+        activeHealthSubTab === "water_sleep"
+          ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
+          : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+      }`}
+    >
+      <Droplets className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+      <span className="hidden sm:inline">پایش آب و خواب</span>
+      <span className="sm:hidden">آب و خواب</span>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setActiveHealthSubTab("bmi")}
+      className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 ${
+        activeHealthSubTab === "bmi"
+          ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
+          : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+      }`}
+    >
+      <Weight className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+      <span>توده بدنی</span>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setActiveHealthSubTab("mood")}
+      className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 ${
+        activeHealthSubTab === "mood"
+          ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
+          : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+      }`}
+    >
+      <Smile className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+      <span className="hidden sm:inline">پایش خلق‌وخو</span>
+      <span className="sm:hidden">خلق</span>
+    </button>
+  </div>
+</div>
+
+              {/* Sub-Tab 1: Habits and Medicines */}
+              {activeHealthSubTab === "habits_meds" && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Habits tracking */}
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-55">
+                      <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <Heart className="w-5 h-5 text-rose-500" />
+                        <span>
+                          زنجیره عادات تکرارشونده روزانه (Streak Trackers)
+                        </span>
+                      </h3>
+                      <span className="text-[10px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded font-bold">
+                        {habits.filter((h) => isHabitCompleted(h)).length} متعهد
+                      </span>
+                    </div>
+
+                    {/* Habit Add form */}
+                    <form onSubmit={addManualHabit} className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="ثبت نام عادت کایزن جدید (مثلاً: ۳۰ دقیقه مطالعه)..."
+                        value={newHabitName}
+                        onChange={(e) => setNewHabitName(e.target.value)}
+                        className="flex-1 text-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 bg-slate-50 dark:bg-slate-950/50 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-rose-455 focus:ring-1 focus:ring-rose-400"
+                      />
+                      <button
+                        type="submit"
+                        className="bg-rose-55 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors shrink-0 cursor-pointer"
+                      >
+                        افزودن
+                      </button>
+                    </form>
+
+                    <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                      <AnimatePresence mode="popLayout">
+                        {habits.length === 0 ? (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="text-center py-10 flex flex-col items-center justify-center text-slate-400 text-[10px]"
+                          >
+                            <Heart className="w-8 h-8 opacity-20 mx-auto mb-2" />
+                            هیچ عادتی ثبت نشده است. ساخت کارما را شروع کنید!
+                          </motion.div>
+                        ) : (
+                          habits.map((hbt) => (
+                            <motion.div
+                              layout
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              transition={{ duration: 0.2 }}
+                              key={hbt.id}
+                              className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl flex items-center justify-between border border-transparent hover:border-slate-100 dark:border-slate-800 transition-all"
+                            >
+                              <div className="space-y-1">
+                                <h4
+                                  className={`font-bold text-xs text-slate-800 dark:text-slate-200 ${isHabitCompleted(hbt) ? "line-through text-slate-400" : ""}`}
+                                >
+                                  {hbt.name}
+                                </h4>
+                                <span className="text-[10px] text-pink-500 font-bold block">
+                                  🔥 {hbt.streak} روز متوالی موفق
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  disabled={
+                                    isSelectedDatePast || isSelectedDateFuture
+                                  }
+                                  onClick={() => toggleHabit(hbt.id)}
+                                  className={`text-xs font-medium px-3 py-1.5 rounded-xl cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    isHabitCompleted(hbt)
+                                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold"
+                                      : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300"
+                                  }`}
+                                >
+                                  {isHabitCompleted(hbt)
+                                    ? "کامل شد ✓"
+                                    : "تکمیل امروز"}
+                                </button>
+
+                                <button
+                                  onClick={() => deleteHabit(hbt.id)}
+                                  className="p-1.5 text-slate-300 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                                  title="حذف عادت"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </motion.div>
+                          ))
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+
+                  {/* Medicines layout */}
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-55">
+                      <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5 text-indigo-500" />
+                        <span>دستیار یادآوری مصرف داروها و مکمل ملایم</span>
+                      </h3>
+                      <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-bold">
+                        {medicines.filter((m) => isMedicineCompleted(m)).length}{" "}
+                        مصرف‌شده
+                      </span>
+                    </div>
+
+                    <form
+                      onSubmit={addManualMedicine}
+                      className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-100 dark:border-slate-800"
+                    >
+                      <div className="sm:col-span-3 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                        ثبت یادآور مکمل جدید
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="نام مکمل (ویتامین ث)..."
+                        value={newMedName}
+                        onChange={(e) => setNewMedName(e.target.value)}
+                        className="text-xs border border-slate-250 bg-white dark:bg-slate-900 rounded-xl px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-400"
+                      />
+                      <input
+                        type="text"
+                        placeholder="دوز (یک عدد صبح)..."
+                        value={newMedDosage}
+                        onChange={(e) => setNewMedDosage(e.target.value)}
+                        className="text-xs border border-slate-250 bg-white dark:bg-slate-900 rounded-xl px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-400"
+                      />
+                      <input
+                        type="time"
+                        value={newMedTime}
+                        onChange={(e) => setNewMedTime(e.target.value)}
+                        className="text-xs border border-slate-250 bg-white dark:bg-slate-900 rounded-xl px-3 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-400"
+                      />
+                      <button
+                        type="submit"
+                        className="sm:col-span-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1.5 rounded-xl cursor-pointer transition-colors"
+                      >
+                        ثبت مکمل روزانه جدید
+                      </button>
+                    </form>
+
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                      <AnimatePresence mode="popLayout">
+                        {medicines.length === 0 ? (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="text-center flex flex-col justify-center items-center py-10 text-slate-400 text-[10px]"
+                          >
+                            <AlertCircle className="w-8 h-8 opacity-20 mx-auto mb-2" />
+                            هیچ یادآور مکمل یا دارویی ثبت نشده است.
+                          </motion.div>
+                        ) : (
+                          medicines.map((med) => (
+                            <motion.div
+                              layout
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              transition={{ duration: 0.2 }}
+                              key={med.id}
+                              className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl flex items-center justify-between border border-transparent hover:border-slate-100 dark:border-slate-800 transition-all"
+                            >
+                              <div className="space-y-1">
+                                <h4
+                                  className={`font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-2 ${isMedicineCompleted(med) ? "text-slate-400 line-through" : ""}`}
+                                >
+                                  <span>{med.name}</span>
+                                  <span className="text-[9px] text-indigo-650 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-full border border-indigo-100 font-mono font-bold">
+                                    {med.time}
+                                  </span>
+                                </h4>
+                                <p className="text-[10px] text-slate-400">
+                                  {med.dosage}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  disabled={
+                                    isSelectedDatePast || isSelectedDateFuture
+                                  }
+                                  onClick={() => toggleMedicine(med.id)}
+                                  className={`px-3 py-1.5 text-xs rounded-xl font-bold cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    isMedicineCompleted(med)
+                                      ? "bg-emerald-50 text-emerald-800 border border-emerald-100 line-through"
+                                      : "bg-indigo-600 text-white hover:bg-indigo-700"
+                                  }`}
+                                >
+                                  {isMedicineCompleted(med)
+                                    ? "مصرف شد ✓"
+                                    : "تأیید مصرف"}
+                                </button>
+
+                                <button
+                                  onClick={() => deleteMedicine(med.id)}
+                                  className="p-1.5 text-slate-350 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                                  title="حذف مکمل"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </motion.div>
+                          ))
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                </div>
               )}
 
-              {/* Active Note Rich Editor */}
-              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm p-6 md:col-span-2 space-y-4">
-                {activeNote ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-50 pb-3">
-                      <input 
-                        type="text"
-                        value={activeNote.title}
-                        onChange={(e) => {
-                          const updated = notes.map(n => n.id === activeNote.id ? { ...n, title: e.target.value } : n);
-                          saveNotesToLocal(updated);
-                        }}
-                        className="font-black text-base text-slate-900 dark:text-slate-100 focus:outline-none bg-transparent flex-1"
+              {/* Sub-Tab 2: Water and Sleep Loggers */}
+              {activeHealthSubTab === "water_sleep" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Detailed Water Hydration */}
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                      <h4 className="font-extrabold text-sm text-slate-850 flex items-center gap-2">
+                        <span className="text-teal-500 text-lg">💧</span>
+                        <span>هیدراتاسیون و هرم نوشیدن آب کورتکس</span>
+                      </h4>
+                      <span className="text-xs font-mono font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded-lg">
+                        هدف روزانه: ۲۵۰۰ میلی‌لیتر
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between bg-teal-50/20 p-5 rounded-2xl border border-teal-100/50">
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-slate-400 block font-bold">
+                          مصرف شده امروز:
+                        </span>
+                        <span className="text-2xl font-black text-slate-850 font-mono">
+                          {health.waterToday} / ۲۵۰۰
+                        </span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 block">
+                          میلی‌لیتر (ML)
+                        </span>
+                      </div>
+
+                      {/* Progress Circle Visualizer */}
+                      <div className="relative w-16 h-16 flex items-center justify-center">
+                        <span className="font-extrabold text-xs text-teal-650">
+                          {Math.round((health.waterToday / 2500) * 100)}%
+                        </span>
+                        <svg className="absolute inset-0 w-full h-full -rotate-90">
+                          <circle
+                            cx="32"
+                            cy="32"
+                            r="28"
+                            fill="none"
+                            stroke="#e2e8f0"
+                            strokeWidth="4"
+                          />
+                          <circle
+                            cx="32"
+                            cy="32"
+                            r="28"
+                            fill="none"
+                            stroke="#0ea5e9"
+                            strokeWidth="4"
+                            strokeDasharray="176"
+                            strokeDashoffset={Math.max(
+                              0,
+                              176 -
+                                (176 * Math.min(health.waterToday, 2500)) /
+                                  2500,
+                            )}
+                            className="transition-all duration-500"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 pt-2">
+                      <button
+                        type="button"
+                        disabled={isSelectedDatePast || isSelectedDateFuture}
+                        onClick={() => handleAddWater(250)}
+                        className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        🥤 لیوان معمولی (+۲۵۰ml)
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSelectedDatePast || isSelectedDateFuture}
+                        onClick={() => handleAddWater(500)}
+                        className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        🍼 ماگ کورتکس (+۵۰۰ml)
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSelectedDatePast || isSelectedDateFuture}
+                        onClick={() => handleAddWater(-250)}
+                        className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-500 dark:text-slate-400 hover:text-rose-600 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-bold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        ↩️ کاهش آب (-۲۵۰ml)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Sleep Quality Logger */}
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                      <h4 className="font-extrabold text-sm text-slate-850 flex items-center gap-2">
+                        <span className="text-indigo-500 text-lg">🌙</span>
+                        <span>سنجش خواب عمیق و ریکاوری غدد مغزی</span>
+                      </h4>
+                      <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                        توصیه کورتکس: ۷.۵ ساعت
+                      </span>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500 dark:text-slate-400 font-bold">
+                          ساعات استراحت شب گذشته:
+                        </span>
+                        <span className="font-bold text-indigo-600 font-mono text-sm">
+                          {health.sleepHours} ساعت
+                        </span>
+                      </div>
+
+                      <input
+                        type="range"
+                        min="4"
+                        max="12"
+                        step="0.5"
+                        disabled={isSelectedDatePast || isSelectedDateFuture}
+                        value={health.sleepHours}
+                        onChange={(e) =>
+                          saveHealthToLocal({
+                            ...health,
+                            sleepHours: Number(e.target.value),
+                          })
+                        }
+                        className="w-full h-1 bg-white rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"
                       />
 
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => {
-                            const updated = notes.map(n => n.id === activeNote.id ? { ...n, isPinned: !n.isPinned } : n);
-                            saveNotesToLocal(updated);
-                          }}
-                          className={`p-2 rounded-lg hover:bg-slate-50 dark:bg-slate-950 ${activeNote.isPinned ? 'text-amber-500' : 'text-slate-450'}`}
-                          title="پین یا لغو قرار گرفتن در بالای نوشته‌ها"
-                        >
-                          <Pin className="w-4 h-4" />
-                        </button>
+                      <div className="grid grid-cols-2 gap-3 text-xs pt-2">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-450 uppercase">
+                            کیفیت عمومی خواب دیشب:
+                          </label>
+                          <select
+                            disabled={
+                              isSelectedDatePast || isSelectedDateFuture
+                            }
+                            value={health.sleepQuality}
+                            onChange={(e) =>
+                              saveHealthToLocal({
+                                ...health,
+                                sleepQuality: e.target.value as any,
+                              })
+                            }
+                            className="w-full bg-slate-50 dark:bg-slate-950 rounded-xl p-2.5 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500 text-slate-700 dark:text-slate-300 font-medium text-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <option value="excellent">
+                              🏆 بسیار مقتدرانه و عمیق
+                            </option>
+                            <option value="good">🟢 خوب و با نشاط زیاد</option>
+                            <option value="fair">
+                              🟡 خستگی نسبی و خواب سطحی
+                            </option>
+                            <option value="poor">
+                              🔴 نامنظم و خواب‌پریشی مکرر
+                            </option>
+                          </select>
+                        </div>
 
-                        <button 
-                          onClick={() => {
-                            const updated = notes.filter(n => n.id !== activeNote.id);
-                            saveNotesToLocal(updated);
-                            setActiveNoteId(updated[0]?.id || null);
-                          }}
-                          className="p-2 rounded-lg text-slate-450 hover:text-rose-500 hover:bg-rose-50"
-                          title="حذف دائمی"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex flex-col justify-center items-center bg-indigo-50/40 p-3 rounded-2xl text-center border border-indigo-100/50">
+                          <span className="text-[9px] text-slate-450 block font-bold mb-1">
+                            بازسازی بیولوژیک سلولی:
+                          </span>
+                          <span className="font-bold text-xs text-indigo-700">
+                            {health.sleepQuality === "excellent"
+                              ? "۱۰۰٪ (رویایی)"
+                              : health.sleepQuality === "good"
+                                ? "۸۵٪ (بسیار عالی)"
+                                : health.sleepQuality === "fair"
+                                  ? "۶۰٪ (متوسط)"
+                                  : "۳۵٪ (برنامه سم‌زدایی)"}
+                          </span>
+                        </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
 
-                    <textarea 
-                      value={activeNote.content}
-                      onChange={(e) => {
-                        const updated = notes.map(n => n.id === activeNote.id ? { ...n, content: e.target.value } : n);
-                        saveNotesToLocal(updated);
-                      }}
-                      className="w-full h-80 focus:outline-none p-3 resize-none text-xs rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 font-mono focus:border-teal-500 leading-relaxed text-slate-700 dark:text-slate-300"
-                    />
+              {/* Sub-Tab 3: BMI scale analyzer */}
+              {activeHealthSubTab === "bmi" && (
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-6">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <span className="text-xl">⚖️</span>
+                      <span>
+                        ماشین حساب و آنالیز شاخص توده بدنی (BMI Cortex)
+                      </span>
+                    </h3>
+                    <span className="text-[10px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold">
+                      بادی کایزن
+                    </span>
+                  </div>
 
-                    {/* Integrated Templates Row */}
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs bg-slate-50 dark:bg-slate-950 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
-                      <span className="text-[10px] font-bold text-slate-400">قالب‌های کورتکس:</span>
-                      {[
-                        { name: '📝 روزنگار', template: '# روزنگار هوشمند کایزن\n\n## 🌟 سپاسگزاری امروز:\n۱. \n۲. \n\n## 🎯 تمرکز کاری امروز:\n- \n\n## 💭 بازتاب احساسی:\n' },
-                        { name: '💼 جلسه', template: '# یادداشت جلسه کورتکس\n\n**موضوع:** \n**تاریخ:** \n**حاضرین:** \n\n## 📝 نکات کلیدی:\n- \n\n## 📌 اکشن آیتم‌ها:\n- [ ] پیگیری کار تیم' },
-                        { name: '📖 کتاب', template: '# خلاصه کتاب جدید\n\n**عنوان:** \n**نویسنده:** \n\n## 💡 آموخته‌های کلیدی:\n۱. \n\n## 🎯 اقدام عملی:\n- ' },
-                        { name: '💡 ایده', template: '# بوم طوفان فکری ایده\n\n**فرضیه اصلی:** \n**ارزش پیشنهادی:** \n\n## 🚀 گام اقدام:\n- [ ] تست ایده ' }
-                      ].map(tmpl => (
-                        <button
-                          key={tmpl.name}
-                          type="button"
-                          onClick={() => {
-                            const updated = notes.map(n => n.id === activeNote.id ? { ...n, content: tmpl.template } : n);
-                            saveNotesToLocal(updated);
-                            showToast(`قالب "${tmpl.name}" اعمال شد!`, "success");
-                          }}
-                          className="px-2 py-0.5 bg-white dark:bg-slate-900 hover:bg-teal-50 border border-slate-200 dark:border-slate-700 hover:border-teal-300 rounded text-[9px] font-bold transition-all cursor-pointer"
-                        >
-                          {tmpl.name}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div className="space-y-4">
+                      <p className="text-xs text-slate-505 leading-relaxed">
+                        با درج مرتب وزن و قد، تداوم کالیبراسیون ترکیب بدنی خود
+                        را ارزیابی و در پیشخوان تماشا کنید.
+                      </p>
 
-                    {/* Integrated Back-links Tracker */}
-                    {(() => {
-                      const backlinks = notes.filter(n => n.id !== activeNote.id && (n.content.includes(activeNote.title) || n.content.includes(`[[${activeNote.title}]]`)));
-                      if (backlinks.length > 0) {
-                        return (
-                          <div className="bg-slate-50 dark:bg-slate-950/50 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/65 mt-2">
-                            <span className="text-[10px] font-bold text-slate-400 block mb-1.5 font-sans">🔗 نوشته‌های ارجاع‌دهنده به این سند (Backlinks):</span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {backlinks.map(bl => (
-                                <button
-                                  key={bl.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveNoteId(bl.id);
-                                    playAudioFeedback('click');
-                                  }}
-                                  className="text-[9px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-teal-400 text-slate-650 hover:text-teal-700 px-2 py-0.5 rounded transition-all cursor-pointer"
-                                >
-                                  {bl.title}
-                                </button>
-                              ))}
-                            </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        {/* Height tracker */}
+                        <div className="space-y-1.5">
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                            مبنای قد کاربری (سانتی‌متر):
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="100"
+                              max="250"
+                              value={userHeight}
+                              onChange={(e) =>
+                                saveUserHeight(Number(e.target.value))
+                              }
+                              className="bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-200 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-rose-400 w-full font-mono"
+                            />
+                            <span className="text-xs text-slate-400">cm</span>
                           </div>
-                        );
-                      }
-                      return null;
-                    })()}
-
-                    {/* Integrated Drag-and-Drop Attachment Block */}
-                    <div className="space-y-3 pt-3 border-t border-slate-50">
-                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">پیوست تصاویر و اسناد ایده (Drag & Drop)</span>
-                      
-                      <div 
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${isDragOver ? 'border-teal-500 bg-teal-50/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:bg-slate-950/40'}`}
-                      >
-                        <Upload className="w-6 h-6 text-slate-450 mx-auto mb-2" />
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">فایل خود را به اینجا بکشید یا برای انتخاب کلیک کنید.</p>
-                        <input 
-                          type="file" 
-                          multiple 
-                          ref={fileInputRef} 
-                          onChange={handleManualFileSelect}
-                          className="hidden" 
-                        />
-                      </div>
-
-                      {noteAttachments.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pt-2">
-                          {noteAttachments.map((file, i) => (
-                            <span key={i} className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-full flex items-center gap-1.5 border border-slate-200 dark:border-slate-700">
-                              <span>{file}</span>
-                              <button onClick={() => setNoteAttachments(noteAttachments.filter((_, idx)=>idx !== i))} className="text-slate-450 hover:text-rose-500">✕</button>
-                            </span>
-                          ))}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-20 text-slate-405 italic text-sm">یادداشتی انتخاب نشده است. یکی ساخته یا از ستون راست انتخاب بفرمایید.</div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* Tab 4: Tasks Section with Kanban list board */}
-        {activeTab === 'tasks' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">بورد کارهای من (آسان کایزن و کانبان)</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">کارهای در دست اقدام، به بهره‌وری منظم و پایش‌های اولویت‌دار ملحق کنید تا اهداف حاصل شوند.</p>
-              </div>
-
-              {/* Quick Task Adding form bar */}
-              <form onSubmit={addManualTask} className="flex gap-2 bg-white dark:bg-slate-900 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <input 
-                  type="text"
-                  required
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  placeholder="افزودن کار تازه..."
-                  className="px-3 py-1.5 rounded-xl border border-slate-150 text-xs focus:outline-none focus:border-teal-500 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                />
-                
-                <select 
-                  value={newTaskPriority}
-                  onChange={(e) => setNewTaskPriority(e.target.value as any)}
-                  className="px-2 py-1 bg-slate-50 dark:bg-slate-950 rounded-xl text-xs border border-slate-150 text-slate-700 dark:text-slate-300"
-                >
-                  <option value="HIGH">اولویت بالا</option>
-                  <option value="MEDIUM">متوسط</option>
-                  <option value="LOW">پایین</option>
-                </select>
-
-                <button 
-                  type="submit"
-                  className="bg-teal-600 text-white text-xs font-bold px-4.5 py-1.5 rounded-xl hover:bg-teal-700 cursor-pointer"
-                >
-                  درج وظیفه
-                </button>
-              </form>
-            </div>
-
-            {/* Simulated interactive Kanban columns */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* ToDo Column */}
-              <div className="bg-slate-50 dark:bg-slate-950/60 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-150 mb-2">
-                  <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-505 bg-indigo-500" />
-                    <span>کارهای مانده</span>
-                  </span>
-                  <span className="text-[10px] bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold">{tasks.filter(t=>t.status === 'todo' && t.dueDate === selectedDateISO).length}</span>
-                </div>
-
-                <AnimatePresence mode="popLayout">
-                  {tasks.filter(t => t.status === 'todo' && t.dueDate === selectedDateISO).length === 0 && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="py-6 flex flex-col items-center justify-center text-slate-400">
-                      <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-2"><CheckSquare className="w-4 h-4 text-slate-300" /></div>
-                      <span className="text-[10px]">کارهایتان را اینجا وارد کنید</span>
-                    </motion.div>
-                  )}
-                  {tasks.filter(t => t.status === 'todo' && t.dueDate === selectedDateISO).map(task => (
-                    <motion.div layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} key={task.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-150/40 shadow-sm relative group space-y-2">
-                      <div className="flex items-start justify-between">
-                        <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 leading-normal">{task.title}</h4>
-                        <button 
-                          onClick={() => saveTasksToLocal(tasks.filter(t=>t.id !== task.id))}
-                          className="text-slate-350 hover:text-rose-500 opacity-60 hover:opacity-100 transition-colors"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-slate-400">{useJalaliCalendar ? getJalaliDate(task.dueDate) : task.dueDate}</p>
-                      
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-50/50">
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${task.priority === 'HIGH' ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
-                          {task.priority === 'HIGH' ? 'مهم' : 'عادی'}
-                        </span>
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            const updated = tasks.map(t => t.id === task.id ? { ...t, status: 'doing' as const } : t);
-                            saveTasksToLocal(updated);
-                          }}
-                          className="text-[9px] font-black text-teal-600 hover:underline bg-teal-50 px-2.5 py-1 rounded"
-                        >
-                          حرکت به اقدام →
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-
-              {/* Doing Column */}
-              <div className="bg-slate-50 dark:bg-slate-950/60 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-150 mb-2">
-                  <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                    <span>در دست اقدام</span>
-                  </span>
-                  <span className="text-[10px] bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold">{tasks.filter(t=>t.status === 'doing' && t.dueDate === selectedDateISO).length}</span>
-                </div>
-
-                <AnimatePresence mode="popLayout">
-                  {tasks.filter(t => t.status === 'doing' && t.dueDate === selectedDateISO).length === 0 && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="py-6 flex flex-col items-center justify-center text-slate-400">
-                      <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-2"><Activity className="w-4 h-4 text-slate-300" /></div>
-                      <span className="text-[10px]">خالی</span>
-                    </motion.div>
-                  )}
-                  {tasks.filter(t => t.status === 'doing' && t.dueDate === selectedDateISO).map(task => (
-                    <motion.div layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} key={task.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-150/40 shadow-sm relative flex flex-col gap-2">
-                      <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 leading-normal">{task.title}</h4>
-                      <p className="text-[10px] text-slate-400">{useJalaliCalendar ? getJalaliDate(task.dueDate) : task.dueDate}</p>
-                      
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-50/50 mt-auto">
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            const updated = tasks.map(t => t.id === task.id ? { ...t, status: 'todo' as const } : t);
-                            saveTasksToLocal(updated);
-                          }}
-                          className="text-[9px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200"
-                        >
-                          ← برگشت
-                        </button>
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            const updated = tasks.map(t => t.id === task.id ? { ...t, status: 'done' as const } : t);
-                            saveTasksToLocal(updated);
-                            earnXp(20, `تکمیل کار "${task.title}"`);
-                          }}
-                          className="text-[9px] font-black text-emerald-700 hover:underline bg-emerald-50 px-2.5 py-1 rounded text-emerald-700"
-                        >
-                          کامل شد ✓
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-
-              {/* Done Column */}
-              <div className="bg-slate-50 dark:bg-slate-950/60 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-150 mb-2">
-                  <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                    <span>کامل شده</span>
-                  </span>
-                  <span className="text-[10px] bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold">{tasks.filter(t=>t.status === 'done' && t.dueDate === selectedDateISO).length}</span>
-                </div>
-
-                <AnimatePresence mode="popLayout">
-                  {tasks.filter(t => t.status === 'done' && t.dueDate === selectedDateISO).length === 0 && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="py-6 flex flex-col items-center justify-center text-slate-400">
-                      <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-2"><Check className="w-4 h-4 text-emerald-300" /></div>
-                      <span className="text-[10px]">در انتظار تکمیل</span>
-                    </motion.div>
-                  )}
-                  {tasks.filter(t => t.status === 'done' && t.dueDate === selectedDateISO).map(task => (
-                    <motion.div layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} key={task.id} className="bg-white dark:bg-slate-900/80 p-4 rounded-2xl border border-slate-150/40 shadow-sm relative opacity-60 space-y-2 transition-opacity hover:opacity-100 group">
-                      <div className="flex items-start justify-between">
-                        <h4 className="font-bold text-xs text-slate-750 line-through leading-normal decoration-emerald-500/50">{task.title}</h4>
-                        <button 
-                          onClick={() => saveTasksToLocal(tasks.filter(t=>t.id !== task.id))}
-                          className="text-slate-350 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[9px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded font-bold inline-block">تکمیل شده</span>
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            const updated = tasks.map(t => t.id === task.id ? { ...t, status: 'doing' as const } : t);
-                            saveTasksToLocal(updated);
-                            earnXp(-20, `تکمیل کار "${task.title}"`);
-                          }}
-                          className="text-[9px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
-                        >
-                          ← برگشت به در حال انجام
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tab 5: Health & Wellness Trackers */}
-        {activeTab === 'health' && (
-          <div className="space-y-6">
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-              <div className="space-y-1 text-right">
-                <span className="text-[10px] bg-teal-50 text-teal-700 px-2.5 py-1 rounded-full font-bold">پیشخوان پایش سلامت سایبان (Kortex Wellness Hub)</span>
-                <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">خانه تندرستی و ردیابی ارگانیک خلاق</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">شاخص‌های زیستی، زنجیره‌های کایزن عادات، زمان‌بندی مکمل‌ها، توده بدنی، خواب و عاطفه روزانه خود را مانیتور کنید.</p>
-              </div>
-
-              {/* Sub-navigation inside Health Tab */}
-              <div className="flex flex-wrap gap-1.5 bg-slate-50 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700/50 w-full md:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setActiveHealthSubTab('habits_meds')}
-                  className={`flex-1 md:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                    activeHealthSubTab === 'habits_meds'
-                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200'
-                  }`}
-                >
-                  ❤️ عادات و مکمل‌ها
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveHealthSubTab('water_sleep')}
-                  className={`flex-1 md:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                    activeHealthSubTab === 'water_sleep'
-                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200'
-                  }`}
-                >
-                  💧 پایش آب و خواب
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveHealthSubTab('bmi')}
-                  className={`flex-1 md:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                    activeHealthSubTab === 'bmi'
-                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200'
-                  }`}
-                >
-                  ⚖️ توده بدنی BMI
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveHealthSubTab('mood')}
-                  className={`flex-1 md:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                    activeHealthSubTab === 'mood'
-                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200'
-                  }`}
-                >
-                  🎭 پایش خلق‌وخو
-                </button>
-              </div>
-            </div>
-
-            {/* Sub-Tab 1: Habits and Medicines */}
-            {activeHealthSubTab === 'habits_meds' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Habits tracking */}
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-55">
-                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                      <Heart className="w-5 h-5 text-rose-500" />
-                      <span>زنجیره عادات تکرارشونده روزانه (Streak Trackers)</span>
-                    </h3>
-                    <span className="text-[10px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded font-bold">
-                      {habits.filter(h => isHabitCompleted(h)).length} متعهد
-                    </span>
-                  </div>
-
-                  {/* Habit Add form */}
-                  <form onSubmit={addManualHabit} className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="ثبت نام عادت کایزن جدید (مثلاً: ۳۰ دقیقه مطالعه)..."
-                      value={newHabitName}
-                      onChange={(e) => setNewHabitName(e.target.value)}
-                      className="flex-1 text-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 bg-slate-50 dark:bg-slate-950/50 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-rose-455 focus:ring-1 focus:ring-rose-400"
-                    />
-                    <button
-                      type="submit"
-                      className="bg-rose-55 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors shrink-0 cursor-pointer"
-                    >
-                      افزودن
-                    </button>
-                  </form>
-
-                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                    <AnimatePresence mode="popLayout">
-                      {habits.length === 0 ? (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-10 flex flex-col items-center justify-center text-slate-400 text-[10px]">
-                          <Heart className="w-8 h-8 opacity-20 mx-auto mb-2" />
-                          هیچ عادتی ثبت نشده است. ساخت کارما را شروع کنید!
-                        </motion.div>
-                      ) : (
-                        habits.map((hbt) => (
-                          <motion.div layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} key={hbt.id} className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl flex items-center justify-between border border-transparent hover:border-slate-100 dark:border-slate-800 transition-all">
-                            <div className="space-y-1">
-                              <h4 className={`font-bold text-xs text-slate-800 dark:text-slate-200 ${isHabitCompleted(hbt) ? 'line-through text-slate-400' : ''}`}>
-                                {hbt.name}
-                              </h4>
-                              <span className="text-[10px] text-pink-500 font-bold block">🔥 {hbt.streak} روز متوالی موفق</span>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <button
-                                disabled={isSelectedDatePast || isSelectedDateFuture}
-                                onClick={() => toggleHabit(hbt.id)}
-                                className={`text-xs font-medium px-3 py-1.5 rounded-xl cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                                  isHabitCompleted(hbt)
-                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold'
-                                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300'
-                                }`}
-                              >
-                                {isHabitCompleted(hbt) ? 'کامل شد ✓' : 'تکمیل امروز'}
-                              </button>
-                              
-                              <button
-                                onClick={() => deleteHabit(hbt.id)}
-                                className="p-1.5 text-slate-300 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                                title="حذف عادت"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </motion.div>
-                        ))
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-
-                {/* Medicines layout */}
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-55">
-                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5 text-indigo-500" />
-                      <span>دستیار یادآوری مصرف داروها و مکمل ملایم</span>
-                    </h3>
-                    <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-bold">
-                      {medicines.filter(m => isMedicineCompleted(m)).length} مصرف‌شده
-                    </span>
-                  </div>
-
-                  <form onSubmit={addManualMedicine} className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
-                    <div className="sm:col-span-3 text-[10px] font-bold text-slate-500 dark:text-slate-400">ثبت یادآور مکمل جدید</div>
-                    <input
-                      type="text"
-                      placeholder="نام مکمل (ویتامین ث)..."
-                      value={newMedName}
-                      onChange={(e) => setNewMedName(e.target.value)}
-                      className="text-xs border border-slate-250 bg-white dark:bg-slate-900 rounded-xl px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-400"
-                    />
-                    <input
-                      type="text"
-                      placeholder="دوز (یک عدد صبح)..."
-                      value={newMedDosage}
-                      onChange={(e) => setNewMedDosage(e.target.value)}
-                      className="text-xs border border-slate-250 bg-white dark:bg-slate-900 rounded-xl px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-400"
-                    />
-                    <input
-                      type="time"
-                      value={newMedTime}
-                      onChange={(e) => setNewMedTime(e.target.value)}
-                      className="text-xs border border-slate-250 bg-white dark:bg-slate-900 rounded-xl px-3 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-400"
-                    />
-                    <button
-                      type="submit"
-                      className="sm:col-span-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1.5 rounded-xl cursor-pointer transition-colors"
-                    >
-                      ثبت مکمل روزانه جدید
-                    </button>
-                  </form>
-
-                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                    <AnimatePresence mode="popLayout">
-                      {medicines.length === 0 ? (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center flex flex-col justify-center items-center py-10 text-slate-400 text-[10px]">
-                          <AlertCircle className="w-8 h-8 opacity-20 mx-auto mb-2" />
-                          هیچ یادآور مکمل یا دارویی ثبت نشده است.
-                        </motion.div>
-                      ) : (
-                        medicines.map((med) => (
-                          <motion.div layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} key={med.id} className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl flex items-center justify-between border border-transparent hover:border-slate-100 dark:border-slate-800 transition-all">
-                            <div className="space-y-1">
-                              <h4 className={`font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-2 ${isMedicineCompleted(med) ? 'text-slate-400 line-through' : ''}`}>
-                                <span>{med.name}</span>
-                                <span className="text-[9px] text-indigo-650 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-full border border-indigo-100 font-mono font-bold">{med.time}</span>
-                              </h4>
-                              <p className="text-[10px] text-slate-400">{med.dosage}</p>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <button
-                                disabled={isSelectedDatePast || isSelectedDateFuture}
-                                onClick={() => toggleMedicine(med.id)}
-                                className={`px-3 py-1.5 text-xs rounded-xl font-bold cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                                  isMedicineCompleted(med)
-                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-100 line-through'
-                                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                }`}
-                              >
-                                {isMedicineCompleted(med) ? 'مصرف شد ✓' : 'تأیید مصرف'}
-                              </button>
-
-                              <button
-                                onClick={() => deleteMedicine(med.id)}
-                                className="p-1.5 text-slate-350 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                                title="حذف مکمل"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </motion.div>
-                        ))
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Sub-Tab 2: Water and Sleep Loggers */}
-            {activeHealthSubTab === 'water_sleep' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Detailed Water Hydration */}
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-50">
-                    <h4 className="font-extrabold text-sm text-slate-850 flex items-center gap-2">
-                      <span className="text-teal-500 text-lg">💧</span>
-                      <span>هیدراتاسیون و هرم نوشیدن آب کورتکس</span>
-                    </h4>
-                    <span className="text-xs font-mono font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded-lg">
-                      هدف روزانه: ۲۵۰۰ میلی‌لیتر
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between bg-teal-50/20 p-5 rounded-2xl border border-teal-100/50">
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-400 block font-bold">مصرف شده امروز:</span>
-                      <span className="text-2xl font-black text-slate-850 font-mono">{health.waterToday} / ۲۵۰۰</span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400 block">میلی‌لیتر (ML)</span>
-                    </div>
-
-                    {/* Progress Circle Visualizer */}
-                    <div className="relative w-16 h-16 flex items-center justify-center">
-                      <span className="font-extrabold text-xs text-teal-650">{Math.round((health.waterToday / 2500) * 100)}%</span>
-                      <svg className="absolute inset-0 w-full h-full -rotate-90">
-                        <circle cx="32" cy="32" r="28" fill="none" stroke="#e2e8f0" strokeWidth="4" />
-                        <circle cx="32" cy="32" r="28" fill="none" stroke="#0ea5e9" strokeWidth="4" strokeDasharray="176" strokeDashoffset={Math.max(0, 176 - (176 * Math.min(health.waterToday, 2500)) / 2500)} className="transition-all duration-500" />
-                      </svg>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 pt-2">
-                    <button 
-                      type="button"
-                      disabled={isSelectedDatePast || isSelectedDateFuture}
-                      onClick={() => handleAddWater(250)}
-                      className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      🥤 لیوان معمولی (+۲۵۰ml)
-                    </button>
-                    <button 
-                      type="button"
-                      disabled={isSelectedDatePast || isSelectedDateFuture}
-                      onClick={() => handleAddWater(500)}
-                      className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      🍼 ماگ کورتکس (+۵۰۰ml)
-                    </button>
-                    <button 
-                      type="button"
-                      disabled={isSelectedDatePast || isSelectedDateFuture}
-                      onClick={() => handleAddWater(-250)}
-                      className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-500 dark:text-slate-400 hover:text-rose-600 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-bold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      ↩️ کاهش آب (-۲۵۰ml)
-                    </button>
-                  </div>
-                </div>
-
-                {/* Sleep Quality Logger */}
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-50">
-                    <h4 className="font-extrabold text-sm text-slate-850 flex items-center gap-2">
-                      <span className="text-indigo-500 text-lg">🌙</span>
-                      <span>سنجش خواب عمیق و ریکاوری غدد مغزی</span>
-                    </h4>
-                    <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
-                      توصیه کورتکس: ۷.۵ ساعت
-                    </span>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-500 dark:text-slate-400 font-bold">ساعات استراحت شب گذشته:</span>
-                      <span className="font-bold text-indigo-600 font-mono text-sm">{health.sleepHours} ساعت</span>
-                    </div>
-                    
-                    <input 
-                      type="range"
-                      min="4"
-                      max="12"
-                      step="0.5"
-                      disabled={isSelectedDatePast || isSelectedDateFuture}
-                      value={health.sleepHours}
-                      onChange={(e) => saveHealthToLocal({ ...health, sleepHours: Number(e.target.value) })}
-                      className="w-full h-1 bg-white rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                    />
-
-                    <div className="grid grid-cols-2 gap-3 text-xs pt-2">
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-bold text-slate-450 uppercase">کیفیت عمومی خواب دیشب:</label>
-                        <select
-                          disabled={isSelectedDatePast || isSelectedDateFuture}
-                          value={health.sleepQuality}
-                          onChange={(e) => saveHealthToLocal({ ...health, sleepQuality: e.target.value as any })}
-                          className="w-full bg-slate-50 dark:bg-slate-950 rounded-xl p-2.5 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500 text-slate-700 dark:text-slate-300 font-medium text-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          <option value="excellent">🏆 بسیار مقتدرانه و عمیق</option>
-                          <option value="good">🟢 خوب و با نشاط زیاد</option>
-                          <option value="fair">🟡 خستگی نسبی و خواب سطحی</option>
-                          <option value="poor">🔴 نامنظم و خواب‌پریشی مکرر</option>
-                        </select>
-                      </div>
-
-                      <div className="flex flex-col justify-center items-center bg-indigo-50/40 p-3 rounded-2xl text-center border border-indigo-100/50">
-                        <span className="text-[9px] text-slate-450 block font-bold mb-1">بازسازی بیولوژیک سلولی:</span>
-                        <span className="font-bold text-xs text-indigo-700">
-                          {health.sleepQuality === 'excellent' ? '۱۰۰٪ (رویایی)' :
-                           health.sleepQuality === 'good' ? '۸۵٪ (بسیار عالی)' :
-                           health.sleepQuality === 'fair' ? '۶۰٪ (متوسط)' : '۳۵٪ (برنامه سم‌زدایی)'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Sub-Tab 3: BMI scale analyzer */}
-            {activeHealthSubTab === 'bmi' && (
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-6">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-50">
-                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <span className="text-xl">⚖️</span>
-                    <span>ماشین حساب و آنالیز شاخص توده بدنی (BMI Cortex)</span>
-                  </h3>
-                  <span className="text-[10px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold">بادی کایزن</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                  <div className="space-y-4">
-                    <p className="text-xs text-slate-505 leading-relaxed">با درج مرتب وزن و قد، تداوم کالیبراسیون ترکیب بدنی خود را ارزیابی و در پیشخوان تماشا کنید.</p>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Height tracker */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400">مبنای قد کاربری (سانتی‌متر):</label>
-                        <div className="flex items-center gap-1.5">
-                          <input 
-                            type="number" 
-                            min="100" 
-                            max="250"
-                            value={userHeight}
-                            onChange={(e) => saveUserHeight(Number(e.target.value))}
-                            className="bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-200 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-rose-400 w-full font-mono"
-                          />
-                          <span className="text-xs text-slate-400">cm</span>
+                        {/* Weight tracker */}
+                        <div className="space-y-1.5">
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                            سنجش وزن امروز (کیلوگرم):
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="30"
+                              max="250"
+                              step="0.1"
+                              value={userWeight}
+                              onChange={(e) =>
+                                saveUserWeight(Number(e.target.value))
+                              }
+                              className="bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-200 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-rose-400 w-full font-mono"
+                            />
+                            <span className="text-xs text-slate-400">kg</span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Weight tracker */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400">سنجش وزن امروز (کیلوگرم):</label>
-                        <div className="flex items-center gap-1.5">
-                          <input 
-                            type="number" 
-                            min="30" 
-                            max="250"
-                            step="0.1"
-                            value={userWeight}
-                            onChange={(e) => saveUserWeight(Number(e.target.value))}
-                            className="bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-200 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-rose-400 w-full font-mono"
-                          />
-                          <span className="text-xs text-slate-400">kg</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => saveUserWeight(Number((userWeight - 0.5).toFixed(1)))}
-                        className="text-xs font-bold px-3 py-2 bg-slate-150/60 hover:bg-slate-200 dark:bg-slate-700 rounded-xl transition-all cursor-pointer"
-                      >
-                        -۰.۵ کیلوگرم
-                      </button>
-                      <button 
-                        onClick={() => saveUserWeight(Number((userWeight + 0.5).toFixed(1)))}
-                        className="text-xs font-bold px-3 py-2 bg-slate-150/60 hover:bg-slate-200 dark:bg-slate-700 rounded-xl transition-all cursor-pointer"
-                      >
-                        +۰.۵ کیلوگرم
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* BMI Calculation results view */}
-                  {(() => {
-                    const heightInMeters = userHeight / 100;
-                    const bmi = Number((userWeight / (heightInMeters * heightInMeters)).toFixed(1)) || 0;
-                    let bmiState = 'نرمال';
-                    let bmiColor = 'text-emerald-600';
-                    let bmiBg = 'bg-emerald-50 border-emerald-100/60';
-                    let scaleOffset = '45%'; // representation offset
-
-                    if (bmi < 18.5) {
-                      bmiState = 'کمبود وزن بدنی (نیاز به پی ریزی رژیم صحیح)';
-                      bmiColor = 'text-amber-600';
-                      bmiBg = 'bg-amber-50 border-amber-100/60';
-                      scaleOffset = '22%';
-                    } else if (bmi >= 18.5 && bmi < 25) {
-                      bmiState = 'تناسب وزن فوق‌العاده نرمال و سبک زندگی سالم';
-                      bmiColor = 'text-emerald-600';
-                      bmiBg = 'bg-emerald-50 border-emerald-100/60';
-                      scaleOffset = '45%';
-                    } else if (bmi >= 25 && bmi < 30) {
-                      bmiState = 'اضافه‌وزن جزئی (نیازمند کالری سوزی و ورزش روزانه)';
-                      bmiColor = 'text-orange-600';
-                      bmiBg = 'bg-orange-50 border-orange-100/60';
-                      scaleOffset = '68%';
-                    } else {
-                      bmiState = 'اضافه‌وزن شدید و تراکم نامطلوب ساختار چربی';
-                      bmiColor = 'text-rose-600';
-                      bmiBg = 'bg-rose-50 border-rose-100/60';
-                      scaleOffset = '88%';
-                    }
-
-                    return (
-                      <div className={`p-6 rounded-2xl border ${bmiBg} text-right space-y-4`}>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">شاخص بیولوژیکی (BMI Gauge):</span>
-                          <span className={`text-2xl font-black font-mono leading-none ${bmiColor}`}>{bmi}</span>
-                        </div>
-
-                        <div className="text-xs font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
-                          مقطع کورتکس شما: <span className={bmiColor}>{bmiState}</span>
-                        </div>
-
-                        {/* Visual Range bar gauge */}
-                        <div className="bg-slate-200 dark:bg-slate-700/80 h-2.5 rounded-full relative overflow-visible mt-6">
-                          <div className="absolute top-[-4px] w-4.5 h-4.5 rounded-full bg-slate-900 border-2 border-white shadow transition-all duration-300" style={{ right: scaleOffset }} />
-                          <div className="absolute top-4 text-[8px] text-slate-400 right-[22%] translate-x-[50%] font-bold">لاغر (کمتر از ۱۸.۵)</div>
-                          <div className="absolute top-4 text-[8px] text-slate-400 right-[45%] translate-x-[50%] font-bold font-black">ایده‌آل (۱۸.۵-۲۵)</div>
-                          <div className="absolute top-4 text-[8px] text-slate-400 right-[68%] translate-x-[50%] font-bold">اضافه‌وزن (۲۵-۳۰)</div>
-                          <div className="absolute top-4 text-[8px] text-slate-405 right-[88%] translate-x-[50%] font-bold">چاق (بیشتر از ۳۰)</div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-
-            {/* Sub-Tab 4: Mood and emotions tracker */}
-            {activeHealthSubTab === 'mood' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Mood Logger interaction */}
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-50">
-                    <h4 className="font-extrabold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                      <span className="text-lg">🎭</span>
-                      <span>پایش روزانه جزر و مد احساسی و خلقی (Emotional Track)</span>
-                    </h4>
-                    <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded font-bold">روانشناسی کایزن</span>
-                  </div>
-
-                  <div className="space-y-4">
-                    <p className="text-xs text-slate-500 dark:text-slate-400 text-right leading-relaxed">احساس قلبی و سطح انگیزه امروزتان را لمس کنید تا در نمودار کورتکس به عنوان الگو ثبت شود:</p>
-                    
-                    <div className="flex justify-around items-center py-3 border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 rounded-2xl">
-                      {([
-                        { score: 5, label: 'بمب انگیزه', emoji: '🚀' },
-                        { score: 4, label: 'شاداب', emoji: '😊' },
-                        { score: 3, label: 'معمولی', emoji: '😐' },
-                        { score: 2, label: 'خسته/بی‌ذوق', emoji: '😞' },
-                        { score: 1, label: 'عصبی/بحرانی', emoji: '😠' }
-                      ] as const).map(item => (
+                      <div className="flex gap-2">
                         <button
-                          type="button"
-                          key={item.score}
-                          disabled={isSelectedDatePast || isSelectedDateFuture}
-                          onClick={() => handleSelectMood(item.score, item.label)}
-                          className={`flex flex-col items-center p-2 rounded-xl transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                            health.moodScore === item.score 
-                              ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 scale-105 font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400'
-                          }`}
+                          onClick={() =>
+                            saveUserWeight(
+                              Number((userWeight - 0.5).toFixed(1)),
+                            )
+                          }
+                          className="text-xs font-bold px-3 py-2 bg-slate-150/60 hover:bg-slate-200 dark:bg-slate-700 rounded-xl transition-all cursor-pointer"
                         >
-                          <span className="text-2xl mb-1">{item.emoji}</span>
-                          <span className="text-[10px]">{item.label}</span>
+                          -۰.۵ کیلوگرم
                         </button>
-                      ))}
+                        <button
+                          onClick={() =>
+                            saveUserWeight(
+                              Number((userWeight + 0.5).toFixed(1)),
+                            )
+                          }
+                          className="text-xs font-bold px-3 py-2 bg-slate-150/60 hover:bg-slate-200 dark:bg-slate-700 rounded-xl transition-all cursor-pointer"
+                        >
+                          +۰.۵ کیلوگرم
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* History list and spark histogram */}
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-50">
-                    <h4 className="font-extrabold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                      <span>📉</span>
-                      <span>سوابق نوسان احساسی کورتکس مغز</span>
-                    </h4>
-                  </div>
+                    {/* BMI Calculation results view */}
+                    {(() => {
+                      const heightInMeters = userHeight / 100;
+                      const bmi =
+                        Number(
+                          (
+                            userWeight /
+                            (heightInMeters * heightInMeters)
+                          ).toFixed(1),
+                        ) || 0;
+                      let bmiState = "نرمال";
+                      let bmiColor = "text-emerald-600";
+                      let bmiBg = "bg-emerald-50 border-emerald-100/60";
+                      let scaleOffset = "45%"; // representation offset
 
-                  <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                    {moodLogs.slice().reverse().map((log, i) => {
-                      const dateText = useJalaliCalendar ? getJalaliDate(log.date) : log.date;
-                      let moodEmoji = '😐';
-                      let moodStyle = 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800';
-                      if (log.mood === 5) { moodEmoji = '🚀 بمب کار و انگیزه'; moodStyle = 'text-pink-600 bg-pink-50 font-bold'; }
-                      else if (log.mood === 4) { moodEmoji = '😊 خندان و پر انرژی'; moodStyle = 'text-emerald-705 bg-emerald-50 font-bold'; }
-                      else if (log.mood === 3) { moodEmoji = '😐 معمولی آرام'; moodStyle = 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950'; }
-                      else if (log.mood === 2) { moodEmoji = '😞 کمی خسته'; moodStyle = 'text-amber-600 bg-amber-50'; }
-                      else if (log.mood === 1) { moodEmoji = '😠 دغدغه‌مند/بحرانی'; moodStyle = 'text-rose-600 bg-rose-50'; }
+                      if (bmi < 18.5) {
+                        bmiState = "کمبود وزن بدنی (نیاز به پی ریزی رژیم صحیح)";
+                        bmiColor = "text-amber-600";
+                        bmiBg = "bg-amber-50 border-amber-100/60";
+                        scaleOffset = "22%";
+                      } else if (bmi >= 18.5 && bmi < 25) {
+                        bmiState =
+                          "تناسب وزن فوق‌العاده نرمال و سبک زندگی سالم";
+                        bmiColor = "text-emerald-600";
+                        bmiBg = "bg-emerald-50 border-emerald-100/60";
+                        scaleOffset = "45%";
+                      } else if (bmi >= 25 && bmi < 30) {
+                        bmiState =
+                          "اضافه‌وزن جزئی (نیازمند کالری سوزی و ورزش روزانه)";
+                        bmiColor = "text-orange-600";
+                        bmiBg = "bg-orange-50 border-orange-100/60";
+                        scaleOffset = "68%";
+                      } else {
+                        bmiState = "اضافه‌وزن شدید و تراکم نامطلوب ساختار چربی";
+                        bmiColor = "text-rose-600";
+                        bmiBg = "bg-rose-50 border-rose-100/60";
+                        scaleOffset = "88%";
+                      }
 
                       return (
-                        <div key={i} className="flex justify-between items-center text-xs p-2.5 bg-slate-50 dark:bg-slate-950/50 hover:bg-slate-100 dark:bg-slate-800/50 rounded-xl transition-all border border-transparent hover:border-slate-100 dark:border-slate-800">
-                          <span className="text-slate-500 dark:text-slate-400 font-bold">{dateText}</span>
-                          <span className={`text-[10px] px-2.5 py-1 rounded-lg ${moodStyle}`}>{moodEmoji}</span>
+                        <div
+                          className={`p-6 rounded-2xl border ${bmiBg} text-right space-y-4`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">
+                              شاخص بیولوژیکی (BMI Gauge):
+                            </span>
+                            <span
+                              className={`text-2xl font-black font-mono leading-none ${bmiColor}`}
+                            >
+                              {bmi}
+                            </span>
+                          </div>
+
+                          <div className="text-xs font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
+                            مقطع کورتکس شما:{" "}
+                            <span className={bmiColor}>{bmiState}</span>
+                          </div>
+
+                          {/* Visual Range bar gauge */}
+                          <div className="bg-slate-200 dark:bg-slate-700/80 h-2.5 rounded-full relative overflow-visible mt-6">
+                            <div
+                              className="absolute top-[-4px] w-4.5 h-4.5 rounded-full bg-slate-900 border-2 border-white shadow transition-all duration-300"
+                              style={{ right: scaleOffset }}
+                            />
+                            <div className="absolute top-4 text-[8px] text-slate-400 right-[22%] translate-x-[50%] font-bold">
+                              لاغر (کمتر از ۱۸.۵)
+                            </div>
+                            <div className="absolute top-4 text-[8px] text-slate-400 right-[45%] translate-x-[50%] font-bold font-black">
+                              ایده‌آل (۱۸.۵-۲۵)
+                            </div>
+                            <div className="absolute top-4 text-[8px] text-slate-400 right-[68%] translate-x-[50%] font-bold">
+                              اضافه‌وزن (۲۵-۳۰)
+                            </div>
+                            <div className="absolute top-4 text-[8px] text-slate-405 right-[88%] translate-x-[50%] font-bold">
+                              چاق (بیشتر از ۳۰)
+                            </div>
+                          </div>
                         </div>
                       );
-                    })}
+                    })()}
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
 
-        {/* Tab 6: General Configuration Settings */}
-        {activeTab === 'settings' && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">تنظیمات و صیانت از داده‌های سایبان</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">شخصی‌سازی نمای تقویم، صادر کردن بکاپ‌های کورتکس و حریم داده‌های شخصی شما.</p>
+              {/* Sub-Tab 4: Mood and emotions tracker */}
+              {activeHealthSubTab === "mood" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Mood Logger interaction */}
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                      <h4 className="font-extrabold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <span className="text-lg">🎭</span>
+                        <span>
+                          پایش روزانه جزر و مد احساسی و خلقی (Emotional Track)
+                        </span>
+                      </h4>
+                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded font-bold">
+                        روانشناسی کایزن
+                      </span>
+                    </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Account Settings Placeholder */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4 md:col-span-2">
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 pb-2 border-b border-slate-50 flex items-center gap-2">
-                  <Settings className="w-5 h-5 text-teal-600" />
-                  <span>تنظیمات حساب کاربری</span>
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  تنظیمات امنیتی و پروفایل حساب کاربری شما در اینجا قرار می‌گیرد.
-                </p>
-                
-                <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl text-[11px] text-slate-600 dark:text-slate-400">
-                  <span className="font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
-                    این بخش در حال توسعه است...
-                  </span>
-                </div>
-              </div>
+                    <div className="space-y-4">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 text-right leading-relaxed">
+                        احساس قلبی و سطح انگیزه امروزتان را لمس کنید تا در
+                        نمودار کورتکس به عنوان الگو ثبت شود:
+                      </p>
 
-              {/* Visual Preferences */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-5">
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 pb-2 border-b border-slate-100 dark:border-slate-800">پیکربندی هویت ظاهری</h3>
-                
-                <div className="space-y-4 text-xs">
-                  {/* Theme Switcher 3-State */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <span className="text-slate-600 dark:text-slate-400 font-bold">حالت نمایشی سامانه (پوسته):</span>
-                    <div className="flex bg-slate-100 dark:bg-slate-950 rounded-2xl p-1 gap-1 border border-slate-200/60 dark:border-slate-800">
-                      <button 
-                        type="button"
-                        onClick={() => setTheme('light')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                          mounted && theme === 'light' 
-                            ? 'bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 shadow-sm' 
-                            : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                        }`}
-                      >
-                        <Sun className="w-3.5 h-3.5 text-amber-500" />
-                        <span>روشن</span>
-                      </button>
-
-                      <button 
-                        type="button"
-                        onClick={() => setTheme('dark')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                          mounted && theme === 'dark' 
-                            ? 'bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 shadow-sm' 
-                            : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                        }`}
-                      >
-                        <Moon className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>تاریک</span>
-                      </button>
-
-                      <button 
-                        type="button"
-                        onClick={() => setTheme('system')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                          mounted && theme === 'system' 
-                            ? 'bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 shadow-sm' 
-                            : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                        }`}
-                      >
-                        <Monitor className="w-3.5 h-3.5 text-slate-500" />
-                        <span>سیستم</span>
-                      </button>
+                      <div className="flex justify-around items-center py-3 border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 rounded-2xl">
+                        {(
+                          [
+                            { score: 5, label: "بمب انگیزه", emoji: "🚀" },
+                            { score: 4, label: "شاداب", emoji: "😊" },
+                            { score: 3, label: "معمولی", emoji: "😐" },
+                            { score: 2, label: "خسته/بی‌ذوق", emoji: "😞" },
+                            { score: 1, label: "عصبی/بحرانی", emoji: "😠" },
+                          ] as const
+                        ).map((item) => (
+                          <button
+                            type="button"
+                            key={item.score}
+                            disabled={
+                              isSelectedDatePast || isSelectedDateFuture
+                            }
+                            onClick={() =>
+                              handleSelectMood(item.score, item.label)
+                            }
+                            className={`flex flex-col items-center p-2 rounded-xl transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                              health.moodScore === item.score
+                                ? "bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 scale-105 font-bold"
+                                : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400"
+                            }`}
+                          >
+                            <span className="text-2xl mb-1">{item.emoji}</span>
+                            <span className="text-[10px]">{item.label}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Font Size Selector */}
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-600 dark:text-slate-400 font-bold">اندازه قلم متون:</span>
-                    <div className="flex bg-slate-100 dark:bg-slate-950 rounded-xl p-1 gap-1 border border-slate-200/60 dark:border-slate-800">
-                      {(['small', 'medium', 'large'] as const).map(sz => (
-                        <button 
-                          key={sz}
+                  {/* History list and spark histogram */}
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                      <h4 className="font-extrabold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <span>📉</span>
+                        <span>سوابق نوسان احساسی کورتکس مغز</span>
+                      </h4>
+                    </div>
+
+                    <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                      {moodLogs
+                        .slice()
+                        .reverse()
+                        .map((log, i) => {
+                          const dateText = useJalaliCalendar
+                            ? getJalaliDate(log.date)
+                            : log.date;
+                          let moodEmoji = "😐";
+                          let moodStyle =
+                            "text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800";
+                          if (log.mood === 5) {
+                            moodEmoji = "🚀 بمب کار و انگیزه";
+                            moodStyle = "text-pink-600 bg-pink-50 font-bold";
+                          } else if (log.mood === 4) {
+                            moodEmoji = "😊 خندان و پر انرژی";
+                            moodStyle =
+                              "text-emerald-705 bg-emerald-50 font-bold";
+                          } else if (log.mood === 3) {
+                            moodEmoji = "😐 معمولی آرام";
+                            moodStyle =
+                              "text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950";
+                          } else if (log.mood === 2) {
+                            moodEmoji = "😞 کمی خسته";
+                            moodStyle = "text-amber-600 bg-amber-50";
+                          } else if (log.mood === 1) {
+                            moodEmoji = "😠 دغدغه‌مند/بحرانی";
+                            moodStyle = "text-rose-600 bg-rose-50";
+                          }
+
+                          return (
+                            <div
+                              key={i}
+                              className="flex justify-between items-center text-xs p-2.5 bg-slate-50 dark:bg-slate-950/50 hover:bg-slate-100 dark:bg-slate-800/50 rounded-xl transition-all border border-transparent hover:border-slate-100 dark:border-slate-800"
+                            >
+                              <span className="text-slate-500 dark:text-slate-400 font-bold">
+                                {dateText}
+                              </span>
+                              <span
+                                className={`text-[10px] px-2.5 py-1 rounded-lg ${moodStyle}`}
+                              >
+                                {moodEmoji}
+                              </span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab 6: General Configuration Settings */}
+          {activeTab === "settings" && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+                تنظیمات و صیانت از داده‌های سایبان
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                شخصی‌سازی نمای تقویم، صادر کردن بکاپ‌ها و حریم داده‌های شخصی
+                شما.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Account Settings Placeholder */}
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4 md:col-span-2">
+                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 pb-2 border-b border-slate-50 flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-teal-600" />
+                    <span>تنظیمات حساب کاربری</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    تنظیمات امنیتی و پروفایل حساب کاربری شما در اینجا قرار
+                    می‌گیرد.
+                  </p>
+
+                  <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl text-[11px] text-slate-600 dark:text-slate-400">
+                    <span className="font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                      این بخش در حال توسعه است...
+                    </span>
+                  </div>
+                </div>
+
+                {/* Visual Preferences */}
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-5">
+                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 pb-2 border-b border-slate-100 dark:border-slate-800">
+                    پیکربندی هویت ظاهری
+                  </h3>
+
+                  <div className="space-y-4 text-xs">
+                    {/* Theme Switcher 3-State */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">
+                        حالت نمایشی سامانه (پوسته):
+                      </span>
+                      <div className="flex bg-slate-100 dark:bg-slate-950 rounded-2xl p-1 gap-1 border border-slate-200/60 dark:border-slate-800">
+                        <button
                           type="button"
-                          onClick={() => setFontSize(sz)}
-                          className={`px-3 py-1 rounded-lg cursor-pointer transition-all font-bold ${
-                            fontSize === sz 
-                              ? 'bg-white dark:bg-slate-800 text-teal-800 dark:text-teal-300 shadow-sm' 
-                              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                          onClick={() => setTheme("light")}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            mounted && theme === "light"
+                              ? "bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 shadow-sm"
+                              : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                           }`}
                         >
-                          {sz === 'small' ? 'کوچک' : sz === 'large' ? 'بزرگ' : 'متوسط'}
+                          <Sun className="w-3.5 h-3.5 text-amber-500" />
+                          <span>روشن</span>
                         </button>
-                      ))}
+
+                        <button
+                          type="button"
+                          onClick={() => setTheme("dark")}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            mounted && theme === "dark"
+                              ? "bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 shadow-sm"
+                              : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                          }`}
+                        >
+                          <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>تاریک</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setTheme("system")}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            mounted && theme === "system"
+                              ? "bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 shadow-sm"
+                              : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                          }`}
+                        >
+                          <Monitor className="w-3.5 h-3.5 text-slate-500" />
+                          <span>سیستم</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Font Size Selector */}
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">
+                        اندازه قلم متون:
+                      </span>
+                      <div className="flex bg-slate-100 dark:bg-slate-950 rounded-xl p-1 gap-1 border border-slate-200/60 dark:border-slate-800">
+                        {(["small", "medium", "large"] as const).map((sz) => (
+                          <button
+                            key={sz}
+                            type="button"
+                            onClick={() => setFontSize(sz)}
+                            className={`px-3 py-1 rounded-lg cursor-pointer transition-all font-bold ${
+                              fontSize === sz
+                                ? "bg-white dark:bg-slate-800 text-teal-800 dark:text-teal-300 shadow-sm"
+                                : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                            }`}
+                          >
+                            {sz === "small"
+                              ? "کوچک"
+                              : sz === "large"
+                                ? "بزرگ"
+                                : "متوسط"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Calendar Type */}
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">
+                        نوع تقویم پیش‌فرض:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setUseJalaliCalendar(!useJalaliCalendar)}
+                        className="px-4 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-bold text-teal-700 dark:text-teal-300 border border-slate-200/60 dark:border-slate-700 cursor-pointer"
+                      >
+                        {useJalaliCalendar
+                          ? "خورشیدی (جلالی)"
+                          : "میلادی (Gregorian)"}
+                      </button>
                     </div>
                   </div>
+                </div>
 
-                  {/* Calendar Type */}
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-600 dark:text-slate-400 font-bold">نوع تقویم پیش‌فرض:</span>
-                    <button 
-                      type="button"
-                      onClick={() => setUseJalaliCalendar(!useJalaliCalendar)}
-                      className="px-4 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-bold text-teal-700 dark:text-teal-300 border border-slate-200/60 dark:border-slate-700 cursor-pointer"
+                {/* Data Import and Export privacy */}
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 pb-2 border-b border-slate-50">
+                    حریم خصوصی داده‌ها و خروجی‌ها
+                  </h3>
+                  <p className="text-xs text-slate-450 leading-relaxed">
+                    کل بدنه داده‌های شما اعم از خواب، وزن، رویدادها و یادداشت‌ها
+                    منحصرا در این کپی از سند مرورگر شما نگهداری شده و هر زمان
+                    اراده کنید، برای همیشه پاک‌سازی می‌شود.
+                  </p>
+
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <button
+                      onClick={exportBackupJSON}
+                      className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer hover:bg-slate-800"
                     >
-                      {useJalaliCalendar ? 'خورشیدی (جلالی)' : 'میلادی (Gregorian)'}
+                      <Download className="w-4 h-4" />
+                      <span>خروجی گرفتن فایل JSON</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (
+                          confirm(
+                            "آیا مایلید کل مخزن داده محلی را پاک‌سازی کنید؟ این عمل بازگشت ناپذیر است.",
+                          )
+                        ) {
+                          localStorage.clear();
+                          window.location.reload();
+                        }
+                      }}
+                      className="px-4 py-2.5 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 cursor-pointer"
+                    >
+                      پاک‌سازی کل اطلاعات کورتکس
                     </button>
                   </div>
                 </div>
               </div>
-
-              {/* Data Import and Export privacy */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 pb-2 border-b border-slate-50">حریم خصوصی داده‌ها و خروجی‌ها</h3>
-                <p className="text-xs text-slate-450 leading-relaxed">کل بدنه داده‌های شما اعم از خواب، وزن، رویدادها و یادداشت‌ها منحصرا در این کپی از سند مرورگر شما نگهداری شده و هر زمان اراده کنید، برای همیشه پاک‌سازی می‌شود.</p>
-
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <button 
-                    onClick={exportBackupJSON}
-                    className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer hover:bg-slate-800"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>خروجی گرفتن فایل JSON</span>
-                  </button>
-
-                  <button 
-                    onClick={() => {
-                      if (confirm("آیا مایلید کل مخزن داده محلی را پاک‌سازی کنید؟ این عمل بازگشت ناپذیر است.")) {
-                        localStorage.clear();
-                        window.location.reload();
-                      }
-                    }}
-                    className="px-4 py-2.5 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 cursor-pointer"
-                  >
-                    پاک‌سازی کل اطلاعات کورتکس
-                  </button>
-                </div>
-              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Tab 7: Support, Tickets, and Suggestions */}
-        {activeTab === 'support' && (
-          <SupportTabView 
-            useJalaliCalendar={useJalaliCalendar} 
-            onTicketsUpdate={(hasUnread) => setHasUnreadTickets(hasUnread)}
-          />
-        )}
+          {/* Tab 7: Support, Tickets, and Suggestions */}
+          {activeTab === "support" && (
+            <SupportTabView
+              useJalaliCalendar={useJalaliCalendar}
+              onTicketsUpdate={(hasUnread) => setHasUnreadTickets(hasUnread)}
+            />
+          )}
 
-        {/* Tab 8: Monthly Calendar Board */}
-        {activeTab === 'calendar' && (
-          <MonthlyCalendarView
-            events={events}
-            tasks={tasks}
-            saveEventsToLocal={saveEventsToLocal}
-            saveTasksToLocal={saveTasksToLocal}
-            useJalaliCalendar={useJalaliCalendar}
-            todayISO={todayISO}
-            showToast={showToast}
-          />
-        )}
+          {/* Tab 8: Monthly Calendar Board */}
+          {activeTab === "calendar" && (
+            <MonthlyCalendarView
+              events={events}
+              tasks={tasks}
+              saveEventsToLocal={saveEventsToLocal}
+              saveTasksToLocal={saveTasksToLocal}
+              useJalaliCalendar={useJalaliCalendar}
+              todayISO={todayISO}
+              showToast={showToast}
+            />
+          )}
 
-        {/* Tab 9: Brain Gym (باشگاه مغز) */}
-        {activeTab === 'brain_gym' && (
-          <BrainGymView
-            useJalaliCalendar={useJalaliCalendar}
-            earnXp={earnXp}
-            showToast={showToast}
-            playAudioFeedback={playAudioFeedback}
-          />
-        )}
-      </main>
-    </div>
+          {/* Tab 9: Brain Gym (باشگاه مغز) */}
+          {activeTab === "brain_gym" && (
+            <BrainGymView
+              useJalaliCalendar={useJalaliCalendar}
+              earnXp={earnXp}
+              showToast={showToast}
+              playAudioFeedback={playAudioFeedback}
+            />
+          )}
+
+          {/* Tab 10: Assistant */}
+          {activeTab === "assistant" && (
+            <AssistantView
+              userDataContext={{
+                userName,
+                waterToday: health.waterToday,
+                sleepHours: health.sleepHours,
+                sleepQuality: health.sleepQuality,
+                moodScore: health.moodScore,
+                pendingTasksToday: tasks.filter(
+                  (t) => t.dueDate === selectedDateISO && t.status !== "done",
+                ).length,
+                eventsToday: events.filter((e) => e.date === selectedDateISO)
+                  .length,
+                brainMemory: brainProfile.memoryScore, // 👈 دیتای واقعی حافظه
+                brainFlexibility: brainProfile.flexibilityScore, // 👈 دیتای واقعی استروپ
+                brainReaction: calculateAverage(brainProfile.reactionTimes), // 👈 میانگین متحرک واقعی
+                brainAccuracy: calculateAverage(brainProfile.totalAccuracies),
+                targetDate: selectedDateISO,
+                clientToday: todayISO || getLocalISOString(new Date()),
+              }}
+              onAddTask={(t) =>
+                saveTasksToLocal([
+                  ...lastSavedTasksRef.current,
+                  {
+                    id: crypto.randomUUID(),
+                    title: t.title || "کار جدید",
+                    desc: "",
+                    priority: (t.priority as any) || "MEDIUM",
+                    status: "todo",
+                    dueDate: t.dueDate || selectedDateISO,
+                  },
+                ])
+              }
+              onAddEvent={(e) =>
+                saveEventsToLocal([
+                  ...lastSavedEventsRef.current,
+                  {
+                    id: crypto.randomUUID(),
+                    title: e.title || "رویداد جدید",
+                    desc: "",
+                    date: e.date || selectedDateISO,
+                    time: e.time || "12:00",
+                    category: "work",
+                    recurrence: "none",
+                  },
+                ])
+              }
+              onAddNote={(n) =>
+                saveNotesToLocal([
+                  ...lastSavedNotesRef.current,
+                  {
+                    id: crypto.randomUUID(),
+                    title: n.title || "یادداشت جدید",
+                    content: n.content || "",
+                    folder: "هوشمند",
+                    tags: ["هوشمند"],
+                    isPinned: false,
+                    updatedAt: selectedDateISO,
+                  },
+                ])
+              }
+              showToast={showToast}
+              playAudioFeedback={playAudioFeedback}
+            />
+          )}
+        </main>
+      </div>
 
       {/* Floating NLP Chat Input modal */}
       <AnimatePresence>
         {showQuickAdd && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
               className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full border border-slate-150 shadow-2xl space-y-4 relative"
               dir="rtl"
             >
-              <button 
-                onClick={() => { setShowQuickAdd(false); setQuickAddResult(null); setQuickAddText(""); }}
+              <button
+                onClick={() => {
+                  setShowQuickAdd(false);
+                  setQuickAddResult(null);
+                  setQuickAddText("");
+                }}
                 className="absolute top-4 right-4 text-slate-450 hover:text-slate-800 dark:text-slate-200 text-lg cursor-pointer font-bold"
               >
                 ✕
@@ -3721,11 +4649,13 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
               </h3>
 
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                جمله طبیعی خود را اعم از فارسی یا انگلیسی درج کنید تا دستیار شما در لحظه تصمیم گرفته و اسلات تقویم، یادداشت یا بورد کایزن شما را ارتقا ببخشاید.
+                جمله طبیعی خود را اعم از فارسی یا انگلیسی درج کنید تا دستیار شما
+                در لحظه تصمیم گرفته و اسلات تقویم، یادداشت یا بورد کایزن شما را
+                ارتقا ببخشاید.
               </p>
 
               <form onSubmit={handleQuickAdd} className="space-y-3">
-                <input 
+                <input
                   type="text"
                   required
                   value={quickAddText}
@@ -3745,11 +4675,11 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     سفر میانبر دمو
                   </button> */}
 
-                  <button 
+                  <button
                     type="submit"
                     className="px-5 py-2.5 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700 shadow shadow-teal-500/10 cursor-pointer"
                   >
-                    پردازش عصبی 
+                    پردازش عصبی
                   </button>
                 </div>
               </form>
@@ -3767,33 +4697,35 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       {/* Logout Confirmation Modal */}
       <AnimatePresence>
         {showLogoutConfirm && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-800"
               dir="rtl"
             >
-              <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 mb-4">تأیید خروج</h2>
+              <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 mb-4">
+                تأیید خروج
+              </h2>
               <p className="text-sm text-slate-600 dark:text-slate-400 mb-8 leading-loose">
                 آیا مطمئن هستید که می‌خواهید از حساب کاربری خود خارج شوید؟
               </p>
 
               <div className="flex gap-3 justify-end">
-                <button 
+                <button
                   type="button"
                   onClick={() => setShowLogoutConfirm(false)}
                   className="px-5 py-2.5 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-bold transition-all cursor-pointer"
                 >
                   انصراف
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => {
                     setShowLogoutConfirm(false);
@@ -3812,7 +4744,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       {/* 2. Global Command Palette Modal (Ctrl+K / Cmd+K) */}
       <AnimatePresence>
         {isCmdPaletteOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -3826,50 +4758,114 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
               transition={{ type: "spring", duration: 0.3 }}
               className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl w-full max-w-xl overflow-hidden text-right block"
               dir="rtl"
-              onClick={e => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
                 <Search className="w-5 h-5 text-slate-400 shrink-0" />
-                <input 
+                <input
                   type="text"
                   autoFocus
                   placeholder="جستجو در قابلیت‌ها و دستورات سریع کلاسیک سایبان (کلید Esc برای خروج)..."
                   value={cmdSearchQuery}
-                  onChange={e => setCmdSearchQuery(e.target.value)}
+                  onChange={(e) => setCmdSearchQuery(e.target.value)}
                   className="w-full text-xs font-bold text-slate-800 dark:text-slate-200 bg-transparent border-none focus:outline-none placeholder-slate-400"
                 />
-                <span className="text-[10px] bg-slate-150 text-slate-500 dark:text-slate-400 py-1 px-2.5 rounded-lg font-mono">ESC</span>
+                <span className="text-[10px] bg-slate-150 text-slate-500 dark:text-slate-400 py-1 px-2.5 rounded-lg font-mono">
+                  ESC
+                </span>
               </div>
 
               {/* Action list */}
               <div className="p-2 max-h-80 overflow-y-auto space-y-1">
                 {/* eslint-disable-next-line react-hooks/refs */}
                 {[
-                  { name: "🧘 شروع زنگ تمرکز ذهن و بلوک کایزن (Zen Mode)", desc: "ورود مستقیم به تمرکز بدون حواس‌پرتی و دریافت XP", action: () => { setIsZenMode(true); setIsZenAudioPlaying(true); setIsZenTimerRunning(true); setIsCmdPaletteOpen(false); } },
-                  { name: "📅 تغییر بین تقویم خورشیدی و میلادی", desc: "نمایش تمام رویدادها با ساختار دلخواه شما", action: () => { setUseJalaliCalendar(!useJalaliCalendar); showToast("تقویم بروزرسانی شد", "info"); setIsCmdPaletteOpen(false); } },
-                  { name: "⚡ باز کردن ماژول یادداشت جدید بی‌نام", desc: "شروع تایپ یک ایده بکر یا پیش‌نویس سریع", action: () => { createBlankNote(); setActiveTab("notes"); setIsCmdPaletteOpen(false); } },
-                  { name: "🕸️ نمایش شبکه روابط یادداشتی (Obsidian Mode)", desc: "نگاشت تصویری اتصالات یادداشت‌های کورتکس", action: () => { setShowNotesGraph(true); setActiveTab("notes"); setIsCmdPaletteOpen(false); } },
-                  { name: "🎯 ایجاد یک کار دارای اولویت بالا امروز", desc: "پرش مستقیم به افزودن برنامه‌ها در بورد", action: () => { setActiveTab("tasks"); setIsCmdPaletteOpen(false); } },
-                  { name: "📊 رصد فاکتورهای سلامت (آب و خواب)", desc: "بررسی الگوهای روانی و بیولوژیکی شخصی", action: () => { setActiveTab("health"); setIsCmdPaletteOpen(false); } },
-                  { name: "🤖 دستیار هوشمند مشاور شخصی سایبان", desc: "پرسش و پاسخ با هوش مصنوعی کورتکس ۳.۵ گوگل", action: () => { setActiveTab("overview"); setIsCmdPaletteOpen(false); } }
+                  {
+                    name: "🧘 شروع زنگ تمرکز ذهن و بلوک کایزن (Zen Mode)",
+                    desc: "ورود مستقیم به تمرکز بدون حواس‌پرتی و دریافت XP",
+                    action: () => {
+                      setIsZenMode(true);
+                      setIsZenAudioPlaying(true);
+                      setIsZenTimerRunning(true);
+                      setIsCmdPaletteOpen(false);
+                    },
+                  },
+                  {
+                    name: "📅 تغییر بین تقویم خورشیدی و میلادی",
+                    desc: "نمایش تمام رویدادها با ساختار دلخواه شما",
+                    action: () => {
+                      setUseJalaliCalendar(!useJalaliCalendar);
+                      showToast("تقویم بروزرسانی شد", "info");
+                      setIsCmdPaletteOpen(false);
+                    },
+                  },
+                  {
+                    name: "⚡ باز کردن ماژول یادداشت جدید بی‌نام",
+                    desc: "شروع تایپ یک ایده بکر یا پیش‌نویس سریع",
+                    action: () => {
+                      createBlankNote();
+                      setActiveTab("notes");
+                      setIsCmdPaletteOpen(false);
+                    },
+                  },
+                  {
+                    name: "🕸️ نمایش شبکه روابط یادداشتی (Obsidian Mode)",
+                    desc: "نگاشت تصویری اتصالات یادداشت‌های کورتکس",
+                    action: () => {
+                      setShowNotesGraph(true);
+                      setActiveTab("notes");
+                      setIsCmdPaletteOpen(false);
+                    },
+                  },
+                  {
+                    name: "🎯 ایجاد یک کار دارای اولویت بالا امروز",
+                    desc: "پرش مستقیم به افزودن برنامه‌ها در بورد",
+                    action: () => {
+                      setActiveTab("tasks");
+                      setIsCmdPaletteOpen(false);
+                    },
+                  },
+                  {
+                    name: "📊 رصد فاکتورهای سلامت (آب و خواب)",
+                    desc: "بررسی الگوهای روانی و بیولوژیکی شخصی",
+                    action: () => {
+                      setActiveTab("health");
+                      setIsCmdPaletteOpen(false);
+                    },
+                  },
+                  {
+                    name: "🤖 دستیار هوشمند مشاور شخصی سایبان",
+                    desc: "پرسش و پاسخ با هوش مصنوعی کورتکس ۳.۵ گوگل",
+                    action: () => {
+                      setActiveTab("overview");
+                      setIsCmdPaletteOpen(false);
+                    },
+                  },
                 ]
-                .filter(item => item.name.includes(cmdSearchQuery) || item.desc.includes(cmdSearchQuery))
-                .map((cmd, i) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      cmd.action();
-                      playAudioFeedback('done');
-                    }}
-                    className="w-full text-right p-3 hover:bg-teal-50/50 rounded-2xl transition-colors cursor-pointer block group text-slate-700 dark:text-slate-300 hover:text-teal-900"
-                  >
-                    <div className="font-extrabold text-xs flex items-center justify-between">
-                      <span>{cmd.name}</span>
-                      <span className="text-[9px] opacity-0 group-hover:opacity-100 transition-opacity bg-teal-100 text-teal-800 px-2 py-0.5 rounded-md font-black">اجرا ←</span>
-                    </div>
-                    <p className="text-[10px] text-slate-450 font-semibold mt-1">{cmd.desc}</p>
-                  </button>
-                ))}
+                  .filter(
+                    (item) =>
+                      item.name.includes(cmdSearchQuery) ||
+                      item.desc.includes(cmdSearchQuery),
+                  )
+                  .map((cmd, i) => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        cmd.action();
+                        playAudioFeedback("done");
+                      }}
+                      className="w-full text-right p-3 hover:bg-teal-50/50 rounded-2xl transition-colors cursor-pointer block group text-slate-700 dark:text-slate-300 hover:text-teal-900"
+                    >
+                      <div className="font-extrabold text-xs flex items-center justify-between">
+                        <span>{cmd.name}</span>
+                        <span className="text-[9px] opacity-0 group-hover:opacity-100 transition-opacity bg-teal-100 text-teal-800 px-2 py-0.5 rounded-md font-black">
+                          اجرا ←
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-450 font-semibold mt-1">
+                        {cmd.desc}
+                      </p>
+                    </button>
+                  ))}
               </div>
             </motion.div>
           </motion.div>
@@ -3886,14 +4882,17 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             className="fixed inset-0 z-50 flex flex-col justify-between p-8 font-sans bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white"
           >
             {/* Zen Header */}
-            <div className="flex flex-col xl:flex-row gap-4 items-center justify-between text-right border-b border-white/5 pb-4" dir="rtl">
+            <div
+              className="flex flex-col xl:flex-row gap-4 items-center justify-between text-right border-b border-white/5 pb-4"
+              dir="rtl"
+            >
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => {
                     setIsZenMode(false);
                     setIsZenTimerRunning(false);
-                    playAudioFeedback('click');
+                    playAudioFeedback("click");
                   }}
                   className="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/25 text-rose-300 border border-rose-500/20 rounded-xl transition-all cursor-pointer flex items-center gap-2 font-black text-xs shadow-md shadow-rose-500/5 hover:scale-[1.02]"
                   title="خروج از حالت تمرکز مطلق"
@@ -3902,43 +4901,59 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                   <span>خروج از تمرکز</span>
                 </button>
                 <div>
-                  <span className="text-[10px] font-black text-teal-400 tracking-wider block uppercase">کورتکس تفکر بدون مرز</span>
-                  <h2 className="text-sm font-extrabold">محیط تمرکز مطلق (Zen & Pomodoro)</h2>
+                  <span className="text-[10px] font-black text-teal-400 tracking-wider block uppercase">
+                    کورتکس تفکر بدون مرز
+                  </span>
+                  <h2 className="text-sm font-extrabold">
+                    محیط تمرکز مطلق (Zen & Pomodoro)
+                  </h2>
                 </div>
               </div>
 
               <div className="text-xs font-bold text-slate-400">
-                با موسیقی پویا و بدون مصرف توکن‌های هوش مصنوعی، تمرکز کایزن خود را کالیبره کنید.
+                با موسیقی پویا و بدون مصرف توکن‌های هوش مصنوعی، تمرکز کایزن خود
+                را کالیبره کنید.
               </div>
             </div>
 
             {/* Huge Counter Area */}
             <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
               <span className="text-[10px] font-extrabold tracking-widest text-white/40 uppercase">
-                {zenTimerType === 'focus' ? '🎯 زمان تمرکز کایزن فعال است' : '🌸 زمان برای بازیابی و استراحت'}
+                {zenTimerType === "focus"
+                  ? "🎯 زمان تمرکز کایزن فعال است"
+                  : "🌸 زمان برای بازیابی و استراحت"}
               </span>
 
               {/* Big SVG Pulse ring inside counter */}
               <div className="relative w-72 h-72 flex items-center justify-center">
-                <motion.div 
+                <motion.div
                   animate={{ scale: isZenTimerRunning ? [1, 1.05, 1] : 1 }}
-                  transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-                  className="absolute inset-0 rounded-full border-4 border-teal-500/25 border-dashed" 
+                  transition={{
+                    repeat: Infinity,
+                    duration: 3,
+                    ease: "easeInOut",
+                  }}
+                  className="absolute inset-0 rounded-full border-4 border-teal-500/25 border-dashed"
                 />
                 <div className="text-6xl font-black font-mono tracking-tight text-teal-350 select-none drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]">
-                  {Math.floor(zenTimeRemaining / 60).toString().padStart(2, '0')}
+                  {Math.floor(zenTimeRemaining / 60)
+                    .toString()
+                    .padStart(2, "0")}
                   <span className="animate-[pulse_1.5s_infinite]">:</span>
-                  {(zenTimeRemaining % 60).toString().padStart(2, '0')}
+                  {(zenTimeRemaining % 60).toString().padStart(2, "0")}
                 </div>
               </div>
 
               {/* Dynamic Duration Customizer Trigger & Form */}
               {!isZenTimerRunning && (
-                <div className="flex flex-col items-center gap-2 pt-1 animate-fadeIn" dir="rtl">
+                <div
+                  className="flex flex-col items-center gap-2 pt-1 animate-fadeIn"
+                  dir="rtl"
+                >
                   <button
                     type="button"
                     onClick={() => {
-                      playAudioFeedback('click');
+                      playAudioFeedback("click");
                       setShowTimeSettings(!showTimeSettings);
                     }}
                     className="flex items-center gap-1.5 px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[11px] font-bold text-slate-300 hover:text-white transition-all cursor-pointer"
@@ -3949,7 +4964,9 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
 
                   {showTimeSettings && (
                     <div className="flex flex-col items-center gap-3 bg-slate-900 border border-white/10 p-4 rounded-2xl max-w-xs mt-1 animate-fadeIn shadow-xl">
-                      <span className="text-[10px] text-slate-400 font-bold">زمان تمرکز را انتخاب یا وارد کنید:</span>
+                      <span className="text-[10px] text-slate-400 font-bold">
+                        زمان تمرکز را انتخاب یا وارد کنید:
+                      </span>
                       <div className="flex flex-wrap justify-center gap-1.5">
                         {[10, 15, 25, 30, 45, 60].map((mins) => (
                           <button
@@ -3958,12 +4975,12 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                             onClick={() => {
                               setZenFocusDuration(mins);
                               setZenTimeRemaining(mins * 60);
-                              playAudioFeedback('click');
+                              playAudioFeedback("click");
                             }}
                             className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold transition-all border cursor-pointer ${
-                              zenFocusDuration === mins 
-                                ? 'bg-teal-500 text-slate-950 border-teal-400 font-black' 
-                                : 'bg-transparent border-transparent text-slate-400 hover:text-white'
+                              zenFocusDuration === mins
+                                ? "bg-teal-500 text-slate-950 border-teal-400 font-black"
+                                : "bg-transparent border-transparent text-slate-400 hover:text-white"
                             }`}
                           >
                             {mins} د
@@ -3972,14 +4989,19 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                       </div>
 
                       <div className="flex items-center gap-2 pt-1 border-t border-white/5 w-full justify-center">
-                        <span className="text-[10px] text-slate-400">سفارشی:</span>
-                        <input 
-                          type="number" 
-                          min="1" 
-                          max="180" 
+                        <span className="text-[10px] text-slate-400">
+                          سفارشی:
+                        </span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="180"
                           value={zenFocusDuration}
                           onChange={(e) => {
-                            const val = Math.max(1, parseInt(e.target.value) || 25);
+                            const val = Math.max(
+                              1,
+                              parseInt(e.target.value) || 25,
+                            );
                             setZenFocusDuration(val);
                             setZenTimeRemaining(val * 60);
                           }}
@@ -3989,7 +5011,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                         <button
                           type="button"
                           onClick={() => {
-                            playAudioFeedback('click');
+                            playAudioFeedback("click");
                             setShowTimeSettings(false);
                           }}
                           className="px-3 py-1 bg-teal-50 text-slate-950 rounded-lg text-[10px] font-black cursor-pointer hover:bg-teal-400 transition-colors"
@@ -4003,39 +5025,69 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
               )}
 
               {/* Music Player Dynamic Controller Bar */}
-              <div className="max-w-md w-full mx-auto bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center gap-3" dir="rtl">
+              <div
+                className="max-w-md w-full mx-auto bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center gap-3"
+                dir="rtl"
+              >
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center text-teal-400">
-                      <Music className={`w-4 h-4 ${isZenAudioPlaying ? 'animate-bounce' : ''}`} />
+                      <Music
+                        className={`w-4 h-4 ${isZenAudioPlaying ? "animate-bounce" : ""}`}
+                      />
                     </div>
                     <div className="text-right">
-                      <span className="text-[9px] text-slate-400 block font-bold">موسیقی در حال پخش:</span>
+                      <span className="text-[9px] text-slate-400 block font-bold">
+                        موسیقی در حال پخش:
+                      </span>
                       <span className="text-xs font-extrabold text-white">
                         {(() => {
-                          const activeCat = zenCategories.find(c => c.id === zenActiveCatId);
-                          const activeTrack = activeCat?.tracks?.[zenActiveTrackIndex];
-                          return activeTrack ? activeTrack.name : 'انتخاب نشده / خالی';
+                          const activeCat = zenCategories.find(
+                            (c) => c.id === zenActiveCatId,
+                          );
+                          const activeTrack =
+                            activeCat?.tracks?.[zenActiveTrackIndex];
+                          return activeTrack
+                            ? activeTrack.name
+                            : "انتخاب نشده / خالی";
                         })()}
                       </span>
                     </div>
                   </div>
-                  
+
                   {/* Loop Selector */}
                   <button
                     type="button"
                     onClick={() => {
-                      playAudioFeedback('click');
-                      setZenAudioLoop(prev => prev === 'none' ? 'one' : prev === 'one' ? 'all' : 'none');
+                      playAudioFeedback("click");
+                      setZenAudioLoop((prev) =>
+                        prev === "none"
+                          ? "one"
+                          : prev === "one"
+                            ? "all"
+                            : "none",
+                      );
                     }}
                     className={`text-[9px] font-black px-2 py-1 rounded-lg border transition-all cursor-pointer ${
-                      zenAudioLoop === 'one' ? 'bg-teal-500/20 text-teal-300 border-teal-500/30' :
-                      zenAudioLoop === 'all' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' :
-                      'bg-white/5 text-slate-400 border-white/10'
+                      zenAudioLoop === "one"
+                        ? "bg-teal-500/20 text-teal-300 border-teal-500/30"
+                        : zenAudioLoop === "all"
+                          ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
+                          : "bg-white/5 text-slate-400 border-white/10"
                     }`}
-                    title={zenAudioLoop === 'one' ? 'تکرار همین آهنگ' : zenAudioLoop === 'all' ? 'تکرار کل لیست' : 'بدون تکرار'}
+                    title={
+                      zenAudioLoop === "one"
+                        ? "تکرار همین آهنگ"
+                        : zenAudioLoop === "all"
+                          ? "تکرار کل لیست"
+                          : "بدون تکرار"
+                    }
                   >
-                    {zenAudioLoop === 'one' ? '🔂 تکرار تک' : zenAudioLoop === 'all' ? '🔁 تکرار لیست' : '➡️ بدون تکرار'}
+                    {zenAudioLoop === "one"
+                      ? "🔂 تکرار تک"
+                      : zenAudioLoop === "all"
+                        ? "🔁 تکرار لیست"
+                        : "➡️ بدون تکرار"}
                   </button>
                 </div>
 
@@ -4044,7 +5096,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                   <button
                     type="button"
                     onClick={() => {
-                      playAudioFeedback('click');
+                      playAudioFeedback("click");
                       playPrevZenTrack();
                     }}
                     className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-slate-300 hover:text-white transition-colors cursor-pointer"
@@ -4056,20 +5108,26 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                   <button
                     type="button"
                     onClick={() => {
-                      playAudioFeedback('click');
+                      playAudioFeedback("click");
                       setIsZenAudioPlaying(!isZenAudioPlaying);
                     }}
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                      isZenAudioPlaying ? 'bg-teal-500/20 text-teal-300 border-teal-500/30 animate-pulse' : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-white'
+                      isZenAudioPlaying
+                        ? "bg-teal-500/20 text-teal-300 border-teal-500/30 animate-pulse"
+                        : "bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-white"
                     }`}
                   >
-                    {isZenAudioPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 pl-0.5" />}
+                    {isZenAudioPlaying ? (
+                      <Pause className="w-4 h-4" />
+                    ) : (
+                      <Play className="w-4 h-4 pl-0.5" />
+                    )}
                   </button>
 
                   <button
                     type="button"
                     onClick={() => {
-                      playAudioFeedback('click');
+                      playAudioFeedback("click");
                       playNextZenTrack();
                     }}
                     className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-slate-300 hover:text-white transition-colors cursor-pointer"
@@ -4082,14 +5140,16 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                 {/* Dynamic Category Tabs Selector inside Player */}
                 <div className="flex flex-wrap items-center justify-center gap-1.5 pt-2 border-t border-white/5 w-full">
                   {zenCategories.length === 0 ? (
-                    <span className="text-[10px] text-slate-500">هیچ بخشی در پنل ادمین ثبت نشده است</span>
+                    <span className="text-[10px] text-slate-500">
+                      هیچ بخشی در پنل ادمین ثبت نشده است
+                    </span>
                   ) : (
                     zenCategories.map((cat) => (
                       <button
                         key={cat.id}
                         type="button"
                         onClick={() => {
-                          playAudioFeedback('click');
+                          playAudioFeedback("click");
                           setZenActiveCatId(cat.id);
                           setZenActiveTrackIndex(0);
                           if (isZenAudioPlaying) {
@@ -4097,7 +5157,9 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                           }
                         }}
                         className={`text-[9px] font-extrabold px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                          zenActiveCatId === cat.id ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' : 'text-slate-400 hover:text-white'
+                          zenActiveCatId === cat.id
+                            ? "bg-teal-500/20 text-teal-300 border border-teal-500/30"
+                            : "text-slate-400 hover:text-white"
                         }`}
                       >
                         {cat.name}
@@ -4109,19 +5171,34 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
 
               {/* Focus Task Selection */}
               <div className="space-y-2 max-w-sm w-full" dir="rtl">
-                <label className="text-[10px] block font-black text-slate-400">پیوند تمرکز به تسک کایزن:</label>
-                <select 
+                <label className="text-[10px] block font-black text-slate-400">
+                  پیوند تمرکز به تسک کایزن:
+                </label>
+                <select
                   value={zenSelectedTaskId || ""}
-                  onChange={e => {
+                  onChange={(e) => {
                     setZenSelectedTaskId(e.target.value || null);
-                    playAudioFeedback('click');
+                    playAudioFeedback("click");
                   }}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white max-w-xs focus:outline-none focus:ring-1 focus:ring-teal-400 mx-auto cursor-pointer"
                 >
-                  <option value="" className="bg-slate-900 text-white font-medium">-- بدون پیوند به کار معین --</option>
-                  {tasks.filter(t => t.status !== 'done').map(t => (
-                    <option key={t.id} value={t.id} className="bg-slate-900 text-white font-semibold">{t.title}</option>
-                  ))}
+                  <option
+                    value=""
+                    className="bg-slate-900 text-white font-medium"
+                  >
+                    -- بدون پیوند به کار معین --
+                  </option>
+                  {tasks
+                    .filter((t) => t.status !== "done")
+                    .map((t) => (
+                      <option
+                        key={t.id}
+                        value={t.id}
+                        className="bg-slate-900 text-white font-semibold"
+                      >
+                        {t.title}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -4130,19 +5207,26 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                 <button
                   onClick={() => {
                     setIsZenTimerRunning(!isZenTimerRunning);
-                    playAudioFeedback('click');
+                    playAudioFeedback("click");
                   }}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer ${isZenTimerRunning ? 'bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-500/20' : 'bg-teal-500 hover:bg-teal-600 shadow-lg shadow-teal-500/20'}`}
+                  className={`w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer ${isZenTimerRunning ? "bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-500/20" : "bg-teal-500 hover:bg-teal-600 shadow-lg shadow-teal-500/20"}`}
                 >
-                  {isZenTimerRunning ? <Pause className="w-6 h-6 text-slate-950" /> : <Play className="w-6 h-6 text-slate-950 pl-0.5" />}
+                  {isZenTimerRunning ? (
+                    <Pause className="w-6 h-6 text-slate-950" />
+                  ) : (
+                    <Play className="w-6 h-6 text-slate-950 pl-0.5" />
+                  )}
                 </button>
 
                 <button
                   onClick={() => {
                     setZenTimeRemaining(zenFocusDuration * 60);
                     setIsZenTimerRunning(false);
-                    playAudioFeedback('click');
-                    showToast(`تایمر به ${zenFocusDuration} دقیقه بازنشانی شد`, "info");
+                    playAudioFeedback("click");
+                    showToast(
+                      `تایمر به ${zenFocusDuration} دقیقه بازنشانی شد`,
+                      "info",
+                    );
                   }}
                   title={`بازنشانی مجدد به ${zenFocusDuration} دقیقه`}
                   className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all cursor-pointer"
@@ -4153,13 +5237,19 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             </div>
 
             {/* Zen Footer */}
-            <div className="flex items-center justify-between border-t border-white/5 pt-4 text-[10px] text-slate-450" dir="rtl">
-              <span>گام‌های تفکر عمیق کورتکس سایبان • برای خروج دکمه Esc یا خروج کایزن را بزنید</span>
+            <div
+              className="flex items-center justify-between border-t border-white/5 pt-4 text-[10px] text-slate-450"
+              dir="rtl"
+            >
+              <span>
+                گام‌های تفکر عمیق کورتکس سایبان • برای خروج دکمه Esc یا خروج
+                کایزن را بزنید
+              </span>
               <button
                 onClick={() => {
                   setIsZenMode(false);
                   setIsZenTimerRunning(false);
-                  playAudioFeedback('click');
+                  playAudioFeedback("click");
                 }}
                 className="px-4 py-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 rounded-xl font-bold transition-all cursor-pointer"
               >
@@ -4180,9 +5270,17 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             className="fixed bottom-6 left-6 z-50 flex items-center gap-3 px-4 py-3.5 rounded-2xl shadow-xl border text-xs font-bold font-sans text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 border-slate-150/80"
             dir="rtl"
           >
-            <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${toast.type === 'success' ? 'bg-teal-500' : toast.type === 'error' ? 'bg-rose-500' : 'bg-indigo-500'}`} />
+            <div
+              className={`w-2.5 h-2.5 rounded-full shrink-0 ${toast.type === "success" ? "bg-teal-500" : toast.type === "error" ? "bg-rose-500" : "bg-indigo-500"}`}
+            />
             <span>{toast.message}</span>
-            <button onClick={() => setToast(null)} className="mr-2 text-slate-450 hover:text-slate-800 dark:text-slate-200 text-[10px] cursor-pointer" type="button">✕</button>
+            <button
+              onClick={() => setToast(null)}
+              className="mr-2 text-slate-450 hover:text-slate-800 dark:text-slate-200 text-[10px] cursor-pointer"
+              type="button"
+            >
+              ✕
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

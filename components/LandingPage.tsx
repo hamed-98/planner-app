@@ -302,7 +302,7 @@ export default function LandingPage({ onEnterApp, isLoggedIn, landingConfig }: L
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-100 dark:border-teal-900/50 mb-6 text-xs sm:text-sm font-semibold"
             >
               <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>{lang === 'fa' ? 'مجهز به دستیار هوشمند مدل هوش مصنوعی گوگل Gemini' : 'Powered by Google Gemini AI 3.5'}</span>
+              <span>{lang === 'fa' ? 'مجهز به دستیار هوشمند سایبان ' : 'Powered by AI '}</span>
             </motion.div>
 
             <motion.h1 

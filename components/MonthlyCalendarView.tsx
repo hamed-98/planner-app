@@ -342,79 +342,80 @@ export default function MonthlyCalendarView({
 
   return (
     <div className="space-y-6">
-      {/* Header section */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 tracking-wider uppercase bg-teal-50 dark:bg-teal-950/40 px-3 py-1 rounded-full">
-            نمای ماهانه کامل و جامع کورتکس
-          </span>
-          <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mt-2 flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5 text-teal-600" />
-            بورد بزرگ تقویم سایبان
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            رویدادها و کارهای خود را بر روی یک بورد بزرگ یک ماهه ردیابی و مدیریت کنید.
-          </p>
-        </div>
-
-        {/* Month Switching Controls */}
-        <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-2 rounded-2xl shadow-sm self-start sm:self-center">
-          <button 
-            onClick={handlePrevMonth}
-            className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer text-slate-600 dark:text-slate-300 flex items-center gap-1 text-xs font-bold"
-            title="ماه قبل"
-          >
-            <ChevronRight className="w-4 h-4" />
-            <span>ماه قبل</span>
-          </button>
-          
-          <div className="h-5 w-px bg-slate-150 dark:bg-slate-850" />
-
-          <button 
-            onClick={handleGoToToday}
-            className="px-3 py-1 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-black text-teal-600 dark:text-teal-400 cursor-pointer"
-          >
-            امروز
-          </button>
-
-          <div className="h-5 w-px bg-slate-150 dark:bg-slate-850" />
-
-          <button 
-            onClick={handleNextMonth}
-            className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer text-slate-600 dark:text-slate-300 flex items-center gap-1 text-xs font-bold"
-            title="ماه بعد"
-          >
-            <span>ماه بعد</span>
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
-
-      {/* Big Month Display and Year */}
-      <div className="bg-slate-900 text-white rounded-3xl p-5 shadow-lg border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div>
-          <span className="text-xs text-slate-450 block font-bold">ماه جاری در حال نمایش</span>
-          <h3 className="text-2xl font-black text-teal-400 mt-1">
-            {useJalaliCalendar 
-              ? `${JALALI_MONTH_NAMES[currentView.month - 1]} ${toPersianDigits(String(currentView.year))}` 
-              : `${GREGORIAN_MONTH_NAMES[currentView.month - 1]} ${currentView.year}`
-            }
-          </h3>
-        </div>
-
-        <div className="flex gap-4 text-xs">
-          <div className="bg-slate-850 px-4 py-2 rounded-2xl border border-slate-800 text-center">
-            <span className="text-slate-400 block font-medium">نوع تقویم فعال</span>
-            <span className="font-extrabold text-teal-400 mt-1 block">
-              {useJalaliCalendar ? 'خورشیدی (جلالی)' : 'میلادی (Gregorian)'}
+      {/* Header Unified - فشرده و ریسپانسیو */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm">
+        {/* ردیف اول: عنوان + کنترل‌های ماه */}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex-1 min-w-[180px]">
+            <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 tracking-wider uppercase bg-teal-50 dark:bg-teal-950/40 px-3 py-1 rounded-full inline-block">
+              نمای ماهانه کامل
             </span>
+            <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100 mt-1 flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5 text-teal-600" />
+              بورد تقویم سایبان
+            </h2>
           </div>
 
-          <div className="bg-slate-850 px-4 py-2 rounded-2xl border border-slate-800 text-center">
-            <span className="text-slate-400 block font-medium">کل رویدادهای ثبت‌شده</span>
-            <span className="font-extrabold text-cyan-400 mt-1 block font-mono">
-              {toPersianDigits(String(events.length))}
+          {/* کنترل‌های تغییر ماه (فشرده‌تر) */}
+          <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/60 p-1 rounded-2xl border border-slate-200 dark:border-slate-700/60 self-start">
+            <button
+              onClick={handlePrevMonth}
+              className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer text-slate-600 dark:text-slate-300 flex items-center gap-0.5 text-[11px] font-bold"
+              title="ماه قبل"
+            >
+              <ChevronRight className="w-4 h-4" />
+              <span className="hidden sm:inline">ماه قبل</span>
+            </button>
+
+            <div className="h-5 w-px bg-slate-300 dark:bg-slate-600" />
+
+            <button
+              onClick={handleGoToToday}
+              className="px-2 py-1 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-[11px] font-black text-teal-600 dark:text-teal-400 cursor-pointer"
+            >
+              امروز
+            </button>
+
+            <div className="h-5 w-px bg-slate-300 dark:bg-slate-600" />
+
+            <button
+              onClick={handleNextMonth}
+              className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer text-slate-600 dark:text-slate-300 flex items-center gap-0.5 text-[11px] font-bold"
+              title="ماه بعد"
+            >
+              <span className="hidden sm:inline">ماه بعد</span>
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* ردیف دوم: نمایش ماه فعلی + آمار (با پس‌زمینه ملایم) */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-200 dark:border-slate-700/60">
+          <div>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-bold">
+              ماه جاری
             </span>
+            <h3 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-200">
+              {useJalaliCalendar
+                ? `${JALALI_MONTH_NAMES[currentView.month - 1]} ${toPersianDigits(String(currentView.year))}`
+                : `${GREGORIAN_MONTH_NAMES[currentView.month - 1]} ${currentView.year}`}
+            </h3>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+              <span className="text-slate-400 font-medium">تقویم:</span>
+              <span className="font-extrabold text-teal-600 dark:text-teal-400">
+                {useJalaliCalendar ? "خورشیدی" : "میلادی"}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+              <span className="text-slate-400 font-medium">رویدادها:</span>
+              <span className="font-extrabold text-cyan-600 dark:text-cyan-400 font-mono">
+                {toPersianDigits(String(events.length))}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -423,8 +424,11 @@ export default function MonthlyCalendarView({
       <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
         {/* Weekdays row */}
         <div className="grid grid-cols-7 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-150 dark:border-slate-800 text-center font-black text-xs text-slate-550 py-3.5">
-          {getWeekdayHeaders().map(header => (
-            <div key={header} className="truncate px-1 text-slate-650 dark:text-slate-350">
+          {getWeekdayHeaders().map((header) => (
+            <div
+              key={header}
+              className="truncate px-1 text-slate-650 dark:text-slate-350"
+            >
               {header}
             </div>
           ))}
@@ -434,71 +438,87 @@ export default function MonthlyCalendarView({
         <div className="grid grid-cols-7 divide-x divide-y divide-slate-100 dark:divide-slate-850/60 bg-slate-50/20 dark:bg-slate-900/40 text-right">
           {gridDays.map((cell, index) => {
             const isToday = cell.isoStr === todayISO;
-            const dayEvents = events.filter(e => e.date === cell.isoStr);
-            const dayTasks = tasks.filter(t => t.dueDate === cell.isoStr);
+            const dayEvents = events.filter((e) => e.date === cell.isoStr);
+            const dayTasks = tasks.filter((t) => t.dueDate === cell.isoStr);
             const totalItems = dayEvents.length + dayTasks.length;
 
             return (
-              <div 
+              <div
                 key={`${cell.isoStr}-${index}`}
                 onClick={() => setSelectedDayCell(cell)}
                 className={`min-h-[110px] md:min-h-[130px] p-2 flex flex-col justify-between transition-all duration-200 cursor-pointer hover:bg-teal-50/10 dark:hover:bg-slate-850/30 ${
-                  cell.isCurrentMonth 
-                    ? 'bg-white dark:bg-slate-900' 
-                    : 'bg-slate-50/40 dark:bg-slate-950/20 text-slate-400 opacity-45'
+                  cell.isCurrentMonth
+                    ? "bg-white dark:bg-slate-900"
+                    : "bg-slate-50/40 dark:bg-slate-950/20 text-slate-400 opacity-45"
                 }`}
               >
                 {/* Day Header */}
                 <div className="flex justify-between items-start">
-                  <span className={`text-[10px] font-medium font-mono px-1.5 py-0.5 rounded ${
-                    isToday ? 'bg-cyan-500 text-white font-black rounded-lg animate-pulse' : 'text-slate-400'
-                  }`}>
-                    {isToday ? 'امروز' : ''}
+                  <span
+                    className={`text-[10px] font-medium font-mono px-1.5 py-0.5 rounded ${
+                      isToday
+                        ? "bg-cyan-500 text-white font-black rounded-lg animate-pulse"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    {isToday ? "امروز" : ""}
                   </span>
-                  
-                  <span className={`text-sm font-extrabold w-7 h-7 flex items-center justify-center rounded-full transition-colors ${
-                    isToday 
-                      ? 'bg-teal-600 text-white font-black' 
-                      : cell.isCurrentMonth 
-                        ? 'text-slate-800 dark:text-slate-100' 
-                        : 'text-slate-400'
-                  }`}>
-                    {useJalaliCalendar ? toPersianDigits(String(cell.day)) : cell.day}
+
+                  <span
+                    className={`text-sm font-extrabold w-7 h-7 flex items-center justify-center rounded-full transition-colors ${
+                      isToday
+                        ? "bg-teal-600 text-white font-black"
+                        : cell.isCurrentMonth
+                          ? "text-slate-800 dark:text-slate-100"
+                          : "text-slate-400"
+                    }`}
+                  >
+                    {useJalaliCalendar
+                      ? toPersianDigits(String(cell.day))
+                      : cell.day}
                   </span>
                 </div>
 
                 {/* Day Content (Pills list) */}
                 <div className="mt-2 space-y-1 overflow-hidden flex-1 flex flex-col justify-end">
                   {/* Show events pills */}
-                  {dayEvents.slice(0, 2).map(ev => {
-                    const catColors = 
-                      ev.category === 'health' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20' :
-                      ev.category === 'work' ? 'bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/20' :
-                      'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20';
+                  {dayEvents.slice(0, 2).map((ev) => {
+                    const catColors =
+                      ev.category === "health"
+                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                        : ev.category === "work"
+                          ? "bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/20"
+                          : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20";
 
                     return (
-                      <div 
-                        key={ev.id} 
+                      <div
+                        key={ev.id}
                         className={`text-[10px] py-0.5 px-2 rounded-md border truncate font-medium flex items-center gap-1 ${catColors}`}
                         title={ev.title}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
-                        <span className="font-mono text-[8px] opacity-75 shrink-0">{ev.time}</span>
+                        <span className="font-mono text-[8px] opacity-75 shrink-0">
+                          {ev.time}
+                        </span>
                         <span className="truncate">{ev.title}</span>
                       </div>
                     );
                   })}
 
                   {/* Show tasks pills */}
-                  {dayTasks.slice(0, 2).map(t => (
-                    <div 
-                      key={t.id} 
+                  {dayTasks.slice(0, 2).map((t) => (
+                    <div
+                      key={t.id}
                       className={`text-[10px] py-0.5 px-2 rounded-md border truncate font-medium flex items-center gap-1 bg-amber-500/10 border-amber-500/20 ${
-                        t.status === 'done' ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-amber-700 dark:text-amber-400'
+                        t.status === "done"
+                          ? "text-slate-400 dark:text-slate-500 line-through"
+                          : "text-amber-700 dark:text-amber-400"
                       }`}
                       title={`کار: ${t.title}`}
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.status === 'done' ? 'bg-slate-400' : 'bg-amber-500'}`} />
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.status === "done" ? "bg-slate-400" : "bg-amber-500"}`}
+                      />
                       <span className="truncate">کار: {t.title}</span>
                     </div>
                   ))}
@@ -532,7 +552,7 @@ export default function MonthlyCalendarView({
         </span>
         <span className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-          کارهای کورتکس (ToDo)
+          کارها (ToDo)
         </span>
       </div>
 
@@ -540,7 +560,7 @@ export default function MonthlyCalendarView({
       <AnimatePresence>
         {selectedDayCell && (
           <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -551,16 +571,17 @@ export default function MonthlyCalendarView({
                 <div>
                   <div className="flex justify-between items-start mb-6">
                     <div>
-                      <span className="text-[10px] font-bold text-teal-600 block">برنامه‌های روز</span>
+                      <span className="text-[10px] font-bold text-teal-600 block">
+                        برنامه‌های روز
+                      </span>
                       <h4 className="text-lg font-black text-slate-900 dark:text-white">
-                        {useJalaliCalendar 
+                        {useJalaliCalendar
                           ? `${JALALI_MONTH_NAMES[selectedDayCell.month - 1]} ${toPersianDigits(String(selectedDayCell.day))} ${toPersianDigits(String(selectedDayCell.year))}`
-                          : `${selectedDayCell.day} ${GREGORIAN_MONTH_NAMES[selectedDayCell.month - 1]} ${selectedDayCell.year}`
-                        }
+                          : `${selectedDayCell.day} ${GREGORIAN_MONTH_NAMES[selectedDayCell.month - 1]} ${selectedDayCell.year}`}
                       </h4>
                     </div>
 
-                    <button 
+                    <button
                       onClick={() => setSelectedDayCell(null)}
                       className="p-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-150 dark:border-slate-800 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors cursor-pointer md:hidden"
                     >
@@ -571,89 +592,137 @@ export default function MonthlyCalendarView({
                   {/* List of events/tasks on that day */}
                   <div className="space-y-3 overflow-y-auto max-h-[280px] pr-1">
                     {/* Events */}
-                    {events.filter(e => e.date === selectedDayCell.isoStr).length > 0 && (
+                    {events.filter((e) => e.date === selectedDayCell.isoStr)
+                      .length > 0 && (
                       <div className="space-y-2">
-                        <h5 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">رویدادهای تقویم</h5>
-                        {events.filter(e => e.date === selectedDayCell.isoStr).map(ev => (
-                          <div 
-                            key={ev.id} 
-                            className="p-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 rounded-2xl flex items-center justify-between gap-3"
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className={`w-3 h-3 rounded-full shrink-0 ${
-                                ev.category === 'health' ? 'bg-emerald-500' : ev.category === 'work' ? 'bg-teal-500' : 'bg-indigo-500'
-                              }`} />
-                              <div>
-                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">{ev.title}</span>
-                                {ev.desc && <span className="text-[10px] text-slate-450 block">{ev.desc}</span>}
+                        <h5 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                          رویدادهای تقویم
+                        </h5>
+                        {events
+                          .filter((e) => e.date === selectedDayCell.isoStr)
+                          .map((ev) => (
+                            <div
+                              key={ev.id}
+                              className="p-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 rounded-2xl flex items-center justify-between gap-3"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span
+                                  className={`w-3 h-3 rounded-full shrink-0 ${
+                                    ev.category === "health"
+                                      ? "bg-emerald-500"
+                                      : ev.category === "work"
+                                        ? "bg-teal-500"
+                                        : "bg-indigo-500"
+                                  }`}
+                                />
+                                <div>
+                                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                                    {ev.title}
+                                  </span>
+                                  {ev.desc && (
+                                    <span className="text-[10px] text-slate-450 block">
+                                      {ev.desc}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-850 px-2 py-1 rounded-lg">
+                                  {ev.time}
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    handleDeleteEvent(ev.id, ev.title)
+                                  }
+                                  className="p-1 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
+                                  title="حذف رویداد"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-850 px-2 py-1 rounded-lg">
-                                {ev.time}
-                              </span>
-                              <button 
-                                onClick={() => handleDeleteEvent(ev.id, ev.title)}
-                                className="p-1 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
-                                title="حذف رویداد"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     )}
 
                     {/* Tasks */}
-                    {tasks.filter(t => t.dueDate === selectedDayCell.isoStr).length > 0 && (
+                    {tasks.filter((t) => t.dueDate === selectedDayCell.isoStr)
+                      .length > 0 && (
                       <div className="space-y-2 pt-2">
-                        <h5 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">کارهای تسک بورد (ToDo)</h5>
-                        {tasks.filter(t => t.dueDate === selectedDayCell.isoStr).map(t => (
-                          <div 
-                            key={t.id} 
-                            className="p-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 rounded-2xl flex items-center justify-between gap-3"
-                          >
-                            <div className="flex items-center gap-3">
-                              <button 
-                                onClick={() => handleToggleTask(t)}
-                                className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all cursor-pointer ${
-                                  t.status === 'done' 
-                                    ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                    : 'border-slate-300 dark:border-slate-700 hover:border-teal-500'
+                        <h5 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                          کارهای تسک بورد (ToDo)
+                        </h5>
+                        {tasks
+                          .filter((t) => t.dueDate === selectedDayCell.isoStr)
+                          .map((t) => (
+                            <div
+                              key={t.id}
+                              className="p-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 rounded-2xl flex items-center justify-between gap-3"
+                            >
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() => handleToggleTask(t)}
+                                  className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all cursor-pointer ${
+                                    t.status === "done"
+                                      ? "bg-emerald-500 border-emerald-500 text-white"
+                                      : "border-slate-300 dark:border-slate-700 hover:border-teal-500"
+                                  }`}
+                                >
+                                  {t.status === "done" && (
+                                    <Check className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                                <div>
+                                  <span
+                                    className={`text-xs font-bold block ${t.status === "done" ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-800 dark:text-slate-200"}`}
+                                  >
+                                    {t.title}
+                                  </span>
+                                  {t.desc && (
+                                    <span className="text-[10px] text-slate-450 block">
+                                      {t.desc}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span
+                                className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                  t.priority === "HIGH"
+                                    ? "bg-rose-50 text-rose-600 dark:bg-rose-950/30"
+                                    : t.priority === "MEDIUM"
+                                      ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30"
+                                      : "bg-slate-50 text-slate-600"
                                 }`}
                               >
-                                {t.status === 'done' && <Check className="w-3.5 h-3.5" />}
-                              </button>
-                              <div>
-                                <span className={`text-xs font-bold block ${t.status === 'done' ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
-                                  {t.title}
-                                </span>
-                                {t.desc && <span className="text-[10px] text-slate-450 block">{t.desc}</span>}
-                              </div>
+                                اولویت{" "}
+                                {t.priority === "HIGH"
+                                  ? "فوری"
+                                  : t.priority === "MEDIUM"
+                                    ? "متوسط"
+                                    : "کم"}
+                              </span>
                             </div>
-                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                              t.priority === 'HIGH' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/30' : t.priority === 'MEDIUM' ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/30' : 'bg-slate-50 text-slate-600'
-                            }`}>
-                              اولویت {t.priority === 'HIGH' ? 'فوری' : t.priority === 'MEDIUM' ? 'متوسط' : 'کم'}
-                            </span>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     )}
 
-                    {events.filter(e => e.date === selectedDayCell.isoStr).length === 0 && 
-                     tasks.filter(t => t.dueDate === selectedDayCell.isoStr).length === 0 && (
-                      <div className="py-12 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2">
-                        <AlertCircle className="w-8 h-8 text-slate-300 dark:text-slate-750" />
-                        <span className="text-xs italic">هیچ برنامه یا کاری برای این روز ست نشده است.</span>
-                      </div>
-                    )}
+                    {events.filter((e) => e.date === selectedDayCell.isoStr)
+                      .length === 0 &&
+                      tasks.filter((t) => t.dueDate === selectedDayCell.isoStr)
+                        .length === 0 && (
+                        <div className="py-12 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2">
+                          <AlertCircle className="w-8 h-8 text-slate-300 dark:text-slate-750" />
+                          <span className="text-xs italic">
+                            هیچ برنامه یا کاری برای این روز ست نشده است.
+                          </span>
+                        </div>
+                      )}
                   </div>
                 </div>
 
                 <div className="text-[10px] text-slate-450 mt-4 border-t border-slate-100 dark:border-slate-850 pt-3">
-                  تسک‌ها را در تب مدیریت تسک‌ها و رویدادهای ثابت را همین‌جا ایجاد کنید.
+                  تسک‌ها را در تب مدیریت تسک‌ها و رویدادهای ثابت را همین‌جا
+                  ایجاد کنید.
                 </div>
               </div>
 
@@ -665,8 +734,8 @@ export default function MonthlyCalendarView({
                       <Plus className="w-4 h-4 text-teal-600" />
                       رویداد یا قرار جدید
                     </h4>
-                    
-                    <button 
+
+                    <button
                       onClick={() => setSelectedDayCell(null)}
                       className="p-1.5 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors cursor-pointer hidden md:block"
                     >
@@ -676,9 +745,11 @@ export default function MonthlyCalendarView({
 
                   <form onSubmit={handleAddEvent} className="space-y-4">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">عنوان رویداد</label>
-                      <input 
-                        type="text" 
+                      <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                        عنوان رویداد
+                      </label>
+                      <input
+                        type="text"
                         required
                         value={newEventTitle}
                         onChange={(e) => setNewEventTitle(e.target.value)}
@@ -688,8 +759,10 @@ export default function MonthlyCalendarView({
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">توضیحات تکمیلی</label>
-                      <textarea 
+                      <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                        توضیحات تکمیلی
+                      </label>
+                      <textarea
                         value={newEventDesc}
                         onChange={(e) => setNewEventDesc(e.target.value)}
                         placeholder="جزییات، مکان یا اهداف رویداد"
@@ -700,10 +773,12 @@ export default function MonthlyCalendarView({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">ساعت برگزاری</label>
+                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                          ساعت برگزاری
+                        </label>
                         <div className="relative">
-                          <input 
-                            type="time" 
+                          <input
+                            type="time"
                             required
                             value={newEventTime}
                             onChange={(e) => setNewEventTime(e.target.value)}
@@ -713,10 +788,14 @@ export default function MonthlyCalendarView({
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">دسته‌بندی</label>
-                        <select 
-                          value={newEventCat} 
-                          onChange={(e) => setNewEventCat(e.target.value as any)}
+                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                          دسته‌بندی
+                        </label>
+                        <select
+                          value={newEventCat}
+                          onChange={(e) =>
+                            setNewEventCat(e.target.value as any)
+                          }
                           className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/35"
                         >
                           <option value="work">کاری / اداری</option>
@@ -727,7 +806,7 @@ export default function MonthlyCalendarView({
                       </div>
                     </div>
 
-                    <button 
+                    <button
                       type="submit"
                       className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer shadow-lg shadow-teal-600/15"
                     >
@@ -736,7 +815,7 @@ export default function MonthlyCalendarView({
                   </form>
                 </div>
 
-                <button 
+                <button
                   onClick={() => setSelectedDayCell(null)}
                   className="w-full py-2.5 mt-4 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-350 rounded-xl text-xs font-bold transition-all cursor-pointer"
                 >

@@ -150,7 +150,7 @@ export default function SettingsManagement() {
                 <div className="flex items-center justify-between">
                   <div className="text-right">
                     <span className="block text-sm font-medium text-white">سقف درخواست روزانه هوش مصنوعی</span>
-                    <span className="text-xs text-slate-400">حداکثر دفعات مجاز استفاده هر کاربر از دستیار کورتکس در ۲۴ ساعت</span>
+                    <span className="text-xs text-slate-400">حداکثر دفعات مجاز استفاده هر کاربر از دستیار هوش مصنوعی در ۲۴ ساعت</span>
                   </div>
                   <input 
                     type="number" 
