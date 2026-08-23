@@ -400,7 +400,7 @@ create policy "users can insert messages into their own tickets" on public.ticke
           <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
             <div>
               <h1 className="text-2xl font-black text-white">مدیریت تیکت‌ها و گزارشات</h1>
-              <p className="text-sm text-slate-400 mt-1">مدیریت، بررسی و پاسخ‌گویی به مشکلات و پیشنهادات کاربران سایه‌بان</p>
+              <p className="text-sm text-slate-400 mt-1">مدیریت، بررسی و پاسخ‌گویی به مشکلات و پیشنهادات کاربران سایبان</p>
             </div>
 
             <div className="flex items-center gap-3">

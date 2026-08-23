@@ -281,7 +281,7 @@ create policy "users can insert messages into their own tickets" on public.ticke
                 {messages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-600 gap-2">
                     <MessageSquare className="w-8 h-8" />
-                    <p className="text-xs font-semibold">در انتظار پاسخ و بررسی کارشناسان پشتیبانی سایه‌بان...</p>
+                    <p className="text-xs font-semibold">در انتظار پاسخ و بررسی کارشناسان پشتیبانی سایبان...</p>
                   </div>
                 ) : (
                   messages.map((msg) => (
@@ -289,7 +289,7 @@ create policy "users can insert messages into their own tickets" on public.ticke
                       key={msg.id} 
                       className={`flex flex-col max-w-[80%] ${msg.is_admin ? 'mr-auto items-start' : 'ml-auto items-end'}`}
                     >
-                      <span className="text-[9px] text-slate-400 mb-1 px-1">{msg.is_admin ? 'پشتیبان سایه‌بان' : 'من'}</span>
+                      <span className="text-[9px] text-slate-400 mb-1 px-1">{msg.is_admin ? 'پشتیبان سایبان' : 'من'}</span>
                       <div className={`p-4 rounded-2xl text-xs leading-relaxed ${
                         msg.is_admin 
                           ? 'bg-gradient-to-br from-teal-500/5 to-teal-500/10 dark:from-teal-500/10 dark:to-teal-500/5 text-slate-800 dark:text-teal-300 border border-teal-500/20 rounded-tr-none' 
@@ -362,8 +362,8 @@ create policy "users can insert messages into their own tickets" on public.ticke
         <div className="space-y-6">
           <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">سامانه تیکت، گزارش مشکل و پیشنهاد سایه‌بان</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">مشکلات خود را گزارش کنید یا پیشنهادات طلایی خود را برای بهبود کورتکس سایه‌بان ارسال کنید.</p>
+              <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">سامانه تیکت، گزارش مشکل و پیشنهاد سایبان</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">مشکلات خود را گزارش کنید یا پیشنهادات طلایی خود را برای بهبود کورتکس سایبان ارسال کنید.</p>
             </div>
 
             <button 
@@ -474,7 +474,7 @@ create policy "users can insert messages into their own tickets" on public.ticke
                   <div className="space-y-1">
                     <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">هیچ تیکت یا پیشنهادی ندارید!</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
-                      اگر با خطایی روبرو شدید یا ایده‌ای برای ارتقاء سایه‌بان دارید، با دکمه بالا اولین تیکت خود را ثبت کنید.
+                      اگر با خطایی روبرو شدید یا ایده‌ای برای ارتقاء سایبان دارید، با دکمه بالا اولین تیکت خود را ثبت کنید.
                     </p>
                   </div>
                 </div>

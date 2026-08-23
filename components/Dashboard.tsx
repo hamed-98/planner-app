@@ -292,7 +292,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
     if (typeof window === "undefined") return true;
     const todayStr = getLocalISOString(new Date());
     const limitSaved = localStorage.getItem('sayeban_ai_daily_limit');
-    const currentLimit = limitSaved ? parseInt(limitSaved, 10) : 5;
+    const currentLimit = limitSaved ? parseInt(limitSaved, 30) : 20;
 
     const savedUsage = localStorage.getItem('sayeban_ai_usage');
     let usage = { date: todayStr, count: 0 };
@@ -1028,7 +1028,10 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
           mode: 'command', 
           message: userMsg, 
           customApiKey,
-          userData: { targetDate: selectedDateISO }
+          userData: { 
+            targetDate: selectedDateISO,
+            clientToday: todayISO || getLocalISOString(new Date()) // 👈 ارسال تاریخ محلی سیستم
+          }
         })
       });
       const responseData = await res.json();
@@ -1039,47 +1042,47 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       }
 
       // Check if Gemini parsed structured action commands
+      // اعمال اکشن‌های هوش مصنوعی در چت
       if (responseData.actionData?.action && responseData.actionData?.payload) {
         const { action, payload } = responseData.actionData;
+        const targetDate = payload.targetDate || payload.date || payload.dueDate || selectedDateISO;
+
         if (action === "ADD_TASK") {
           const newTask: Task = {
-            // eslint-disable-next-line react-hooks/purity
             id: crypto.randomUUID(),
             title: payload.title || "کار جدید",
             desc: payload.content || "",
             priority: payload.priority || "MEDIUM",
             status: "todo",
-            dueDate: payload.dueDate || selectedDateISO
+            dueDate: targetDate
           };
-          saveTasksToLocal([...tasks, newTask]);
-          showToast(`وظیفه جدید ثبت گردید: ${newTask.title}`, "success");
+          saveTasksToLocal([...lastSavedTasksRef.current, newTask]);
+          showToast(`وظیفه "${newTask.title}" برای تاریخ ${targetDate} ثبت شد.`, "success");
         } else if (action === "ADD_EVENT") {
           const newEv: CalendarEvent = {
-            // eslint-disable-next-line react-hooks/purity
             id: crypto.randomUUID(),
             title: payload.title || "رویداد جدید",
-            desc: "افزوده شده توسط دستیار هوشمند",
-            date: payload.date || selectedDateISO,
+            desc: payload.content || "ثبت هوشمند کورتکس",
+            date: targetDate,
             time: payload.time || "12:00",
-            category: "work",
+            category: payload.category || "work",
             recurrence: "none"
           };
-          saveEventsToLocal([...events, newEv]);
-          showToast(`رویداد جدید به تقویم پیوست شد: ${newEv.title}`, "success");
+          saveEventsToLocal([...lastSavedEventsRef.current, newEv]);
+          showToast(`رویداد "${newEv.title}" برای ${targetDate} ساعت ${newEv.time} در تقویم ثبت شد.`, "success");
         } else if (action === "ADD_NOTE") {
           const newNote: Note = {
-            // eslint-disable-next-line react-hooks/purity
             id: crypto.randomUUID(),
-            title: payload.title || "یادداشت جدید هوشمند",
+            title: payload.title || "یادداشت جدید",
             content: payload.content || "محتوا...",
             folder: "هوشمند",
             tags: ["هوشمند"],
             isPinned: false,
-            updatedAt: selectedDateISO
+            updatedAt: targetDate
           };
-          saveNotesToLocal([...notes, newNote]);
+          saveNotesToLocal([...lastSavedNotesRef.current, newNote]);
           setActiveNoteId(newNote.id);
-          showToast(`یادداشت جدید مکتوب شد: ${newNote.title}`, "success");
+          showToast(`یادداشت "${newNote.title}" ثبت شد.`, "success");
         }
       }
     } catch {
@@ -1108,7 +1111,10 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
           mode: 'command', 
           message: quickAddText, 
           customApiKey,
-          userData: { targetDate: selectedDateISO }
+          userData: { 
+            targetDate: selectedDateISO,
+            clientToday: todayISO || getLocalISOString(new Date()) // 👈 ارسال تاریخ محلی سیستم
+          }
         })
       });
       const data = await res.json();
@@ -1119,53 +1125,50 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       
       if (data.actionData?.action && data.actionData?.payload) {
         const { action, payload } = data.actionData;
+        const targetDate = payload.targetDate || payload.date || payload.dueDate || selectedDateISO;
+
         if (action === "ADD_TASK") {
           const newTask: Task = {
-            // eslint-disable-next-line react-hooks/purity
             id: crypto.randomUUID(),
-            title: payload.title,
+            title: payload.title || "کار جدید",
             desc: payload.content || "",
             priority: payload.priority || "MEDIUM",
             status: "todo",
-            dueDate: payload.dueDate || selectedDateISO
+            dueDate: targetDate
           };
-          saveTasksToLocal([...tasks, newTask]);
-          setQuickAddResult(`✅ وظیفه جدید با موفقیت اضافه فرم شد: "${payload.title}" برای تاریخ ${payload.dueDate || selectedDateISO}`);
-          showToast("کار جدید به هاب کایزن متصل شد!", "success");
+          saveTasksToLocal([...lastSavedTasksRef.current, newTask]);
+          setQuickAddResult(`✅ وظیفه "${newTask.title}" برای تاریخ ${targetDate} ثبت گردید.`);
+          showToast("کار جدید ثبت شد!", "success");
         } else if (action === "ADD_EVENT") {
           const newEv: CalendarEvent = {
-            // eslint-disable-next-line react-hooks/purity
             id: crypto.randomUUID(),
-            title: payload.title,
-            desc: "ثبت هوشمند کورتکس",
-            date: payload.date || selectedDateISO,
+            title: payload.title || "رویداد جدید",
+            desc: payload.content || "ثبت دستیار سریع",
+            date: targetDate,
             time: payload.time || "12:00",
-            category: "work",
+            category: payload.category || "work",
             recurrence: "none"
           };
-          saveEventsToLocal([...events, newEv]);
-          setQuickAddResult(`📅 رویداد جدید به تقویم اضافه گردید: "${payload.title}" در ساعت ${payload.time}`);
-          showToast("رویداد جدید به تقویم الحاق شد!", "success");
+          saveEventsToLocal([...lastSavedEventsRef.current, newEv]);
+          setQuickAddResult(`📅 رویداد "${newEv.title}" برای تاریخ ${targetDate} ساعت ${newEv.time} ثبت شد.`);
+          showToast("رویداد جدید ثبت شد!", "success");
         } else if (action === "ADD_NOTE") {
           const newNote: Note = {
-            // eslint-disable-next-line react-hooks/purity
             id: crypto.randomUUID(),
-            title: payload.title,
+            title: payload.title || "یادداشت جدید",
             content: payload.content || "",
             folder: "برنامه‌ها",
-            tags: ["هوشmend"],
+            tags: ["هوشمند"],
             isPinned: false,
-            updatedAt: selectedDateISO
+            updatedAt: targetDate
           };
-          saveNotesToLocal([...notes, newNote]);
+          saveNotesToLocal([...lastSavedNotesRef.current, newNote]);
           setActiveNoteId(newNote.id);
-          setQuickAddResult(`📝 یادداشت جدیدی تحت عنوان "${payload.title}" ثبت شد.`);
-          showToast("یادداشت جدید با موفقیت مکتوب شد!", "success");
+          setQuickAddResult(`📝 یادداشت "${newNote.title}" مکتوب شد.`);
+          showToast("یادداشت ثبت شد!", "success");
         } else {
-          setQuickAddResult(`🧠 پیغام شما یک فرمان ثبتی نبود اما در چت سایبان پاسخ داده شد: "${data.text}"`);
+          setQuickAddResult(`💬 ${data.text}`);
         }
-      } else {
-        setQuickAddResult(`💬 هوش سایبان: "${data.text}"`);
       }
     } catch {
       setQuickAddResult("خطایی در ارتباط به موتور اصلی کورتکس گوگل ا رخ داد.");
@@ -1619,7 +1622,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                   <h4 className="text-xs font-black text-slate-700 dark:text-slate-300">{userName}</h4>
                   <span className="text-[9px] bg-indigo-50 text-indigo-700 font-extrabold px-2 py-0.5 rounded-lg">سطح {level}</span>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">{useJalaliCalendar ? todayJalali : todayGregorian}</p>
+                {/* <p className="text-[10px] text-slate-400 mt-0.5">{useJalaliCalendar ? todayJalali : todayGregorian}</p> */}
               </div>
             </div>
 
@@ -1631,7 +1634,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     {title} <span className="text-slate-400 font-bold">(سطح {level})</span>
                   </span>
                   <span className="text-[10px] font-bold text-slate-400">
-                    رشد کورتکس: {xpInCurrentLevel} از {xpForNextLevel}
+                    {/* رشد کورتکس: {xpInCurrentLevel} از {xpForNextLevel} */}
                   </span>
                 </div>
                 <span className="text-[11px] font-black text-indigo-500 dark:text-indigo-400">
@@ -2214,13 +2217,18 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
               </div>
 
               <form onSubmit={handleChatSubmit} className="flex gap-2">
-                <input 
-                  type="text"
-                  required
+                <textarea
+                  rows={1}
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleChatSubmit(e);
+                    }
+                  }}
                   placeholder="سر فصلی اضافه کنید یا با چت ربات مشورت کنید... (مثل: من چطور می‌توانم استرسم را کاهش دهم؟)"
-                  className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-teal-500 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200"
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-teal-500 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200 resize-none max-h-32 leading-relaxed"
                 />
                 
                 {/* Simulated Speech Button */}

@@ -1,287 +1,254 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+// لیست مدل‌های به‌روز برای سوییچ خودکار در زمان لیمیت یا ترافیک
+const FALLBACK_MODELS = [
+  "gemini-3.7-flash",        // جدیدترین مدل برای کدنویسی
+  "gemini-3.6-flash",        // جدیدترین Flash
+  "gemini-3.5-flash",        // Flash پایدار
+  "gemini-3.5-flash-lite",   // نسخه اقتصادی 3.5
+  "gemini-3.1-pro-preview",  // نسخه Pro
+  "gemini-3.1-flash-lite" ,   // نسخه اقتصادی 3.1
+  "gemini-3-flash-preview",   // نسخه پیشرفته 3.0 
+];
+
+async function generateWithFallback(ai: GoogleGenAI, contents: any, config: any) {
+  let lastError: any = null;
+  for (const model of FALLBACK_MODELS) {
+    try {
+      const response = await ai.models.generateContent({ model, contents, config });
+      return { response, modelUsed: model };
+    } catch (err: any) {
+      console.warn(`Model ${model} failed/limited. Trying fallback... (${err?.message || ''})`);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("All AI fallback models exhausted.");
+}
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { message, mode, userData, customApiKey } = body;
+    const { message, mode, userData } = body;
 
-    let rawKey = customApiKey || process.env.GEMINI_API_KEY;
-    let aiDailyLimit = 20;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder"
+    // ۱. دریافت توکن احراز هویت از هدر درخواست
+    const authHeader = req.headers.get("Authorization");
+    let userId: string | null = null;
+    let userPlan: "free" | "pro" | "team" = "free";
+
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) {
+        userId = user.id;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("plan")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (profile?.plan) userPlan = profile.plan;
+      }
+    }
+
+    // ۲. بررسی و ثبت محدودیت روزانه در سرور
+    const clientToday = userData?.clientToday || userData?.targetDate || new Date().toISOString().split("T")[0];
+    const targetDateStr = userData?.targetDate || clientToday;
+
+    const dailyLimit = userPlan === "pro" ? 100 : userPlan === "team" ? 250 : 10;
+
+    if (userId) {
+      const { data: usageRecord } = await supabase
+        .from("user_ai_usage")
+        .select("request_count")
+        .eq("user_id", userId)
+        .eq("usage_date", clientToday)
+        .maybeSingle();
+
+      const currentCount = usageRecord?.request_count || 0;
+
+      if (currentCount >= dailyLimit) {
+        return NextResponse.json(
+          {
+            text: `⚠️ سقف مجاز روزانه شما برای هوش مصنوعی (${dailyLimit} درخواست در پلن ${userPlan === "free" ? "رایگان" : "پرو"}) به پایان رسیده است. برای دسترسی بیشتر پلن خود را ارتقا دهید.`,
+            actionData: { action: "NONE", payload: {} },
+            isLimitReached: true,
+            currentUsage: currentCount,
+            dailyLimit
+          },
+          { status: 429 }
+        );
+      }
+
+      // افزایش شمارنده مصرف در دیتابیس
+      await supabase.from("user_ai_usage").upsert(
+        {
+          user_id: userId,
+          usage_date: clientToday,
+          request_count: currentCount + 1,
+          created_at: new Date().toISOString()
+        },
+        { onConflict: "user_id,usage_date" }
       );
-      const { data: keysData } = await supabaseAdmin
+    }
+
+    // ۳. خواندن کلید متمرکز پلتفرم
+    let platformKey = process.env.GEMINI_API_KEY || "";
+    try {
+      const { data: keysData } = await supabase
         .from("global_settings")
         .select("value")
         .eq("id", "api_keys")
         .maybeSingle();
+      if (keysData?.value?.gemini) platformKey = keysData.value.gemini;
+    } catch {}
 
-      if (keysData?.value?.gemini) {
-        rawKey = keysData.value.gemini;
-      }
+    const validKey = platformKey.split(",").map(k => k.trim()).find(k => k.length > 10 && !k.includes("MY_GEMINI"));
 
-      const { data: flagsData } = await supabaseAdmin
-        .from("global_settings")
-        .select("value")
-        .eq("id", "feature_flags")
-        .maybeSingle();
-
-      if (flagsData?.value?.ai_daily_limit !== undefined) {
-        aiDailyLimit = flagsData.value.ai_daily_limit;
-      }
-    } catch (e) {
-      console.log("Could not fetch global settings key, using env fallback");
+    if (!validKey) {
+      return NextResponse.json({
+        text: "⚠️ سرویس هوش مصنوعی در حال حاضر در دسترس نیست. لطفاً دقایقی دیگر تلاش کنید.",
+        actionData: { action: "NONE", payload: {} }
+      }, { status: 503 });
     }
 
-    const isValidKey = typeof rawKey === "string" && rawKey.trim().length > 10 && !rawKey.includes("MY_GEMINI");
+    const ai = new GoogleGenAI({ apiKey: validKey });
 
-    let responseText = "";
-    let actionData: any = null;
-    let usingDemoFallback = false;
-
-    if (isValidKey) {
+    // ۴. حالت تحلیل سلامت (Analyze Mode)
+    if (mode === "analyze") {
+      let analysisText = "";
       try {
-        const ai = new GoogleGenAI({
-          apiKey: rawKey!.trim(),
-        });
+        const systemInstruction = `تو دستیار ارشد نوروساینس و روانشناسی شناختی اپلیکیشن "سایبان" هستی.
+داده‌های بیومتریک و برنامه‌های امروز کاربر را در ۳ تا ۴ جمله صمیمی و علمی تحلیل کن.
+قوانین:
+- خواب زیر ۶ ساعت: هشدار صریح کم‌خوابی و استراحت زودهنگام (نگو کافی است!).
+- خلق‌وخو ۱ یا ۲: تایید احساس و راهکار تنفس یا CBT.
+- آب زیر ۱۵۰۰ml: تذکر مصرف آب. بالای ۲۰۰۰ml: تشویق هیدراتاسیون عالی.
+- مجموع رویدادها و تسک‌ها بالا: تایید شلوغی روز و پیشنهاد اولویت‌بندی.
+پاسخ فارسی و مستقیم باشد.`;
 
-        if (mode === "analyze") {
-          const targetDateStr = userData?.targetDate || new Date().toISOString().split("T")[0];
-
-          const systemInstruction = `تو دستیار ارشد نوروساینس، تندرستی و روانشناسی شناختی اپلیکیشن "سایبان" هستی.
-وظیفه: تحلیل داده‌های بیومتریک و رویدادهای امروز کاربر با لحنی صمیمی، دلسوز، علمی و واقع‌بینانه در حداکثر ۳ تا ۴ جمله.
-
-قوانین تحلیلی مهم:
-۱. خلق‌وخو (moodScore از ۱ تا ۵):
-   - اگر ۱ (عصبی/بحرانی) یا ۲ (خسته/بی‌حوصله) است، حتماً احساس کاربر را تایید کن و راهکار تخلیه بار هیجانی آمیگدال (مانند ۵ دقیقه تنفس Zen یا بازسازی فکر در CBT) پیشنهاد بده.
-   - اگر ۴ یا ۵ است، شادابی و انگیزه او را تبریک بگو.
-۲. خواب (sleepHours):
-   - اگر زیر ۶ ساعت است، هشدار بده و راهکار چرت عصرگاهی یا خواب زودهنگام امشب را مطرح کن (هرگز نگو خواب کافی دارید!).
-۳. آب (waterToday):
-   - اگر زیر ۱۵۰۰ml است، ضرورت هیدراتاسیون برای جلوگیری از خستگی ذهنی را گوشزد کن.
-۴. برنامه‌ها و رویدادها (eventsToday و pendingTasksToday):
-   - اگر مجموع رویدادها و تسک‌ها بالا است، شلوغ بودن روز را تصدیق کن و پیشنهاد مسدودسازی زمانی (Time-Blocking) بده.
-
-پاسخ بدون سلام و احوال‌پرسی طولانی و بدون تاریخ تکراری باشد.`;
-
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: [
-              { text: systemInstruction },
-              {
-                text: `داده‌های وضعیت کاربر برای روز (${targetDateStr}):\n${JSON.stringify(userData, null, 2)}`,
-              },
-            ],
-            config: {
-              temperature: 0.3,
-            },
-          });
-
-          responseText = response.text?.trim() || "امروز فرصتی عالی برای متمرکز ماندن و هدایت انرژی است!";
-          actionData = { action: "ANALYZE_RESPONSE" };
-        } else if (mode === "command") {
-          const targetDateStr = userData?.targetDate || new Date().toISOString().split("T")[0];
-          const realToday = new Date().toISOString().split("T")[0];
-
-          const systemInstruction = `تو دستیار متنی هوشمند اپلیکیشن سایبان هستی. وظیفه تو تبدیل جملات کاربر به یک خروجی JSON ساختاریافته است.
-
-انواع اکشن‌ها:
-- "ADD_TASK": برای کارهایی که ددلاین دارند، اولویت دارند یا لیست کارهاست.
-- "ADD_EVENT": برای قرار ملاقات‌ها، رویدادها، زمان‌بندی‌های تقویم.
-- "ADD_NOTE": برای یادداشت موارد عمومی، پروژه‌ها و چک‌نویس‌ها.
-- "NONE": چت عمومی یا در صورتی که دستوری وجود نداشت.
-
-راهنمای تاریخ:
-- تاریخ واقعی امروز: ${realToday}
-- تاریخ انتخابی کاربر در UI: ${targetDateStr}
-- اگر کاربر گفت "امروز"، تاریخ را ${realToday} و اگر گفت "فردا"، تاریخ را دقیقا یک روز بعد بگذار.
-- عبارات زمانی را درون title یا content قرار نده.
-
-پاسخ را در قالب JSON معتبر تحویل بده.`;
-
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: message,
-            config: {
-              systemInstruction,
-              responseMimeType: "application/json",
-              responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                  text: {
-                    type: Type.STRING,
-                    description: "پاسخ دوستانه و مودبانه به کاربر به فارسی",
-                  },
-                  action: {
-                    type: Type.STRING,
-                    description: "ADD_TASK, ADD_EVENT, ADD_NOTE, NONE",
-                  },
-                  payload: {
-                    type: Type.OBJECT,
-                    properties: {
-                      title: { type: Type.STRING, description: "عنوان مورد ایجاد شده" },
-                      priority: { type: Type.STRING, description: "HIGH, MEDIUM, LOW" },
-                      dueDate: { type: Type.STRING, description: "YYYY-MM-DD" },
-                      time: { type: Type.STRING, description: "HH:MM" },
-                      date: { type: Type.STRING, description: "YYYY-MM-DD" },
-                      content: { type: Type.STRING, description: "متن یادداشت یا توضیحات" },
-                    },
-                  },
-                },
-                required: ["text", "action"],
-              },
-              temperature: 0.2,
-            },
-          });
-
-          const textOutput = response.text || "{}";
-          const parsed = JSON.parse(textOutput);
-          responseText = parsed.text;
-          actionData = parsed;
-        } else {
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: message,
-            config: {
-              systemInstruction:
-                "تو دستیار هوشمند و روانشناس حامی 'سایبان' هستی. به زبان فارسی روان، شیوا و علمی در رابطه با مدیریت استرس، خواب، بهره‌وری و حال خوب پاسخ بده.",
-              temperature: 0.6,
-            },
-          });
-          responseText = response.text || "من اینجام تا در سازماندهی ذهن و کارهایت همراهت باشم.";
-        }
-      } catch (geminiError: any) {
-        console.log("Gemini API issue. Activating local fallback:", geminiError?.message || geminiError);
-        usingDemoFallback = true;
-      }
-    } else {
-      usingDemoFallback = true;
-    }
-
-    // موتور فال‌بک بومی در صورت قطعی یا عدم اتصال به سرور هوش مصنوعی
-    if (usingDemoFallback) {
-      if (mode === "analyze") {
+        const { response } = await generateWithFallback(
+          ai,
+          [
+            { text: systemInstruction },
+            { text: `وضعیت کاربر برای تاریخ (${targetDateStr}):\n${JSON.stringify(userData, null, 2)}` }
+          ],
+          { temperature: 0.3 }
+        );
+        analysisText = response.text?.trim() || "";
+      } catch {
+        // فال‌بک بومی اختصاصی بخش تحلیل سلامت
         const waterVal = userData?.waterToday ?? 0;
         const sleepVal = userData?.sleepHours ?? 0;
         const moodVal = userData?.moodScore ?? 3;
-        const pendingT = userData?.pendingTasksToday ?? userData?.pendingTasks ?? 0;
+        const pendingT = userData?.pendingTasksToday ?? 0;
         const eventsCount = userData?.eventsToday ?? 0;
 
         const parts: string[] = [];
+        if (sleepVal > 0 && sleepVal < 6) parts.push(`میزان خواب دیشب (${sleepVal} ساعت) پایین بوده و استراحت زودهنگام امشب برای ریکاوری مغز الزامی است.`);
+        else if (sleepVal >= 6 && sleepVal <= 9) parts.push(`خواب ${sleepVal} ساعته شما ریکاوری مناسبی فراهم کرده است.`);
 
-        // تحلیل خواب
-        if (sleepVal > 0 && sleepVal < 6) {
-          parts.push(`میزان خواب دیشب شما (${sleepVal} ساعت) پایین بوده و برای جلوگیری از خستگی مفرط کورتکس، استراحت زودهنگام امشب ضروری است.`);
-        } else if (sleepVal >= 6 && sleepVal <= 9) {
-          parts.push(`خواب ${sleepVal} ساعته شما ریکاوری مناسبی را برای پردازش‌های ذهنی فراهم کرده است.`);
-        } else if (sleepVal > 9) {
-          parts.push(`میزان خواب شما بیش از حد معمول ثبت شده؛ تنظیم ریتم خواب به شادابی بیشتر کمک می‌کند.`);
-        }
+        if (moodVal === 1) parts.push(`تنش روحی بالایی دارید؛ ۵ دقیقه تنفس در مود Zen یا ثبت فکر در CBT پیشنهاد می‌شود.`);
+        else if (moodVal >= 4) parts.push(`سطح انرژی و انگیزه شما عالی است.`);
 
-        // تحلیل خلق‌وخو
-        if (moodVal === 1) {
-          parts.push(`حس عصبانیت و تنش بالایی تجربه می‌کنید؛ پیشنهاد می‌کنم ۵ دقیقه در مود Zen کایزن تنفس عمیق داشته باشید یا افکارتان را در بخش CBT ثبت کنید.`);
-        } else if (moodVal === 2) {
-          parts.push(`انرژی روحی پایینی دارید؛ فشار کاری را کاهش دهید و کارهای غیرضروری را به تعویق بیندازید.`);
-        } else if (moodVal >= 4) {
-          parts.push(`سطح نشاط و انگیزه شما عالی است؛ زمان مناسبی برای پیشبرد چالش‌برانگیزترین کارهای روز است.`);
-        }
+        if (waterVal >= 2000) parts.push(`مصرف آب (${waterVal}ml) ایده‌آل است.`);
+        else if (waterVal < 1200) parts.push(`مصرف آب (${waterVal}ml) کم است و نیاز به نوشیدن بیشتر دارید.`);
 
-        // تحلیل آب
-        if (waterVal < 1200) {
-          parts.push(`مصرف آب (${waterVal}ml) بسیار کم است؛ نوشیدن آب کافی تمرکز حافظه کاری را تا ۲۰٪ بالا می‌برد.`);
-        }
+        if (pendingT + eventsCount >= 4) parts.push(`امروز با ${eventsCount} رویداد و ${pendingT} کار، روز شلوغی دارید؛ روی اولویت‌ها تمرکز کنید.`);
 
-        // تحلیل رویدادها و تسک‌ها
-        const totalItems = pendingT + eventsCount;
-        if (totalItems >= 4) {
-          parts.push(`امروز با داشتن ${eventsCount} رویداد در تقویم و ${pendingT} وظیفه، روز پرمشغله‌ای پیش رو دارید؛ روی اولویت‌های اصلی تمرکز کنید.`);
-        } else if (totalItems > 0) {
-          parts.push(`برنامه‌های امروز شما در تعادل مناسبی است.`);
-        } else {
-          parts.push(`برنامه کاری امروز خلوت است؛ فرصتی عالی برای تمرین در باشگاه مغز.`);
-        }
-
-        responseText = parts.join(" ") || "روز خوبی را برای شما آرزومندم!";
-        actionData = { action: "ANALYZE_RESPONSE" };
-      } else if (mode === "command") {
-        let msg = message.toLowerCase();
-        const persianNumbers = [/۰/g, /۱/g, /۲/g, /۳/g, /۴/g, /۵/g, /۶/g, /۷/g, /۸/g, /۹/g];
-        for (let i = 0; i < 10; i++) {
-          msg = msg.replace(persianNumbers[i], String(i));
-        }
-
-        let action = "NONE";
-        let title = "مورد جدید";
-        let priority = "MEDIUM";
-        let content = "ثبت شده توسط دستیار آفلاین سایبان";
-        const targetDateStr = userData?.targetDate || new Date().toISOString().split("T")[0];
-        let dueDate = targetDateStr;
-        let time = "12:00";
-        let date = targetDateStr;
-
-        if (msg.includes("فردا")) {
-          const tomorrow = new Date(new Date().getTime() + 24 * 60 * 60 * 1000);
-          const tomorrowStr = tomorrow.toISOString().split("T")[0];
-          dueDate = tomorrowStr;
-          date = tomorrowStr;
-        }
-
-        const timeMatch = msg.match(/ساعت\s*(\d{1,2})(?::(\d{2}))?|(\d{1,2}):(\d{2})/);
-        if (timeMatch) {
-          const hr = timeMatch[1] || timeMatch[3];
-          const mn = timeMatch[2] || timeMatch[4] || "00";
-          time = `${hr.padStart(2, "0")}:${mn}`;
-        }
-
-        if (msg.includes("کار") || msg.includes("وظیفه") || msg.includes("تسک") || msg.includes("todo")) {
-          action = "ADD_TASK";
-          title = message.replace(/(کار|اضافه کن|فردا|امروز|وظیفه|تکمیل|لطفا|ساعت\s*\S+)/gi, "").trim() || "وظیفه جدید";
-          if (msg.includes("فوری") || msg.includes("مهم")) priority = "HIGH";
-        } else if (msg.includes("جلسه") || msg.includes("رویداد") || msg.includes("قرار") || msg.includes("تقویم")) {
-          action = "ADD_EVENT";
-          title = message.replace(/(جلسه|قرار|رویداد|اضافه کن|فردا|امروز|تقویم|لطفا|ساعت\s*\S+)/gi, "").trim() || "رویداد جدید";
-        } else if (msg.includes("یادداشت") || msg.includes("بنویس") || msg.includes("ایده")) {
-          action = "ADD_NOTE";
-          title = message.replace(/(یادداشت|بنویس|ثبت|ایده|جدید|لطفا)/gi, "").trim() || "ایده جدید";
-        }
-
-        let labelText = "";
-        if (action === "ADD_TASK") labelText = `وظیفه "${title}" در لیست کارهای روز ثبت گردید.`;
-        else if (action === "ADD_EVENT") labelText = `رویداد "${title}" برای ساعت ${time} در تقویم ثبت شد.`;
-        else if (action === "ADD_NOTE") labelText = `یادداشت جدید با عنوان "${title}" ایجاد شد.`;
-        else labelText = "پیام شما دریافت شد.";
-
-        responseText = labelText;
-        actionData = {
-          text: responseText,
-          action,
-          payload: { title, priority, dueDate, time, date, content },
-        };
+        analysisText = parts.join(" ") || "روز پرانرژی و موفقی داشته باشید!";
       }
+
+      return NextResponse.json({
+        text: analysisText,
+        actionData: { action: "ANALYZE_RESPONSE" }
+      });
     }
 
+    // ۵. حالت درک فرامین متنی و صوتی (Command Mode)
+    if (mode === "command") {
+      const systemInstruction = `You are the structured command parser for the "Sayeban" productivity app.
+Convert Persian natural language into strict JSON actions without outputting any internal reasoning.
+
+Date Reference:
+- User's Real Today Date: ${clientToday}
+- Selected UI Date: ${targetDateStr}
+
+Date Calculations (CRITICAL):
+- If user says "امروز", targetDate is ${clientToday}.
+- If user says "فردا", targetDate is +1 day after ${clientToday}.
+- If user says "پس‌فردا" or "پسفردا", targetDate is +2 days after ${clientToday}.
+- If no date is mentioned, use ${targetDateStr}.
+
+Rules:
+1. "title": Extract clean title only (e.g., "ورزش با اصغر", "جلسه با تیم"). Strip dates, times, polite words, and verbs.
+2. "action": "ADD_EVENT" for meetings/workouts with times, "ADD_TASK" for to-dos, "ADD_NOTE" for notes, "NONE" for chat.
+3. "time": "HH:MM" format (24h). Default "12:00" for events.`;
+
+      const { response } = await generateWithFallback(
+        ai,
+        message,
+        {
+          systemInstruction,
+          thinkingConfig: { thinkingBudget: 0 },
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              text: { type: Type.STRING, description: "پاسخ بسیار کوتاه و مودبانه فارسی" },
+              action: { type: Type.STRING, description: "ADD_TASK, ADD_EVENT, ADD_NOTE, NONE" },
+              payload: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING, description: "Clean title only" },
+                  priority: { type: Type.STRING, description: "HIGH, MEDIUM, LOW" },
+                  targetDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+                  time: { type: Type.STRING, description: "HH:MM" },
+                  category: { type: Type.STRING, description: "work, personal, health, learning" },
+                  content: { type: Type.STRING, description: "Details or note body" },
+                },
+                required: ["title", "targetDate"],
+              },
+            },
+            required: ["text", "action"],
+          },
+          temperature: 0.1,
+        }
+      );
+
+      const parsed = JSON.parse(response.text || "{}");
+      return NextResponse.json({
+        text: parsed.text || "درخواست شما پردازش شد.",
+        actionData: parsed
+      });
+    }
+
+    // ۶. چت عمومی
+    const { response } = await generateWithFallback(
+      ai,
+      message,
+      {
+        systemInstruction: "تو دستیار هوشمند و روانشناس حامی 'سایبان' هستی. به زبان فارسی روان و شیوا پاسخ بده.",
+        temperature: 0.7
+      }
+    );
+
     return NextResponse.json({
-      text: responseText,
-      actionData,
-      isDemo: usingDemoFallback,
-      hasValidKey: isValidKey,
-      aiDailyLimit,
+      text: response.text?.trim() || "همراه شما در مسیر رشد و تندرستی هستم."
     });
+
   } catch (error: any) {
-    console.error("Gemini API Route Error:", error);
+    console.error("AI API Fatal Error:", error);
     return NextResponse.json(
       {
-        text: "دستیار در حال حاضر با داده‌های محلی پاسخگوی شماست.",
-        isDemo: true,
-        aiDailyLimit: 5,
+        text: `⚠️ خطا در پردازش: ${error?.message || "پاسخی از سرور دریافت نشد."}`,
+        actionData: { action: "NONE", payload: {} }
       },
-      { status: 200 }
+      { status: 500 }
     );
   }
 }
