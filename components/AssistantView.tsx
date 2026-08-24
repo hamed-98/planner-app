@@ -19,7 +19,8 @@ import {
   X, 
   Menu, 
   AlertTriangle,
-  ArrowRight
+  ArrowRight,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createClient } from '../lib/supabase/client';
@@ -30,7 +31,8 @@ import {
   createConversation, 
   deleteConversation, 
   getConversationMessages, 
-  saveChatMessage 
+  saveChatMessage, 
+  getAiUsageToday
 } from '../lib/supabase/assistant';
 import { Task, CalendarEvent, Note } from './Dashboard';
 
@@ -104,6 +106,55 @@ export default function AssistantView({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isAiResponding]);
 
+  const [aiUsage, setAiUsage] = useState<{ count: number; limit: number; plan: string }>({ count: 0, limit: 15, plan: 'free' });
+
+  useEffect(() => {
+    getAiUsageToday().then(setAiUsage);
+  }, []);
+
+  // تایید و ثبت اکشن در سیستم + ذخیره دائمی وضعیت در دیتابیس
+  const handleConfirmAction = async (msg: ChatMessage) => {
+    if (!msg.action_payload?.action || !msg.action_payload?.payload) return;
+    const { action, payload } = msg.action_payload;
+
+    if (action === 'ADD_TASK') {
+      onAddTask(payload);
+      showToast(`وظیفه "${payload.title}" در لیست کارها ثبت شد.`, 'success');
+    } else if (action === 'ADD_EVENT') {
+      onAddEvent(payload);
+      showToast(`رویداد "${payload.title}" در تقویم ثبت شد.`, 'success');
+    } else if (action === 'ADD_NOTE') {
+      onAddNote(payload);
+      showToast(`یادداشت "${payload.title}" ذخیره شد.`, 'success');
+    }
+
+    // به‌روزرسانی وضعیت در دیتابیس و کش محلی
+    const updatedPayload = { ...msg.action_payload, status: 'confirmed' };
+    setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, action_payload: updatedPayload } : m));
+    localStorage.setItem(`sayeban_action_status_${msg.id}`, 'confirmed');
+
+    const supabase = createClient();
+    await (supabase.from('ai_messages') as any)
+      .update({ action_payload: updatedPayload })
+      .eq('id', msg.id);
+
+    playAudioFeedback?.('done');
+  };
+
+  // رد و لغو پیشنهاد هوش مصنوعی
+  const handleRejectAction = async (msg: ChatMessage) => {
+    const updatedPayload = { ...msg.action_payload, status: 'rejected' };
+    setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, action_payload: updatedPayload } : m));
+    localStorage.setItem(`sayeban_action_status_${msg.id}`, 'rejected');
+
+    const supabase = createClient();
+    await (supabase.from('ai_messages') as any)
+      .update({ action_payload: updatedPayload })
+      .eq('id', msg.id);
+
+    showToast('پیشنهاد ثبت لغو شد.', 'info');
+  };
+
   const handleNewConversation = async () => {
     playAudioFeedback?.('click');
     const fresh = await createConversation('گفتگوی جدید');
@@ -159,6 +210,31 @@ export default function AssistantView({
     playAudioFeedback?.('done');
   };
 
+  // تابع کمکی برای نمایش تمیز و شمسی تاریخ روی کارت اکشن
+  const formatActionDate = (dateStr?: string) => {
+    if (!dateStr) return 'امروز';
+    const clientToday = userDataContext?.clientToday || new Date().toISOString().split('T')[0];
+    
+    const todayObj = new Date(clientToday + "T12:00:00Z");
+    const tomorrowStr = new Date(todayObj.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const dayAfterStr = new Date(todayObj.getTime() + 48 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    try {
+      const jalaliDate = new Date(dateStr + "T12:00:00Z").toLocaleDateString('fa-IR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+
+      if (dateStr === clientToday) return `امروز (${jalaliDate})`;
+      if (dateStr === tomorrowStr) return `فردا (${jalaliDate})`;
+      if (dateStr === dayAfterStr) return `پس‌فردا (${jalaliDate})`;
+      return jalaliDate;
+    } catch {
+      return dateStr;
+    }
+  };
+
   const handleSendMessage = async (customPrompt?: string) => {
     const textToSend = (customPrompt || inputMessage).trim();
     if (!textToSend || !activeConvId || isAiResponding) return;
@@ -166,14 +242,16 @@ export default function AssistantView({
     setInputMessage('');
     playAudioFeedback?.('click');
 
+    // نام‌گذاری هوشمند در اولین پیام
     const isFirstMsg = messages.length === 0;
     if (isFirstMsg) {
       const autoTitle = textToSend.slice(0, 26) + (textToSend.length > 26 ? '...' : '');
       const supabase = createClient();
-      await (supabase as any).from('ai_conversations').update({ title: autoTitle }).eq('id', activeConvId);
+      await (supabase.from('ai_conversations') as any).update({ title: autoTitle }).eq('id', activeConvId);
       setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, title: autoTitle } : c));
     }
 
+    // ثبت پیام کاربر
     const userMsg = await saveChatMessage(activeConvId, 'user', textToSend);
     if (userMsg) {
       setMessages(prev => [...prev, userMsg]);
@@ -203,17 +281,31 @@ export default function AssistantView({
 
       const data = await res.json();
 
+      // ۱. اگر سقف پیام‌ها پر شده بود
       if (res.status === 429) {
+        if (data.currentUsage !== undefined && data.dailyLimit) {
+          setAiUsage(prev => ({ ...prev, count: data.currentUsage, limit: data.dailyLimit }));
+        }
         showToast(data.text, 'error');
         setIsAiResponding(false);
         return;
       }
 
+      // ۲. آپدیت آنی شمارنده مصرف
+      if (data.currentUsage !== undefined && data.dailyLimit) {
+        setAiUsage(prev => ({ ...prev, count: data.currentUsage, limit: data.dailyLimit }));
+      } else {
+        setAiUsage(prev => ({ ...prev, count: Math.min(prev.limit, prev.count + 1) }));
+      }
+
+      const hasValidAction = data.actionData?.action && data.actionData.action !== 'NONE' && data.actionData?.payload?.title;
+
+      // ۳. ثبت پاسخ دستیار در دیتابیس
       const aiMsg = await saveChatMessage(
         activeConvId,
         'assistant',
         data.text,
-        data.actionData?.payload ? data.actionData : undefined
+        hasValidAction ? data.actionData : undefined
       );
 
       if (aiMsg) {
@@ -236,7 +328,6 @@ export default function AssistantView({
 
   return (
     <div className="space-y-4 md:space-y-6" dir="rtl">
-      
       {/* مدال اختصاصی تایید حذف گفتگو */}
       <AnimatePresence>
         {convToDelete && (
@@ -256,9 +347,12 @@ export default function AssistantView({
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">حذف این گفتگو؟</h4>
+                <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">
+                  حذف این گفتگو؟
+                </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  تمام پیام‌های رد و بدل شده در این جلسه پاک خواهند شد و امکان بازیابی وجود ندارد.
+                  تمام پیام‌های رد و بدل شده در این جلسه پاک خواهند شد و امکان
+                  بازیابی وجود ندارد.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2 pt-2">
@@ -288,7 +382,9 @@ export default function AssistantView({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base md:text-xl font-black">دستیار هوشمند سایبان</h2>
+              <h2 className="text-base md:text-xl font-black">
+                دستیار هوشمند سایبان
+              </h2>
               <span className="text-[9px] md:text-[10px] bg-teal-500/20 text-teal-300 font-extrabold px-2.5 py-0.5 rounded-full border border-teal-500/30 hidden sm:inline-block">
                 هوش متمرکز
               </span>
@@ -311,12 +407,13 @@ export default function AssistantView({
 
       {/* چیدمان اصلی */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6 min-h-[580px] relative">
-        
         {/* ستون سایدبار (در دسکتاپ ثابت، در موبایل کشویی) */}
-        <div className={`
+        <div
+          className={`
           lg:col-span-1 space-y-4
-          ${isMobileSidebarOpen ? 'fixed inset-0 z-40 bg-slate-950/80 p-4 flex flex-col justify-center overflow-y-auto' : 'hidden lg:block'}
-        `}>
+          ${isMobileSidebarOpen ? "fixed inset-0 z-40 bg-slate-950/80 p-4 flex flex-col justify-center overflow-y-auto" : "hidden lg:block"}
+        `}
+        >
           {isMobileSidebarOpen && (
             <button
               onClick={() => setIsMobileSidebarOpen(false)}
@@ -339,7 +436,7 @@ export default function AssistantView({
             <span className="text-[10px] font-black text-slate-400 block px-2 mb-1 uppercase tracking-wider">
               سوابق جلسات چت
             </span>
-            {conversations.map(conv => (
+            {conversations.map((conv) => (
               <div
                 key={conv.id}
                 onClick={() => {
@@ -350,27 +447,36 @@ export default function AssistantView({
                 }}
                 className={`flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer group ${
                   activeConvId === conv.id
-                    ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                    ? "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                 }`}
               >
                 {editingConvId === conv.id ? (
-                  <div className="flex items-center gap-1 w-full" onClick={e => e.stopPropagation()}>
+                  <div
+                    className="flex items-center gap-1 w-full"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <input
                       type="text"
                       autoFocus
                       value={editTitleText}
-                      onChange={e => setEditTitleText(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') handleSaveRename(conv.id);
-                        if (e.key === 'Escape') setEditingConvId(null);
+                      onChange={(e) => setEditTitleText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveRename(conv.id);
+                        if (e.key === "Escape") setEditingConvId(null);
                       }}
                       className="flex-1 bg-white dark:bg-slate-800 text-xs p-1 rounded border border-teal-500 text-slate-800 dark:text-slate-200"
                     />
-                    <button onClick={() => handleSaveRename(conv.id)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
+                    <button
+                      onClick={() => handleSaveRename(conv.id)}
+                      className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                    >
                       <Check className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => setEditingConvId(null)} className="p-1 text-rose-500 hover:bg-rose-50 rounded">
+                    <button
+                      onClick={() => setEditingConvId(null)}
+                      className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                    >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -423,30 +529,77 @@ export default function AssistantView({
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>خواب دیشب:</span>
                 <span className="text-indigo-600 dark:text-indigo-400 font-mono">
-                  {userDataContext?.sleepHours ? `${userDataContext.sleepHours} ساعت` : 'ثبت‌نشده'}
+                  {userDataContext?.sleepHours
+                    ? `${userDataContext.sleepHours} ساعت`
+                    : "ثبت‌نشده"}
                 </span>
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>آب امروز:</span>
-                <span className="text-teal-600 dark:text-teal-400 font-mono">{userDataContext?.waterToday || 0} ml</span>
+                <span className="text-teal-600 dark:text-teal-400 font-mono">
+                  {userDataContext?.waterToday || 0} ml
+                </span>
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>حافظه کاری:</span>
-                <span className="text-purple-600 dark:text-purple-400 font-mono">{userDataContext?.brainMemory || 0} / ۱۰۰</span>
+                <span className="text-purple-600 dark:text-purple-400 font-mono">
+                  {userDataContext?.brainMemory || 0} / ۱۰۰
+                </span>
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>زمان واکنش:</span>
                 <span className="text-amber-600 dark:text-amber-400 font-mono">
-                  {userDataContext?.brainReaction ? `${userDataContext.brainReaction}ms` : 'بدون آزمون'}
+                  {userDataContext?.brainReaction
+                    ? `${userDataContext.brainReaction}ms`
+                    : "بدون آزمون"}
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* ویجت میزان مصرف و سهمیه روزانه هوش مصنوعی */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 shadow-sm space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+                <span>سهمیه روزانه هوش مصنوعی</span>
+              </span>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800">
+                {aiUsage.plan === "pro" ? "اشتراک Pro" : "پلن رایگان"}
+              </span>
+            </div>
+
+            <div className="space-y-1.5 pt-1">
+              <div className="flex justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                <span>مصرف امروز:</span>
+                <span className="font-mono text-slate-800 dark:text-slate-200">
+                  {aiUsage.count} از {aiUsage.limit} پیام
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    aiUsage.count >= aiUsage.limit
+                      ? "bg-rose-500"
+                      : aiUsage.count >= aiUsage.limit * 0.8
+                        ? "bg-amber-500"
+                        : "bg-teal-500"
+                  }`}
+                  style={{
+                    width: `${Math.min(100, (aiUsage.count / aiUsage.limit) * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 font-bold text-left pt-0.5">
+                {Math.max(0, aiUsage.limit - aiUsage.count)} پیام باقی‌مانده تا
+                ۱۲ شب
+              </p>
             </div>
           </div>
         </div>
 
         {/* ستون محیط چت اصلی */}
         <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 md:p-6 shadow-sm flex flex-col justify-between lg:col-span-3 min-h-[540px]">
-          
           <div className="flex-1 overflow-y-auto space-y-4 pr-1 max-h-[460px]">
             {messages.length === 0 && (
               <div className="text-center py-12 md:py-16 space-y-4">
@@ -454,18 +607,21 @@ export default function AssistantView({
                   <Brain className="w-7 h-7 md:w-8 md:h-8" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-black text-slate-800 dark:text-slate-200">دستیار هوشمند سایبان در خدمت شماست</h4>
+                  <h4 className="text-sm font-black text-slate-800 dark:text-slate-200">
+                    دستیار هوشمند سایبان در خدمت شماست
+                  </h4>
                   <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">
-                    درباره برنامه‌ریزی روزانه، مدیریت استرس، بازسازی افکار یا تحلیل خواب با من گفتگو کنید.
+                    درباره برنامه‌ریزی روزانه، مدیریت استرس، بازسازی افکار یا
+                    تحلیل خواب با من گفتگو کنید.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap justify-center gap-2 pt-2">
                   {[
-                    '📊 تحلیل همبستگی خواب با بازدهی امروزم',
-                    '🎯 اولویت‌بندی کارهای امروز بر اساس سطح انرژی',
-                    '🧠 کمک به بازسازی یک فکر منفی و نشخوار ذهنی',
-                    '⚡ پیشنهاد ساختار زمانی برای کارهای امروز'
+                    "📊 تحلیل همبستگی خواب با بازدهی امروزم",
+                    "🎯 اولویت‌بندی کارهای امروز بر اساس سطح انرژی",
+                    "🧠 کمک به بازسازی یک فکر منفی و نشخوار ذهنی",
+                    "⚡ پیشنهاد ساختار زمانی برای کارهای امروز",
                   ].map((prompt, i) => (
                     <button
                       key={i}
@@ -480,76 +636,119 @@ export default function AssistantView({
             )}
 
             <AnimatePresence>
-              {messages.map(msg => (
+              {messages.map((msg) => (
                 <motion.div
                   key={msg.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${msg.sender === "user" ? "justify-start" : "justify-end"}`}
                 >
-                  <div className={`max-w-[90%] md:max-w-[85%] rounded-3xl p-4 space-y-2.5 relative group leading-relaxed text-xs font-medium ${
-                    msg.sender === 'user'
-                      ? 'bg-teal-600 text-white rounded-br-none shadow-md shadow-teal-600/10'
-                      : 'bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-100 dark:border-slate-700/60'
-                  }`}>
-                    <p className="whitespace-pre-wrap leading-loose">{msg.content}</p>
+                  <div
+                    className={`max-w-[90%] md:max-w-[85%] rounded-3xl p-4 space-y-2.5 relative group leading-relaxed text-xs font-medium ${
+                      msg.sender === "user"
+                        ? "bg-teal-600 text-white rounded-br-none shadow-md shadow-teal-600/10"
+                        : "bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-100 dark:border-slate-700/60"
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap leading-loose">
+                      {msg.content}
+                    </p>
 
-                    {/* کارت تایید اقدام سیستمی (Action Card با تایید دستی کاربر) */}
-                    {msg.action_payload && msg.action_payload.action !== 'NONE' && (
-                      <div className="bg-white dark:bg-slate-900 border border-teal-300 dark:border-teal-700/80 p-3.5 rounded-2xl text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-3 space-y-2.5 shadow-sm">
-                        <div className="flex items-center justify-between text-teal-700 dark:text-teal-300">
-                          <span className="flex items-center gap-1.5">
-                            <Sparkles className="w-4 h-4 text-teal-500" />
-                            <span>پیشنهاد ثبت خودکار در سیستم:</span>
-                          </span>
-                          <span className="text-[10px] bg-teal-50 dark:bg-teal-950/50 px-2 py-0.5 rounded-full border border-teal-200 dark:border-teal-800">
-                            {msg.action_payload.action === 'ADD_TASK' ? 'وظیفه' : msg.action_payload.action === 'ADD_EVENT' ? 'رویداد تقویم' : 'یادداشت'}
-                          </span>
+                    {/* کارت تایید اقدام پیشنهادی */}
+                    {msg.action_payload &&
+                      msg.action_payload.action &&
+                      msg.action_payload.action !== "NONE" && (
+                        <div className="bg-white dark:bg-slate-900 border border-teal-300 dark:border-teal-700/80 p-3.5 rounded-2xl text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-3 space-y-2.5 shadow-sm">
+                          <div className="flex items-center justify-between text-teal-700 dark:text-teal-300">
+                            <span className="flex items-center gap-1.5">
+                              <Sparkles className="w-4 h-4 text-teal-500" />
+                              <span>پیشنهاد اقدام در سیستم:</span>
+                            </span>
+                            <span className="text-[10px] bg-teal-50 dark:bg-teal-950/50 px-2 py-0.5 rounded-full border border-teal-200 dark:border-teal-800">
+                              {msg.action_payload.action === "ADD_TASK"
+                                ? "وظیفه"
+                                : msg.action_payload.action === "ADD_EVENT"
+                                  ? "رویداد تقویم"
+                                  : "یادداشت"}
+                            </span>
+                          </div>
+
+                          <div className="text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <div className="font-extrabold text-slate-800 dark:text-slate-200 mb-1">
+                              {msg.action_payload.payload?.title}
+                            </div>
+                            <div className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">
+                              تاریخ:{" "}
+                              {formatActionDate(
+                                msg.action_payload.payload?.targetDate,
+                              )}
+                              {msg.action_payload.payload?.time
+                                ? ` | ساعت: ${msg.action_payload.payload.time}`
+                                : ""}
+                            </div>
+                          </div>
+
+                          {/* بررسی وضعیت تایید / رد */}
+                          {(() => {
+                            const status =
+                              msg.action_payload?.status ||
+                              (typeof window !== "undefined"
+                                ? localStorage.getItem(
+                                    `sayeban_action_status_${msg.id}`,
+                                  )
+                                : null);
+
+                            if (status === "confirmed") {
+                              return (
+                                <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold pt-1">
+                                  <CheckCircle2 className="w-4 h-4" />
+                                  <span>این مورد در سیستم ثبت گردید.</span>
+                                </div>
+                              );
+                            }
+
+                            if (status === "rejected") {
+                              return (
+                                <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 text-[10px] font-bold pt-1">
+                                  <X className="w-4 h-4 text-rose-500" />
+                                  <span>این پیشنهاد لغو گردید.</span>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="flex gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleConfirmAction(msg)}
+                                  className="flex-1 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-[10px] font-bold transition-colors cursor-pointer flex items-center justify-center gap-1"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>تایید و ثبت در برنامه</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRejectAction(msg)}
+                                  className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-xl text-[10px] font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                                >
+                                  رد
+                                </button>
+                              </div>
+                            );
+                          })()}
                         </div>
-
-                        <div className="text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                          <div className="font-extrabold text-slate-800 dark:text-slate-200 mb-0.5">
-                            {msg.action_payload.payload?.title}
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            تاریخ: {msg.action_payload.payload?.targetDate || 'امروز'} 
-                            {msg.action_payload.payload?.time ? ` | ساعت: ${msg.action_payload.payload.time}` : ''}
-                          </div>
-                        </div>
-
-                        {confirmedActionMsgIds.has(msg.id) ? (
-                          <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold pt-1">
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>این مورد در سیستم ثبت گردید.</span>
-                          </div>
-                        ) : (
-                          <div className="flex gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => handleExecuteAction(msg.id, msg.action_payload)}
-                              className="flex-1 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-[10px] font-bold transition-colors cursor-pointer flex items-center justify-center gap-1"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>تایید و ثبت در برنامه</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmedActionMsgIds(prev => new Set(prev).add(msg.id))}
-                              className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-xl text-[10px] font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-                            >
-                              رد
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                      )}
 
                     <button
                       onClick={() => copyToClipboard(msg.content, msg.id)}
                       className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-600 transition-opacity"
                       title="کپی"
                     >
-                      {copiedMsgId === msg.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedMsgId === msg.id ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
                     </button>
                   </div>
                 </motion.div>
@@ -582,7 +781,7 @@ export default function AssistantView({
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     handleSendMessage();
                   }
@@ -604,7 +803,6 @@ export default function AssistantView({
               {/* <span>تایید دستی اقدامات سیستمی فعال است</span> */}
             </div>
           </div>
-
         </div>
       </div>
     </div>

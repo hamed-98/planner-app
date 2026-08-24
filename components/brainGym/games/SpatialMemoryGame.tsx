@@ -50,7 +50,7 @@ export default function SpatialMemoryGame({
     setSpatialUserSeq([]);
     setSpatialGameState('idle');
     setSpatialLevel(1);
-    showToast('چالش متوقف شد. می‌توانید سطح یا حالت را تغییر دهید.', 'info');
+    showToast('چالش متوقف شد.', 'info');
   };
 
   const getGridConfig = (diff: SpatialDifficulty) => {
@@ -60,6 +60,14 @@ export default function SpatialMemoryGame({
       case 'hard': return { size: 16, cols: 4, length: 6, speed: 450 };
       case 'advanced': return { size: 25, cols: 5, length: 8, speed: 320 };
     }
+  };
+
+  // فرمول محاسبه امتیاز حافظه کاری بر اساس سطح و مود
+  const calculateMemoryScore = (diff: SpatialDifficulty, lvl: number, mode: SpatialMode) => {
+    const baseMap = { easy: 30, medium: 50, hard: 70, advanced: 85 };
+    const stepBonus = (lvl - 1) * 5;
+    const reverseBonus = mode === 'reverse' ? 10 : 0;
+    return Math.min(100, baseMap[diff] + stepBonus + reverseBonus);
   };
 
   const generateSpatialSequence = useCallback((lvl: number) => {
@@ -113,18 +121,21 @@ export default function SpatialMemoryGame({
     const targetSeq = spatialMode === 'reverse' ? [...spatialSequence].reverse() : spatialSequence;
     const currentStep = nextUserSeq.length - 1;
 
+    // شکست در بازی
     if (nextUserSeq[currentStep] !== targetSeq[currentStep]) {
       setSpatialGameState('failed');
-      showToast('اشتباه بود! الگوی حافظه قطع شد.', 'error');
+      showToast('الگو قطع شد!', 'error');
 
-      const completedSteps = Math.max(0, spatialLevel - 1);
-      const partialAcc = Math.round((completedSteps / 4) * 100);
+      const completedLevels = Math.max(0, spatialLevel - 1);
+      const earnedScore = completedLevels > 0 ? calculateMemoryScore(spatialDifficulty, completedLevels, spatialMode) : brainProfile.memoryScore;
+      const partialAcc = Math.round((completedLevels / 4) * 100);
       const avgReaction = spatialReactionTimes.length > 0
         ? Math.round(spatialReactionTimes.reduce((a, b) => a + b, 0) / spatialReactionTimes.length)
         : 500;
 
       saveProfile({
         ...brainProfile,
+        memoryScore: Math.max(brainProfile.memoryScore, earnedScore), // 👈 ارتقای امتیاز حتی در باخت
         gamesPlayed: brainProfile.gamesPlayed + 1,
         totalAccuracies: pushWithLimit(brainProfile.totalAccuracies, partialAcc),
         reactionTimes: avgReaction > 0 ? pushWithLimit(brainProfile.reactionTimes, avgReaction) : brainProfile.reactionTimes
@@ -132,7 +143,11 @@ export default function SpatialMemoryGame({
       return;
     }
 
+    // پایان موفق مرحله
     if (nextUserSeq.length === targetSeq.length) {
+      const currentEarnedScore = calculateMemoryScore(spatialDifficulty, spatialLevel, spatialMode);
+      const newMemoryScore = Math.max(brainProfile.memoryScore, currentEarnedScore);
+
       if (spatialLevel >= 4) {
         setSpatialGameState('success');
         playAudioFeedback?.('xp');
@@ -141,20 +156,26 @@ export default function SpatialMemoryGame({
           ? Math.round(spatialReactionTimes.reduce((a, b) => a + b, 0) / spatialReactionTimes.length)
           : 450;
 
-        earnXp(40, `تکمیل چالش حافظه فضایی (${spatialDifficulty} - ${spatialMode})`);
-        showToast(`آفرین! سطح با موفقیت طی شد. میانگین واکنش: ${avgReaction}ms. +۴۰ XP`, 'success');
+        earnXp(40, `تکمیل چالش حافظه فضایی (${spatialDifficulty})`);
+        showToast(`چالش حافظه با موفقیت کامل شد! امتیاز حافظه: ${newMemoryScore}`, 'success');
 
         saveProfile({
           ...brainProfile,
-          memoryScore: Math.min(100, brainProfile.memoryScore + 4),
+          memoryScore: newMemoryScore,
           gamesPlayed: brainProfile.gamesPlayed + 1,
           totalAccuracies: pushWithLimit(brainProfile.totalAccuracies, 100),
           reactionTimes: pushWithLimit(brainProfile.reactionTimes, avgReaction)
         });
       } else {
+        // ثبت مرحله‌ای امتیاز در هر دور
+        saveProfile({
+          ...brainProfile,
+          memoryScore: newMemoryScore
+        });
+
         const nextLvl = spatialLevel + 1;
         setSpatialLevel(nextLvl);
-        showToast(`مرحله ${spatialLevel} با موفقیت کامل شد! مرحله بعد...`, 'info');
+        showToast(`مرحله ${spatialLevel} موفق! امتیاز فعلی: ${newMemoryScore}`, 'info');
         const nextTimer = setTimeout(() => generateSpatialSequence(nextLvl), 800);
         timeoutsRef.current.push(nextTimer);
       }
@@ -182,7 +203,7 @@ export default function SpatialMemoryGame({
             </button>
           )}
           {!isPlayingActive && (
-            <span className="text-xs font-bold text-slate-400">سطح {spatialLevel}</span>
+            <span className="text-xs font-bold text-slate-400">مرحله {spatialLevel} از ۴</span>
           )}
         </div>
 
@@ -197,10 +218,10 @@ export default function SpatialMemoryGame({
               disabled={isPlayingActive}
               className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold disabled:opacity-50"
             >
-              <option value="easy">آسان (۳×۳ - ۳ الگو)</option>
-              <option value="medium">متوسط (۳×۳ - ۴ الگو)</option>
-              <option value="hard">سخت (۴×۴ - ۶ الگو)</option>
-              <option value="advanced">پیشرفته (۵×۵ - ۸ الگو)</option>
+              <option value="easy">آسان (۳×۳)</option>
+              <option value="medium">متوسط (۳×۳ سریع)</option>
+              <option value="hard">سخت (۴×۴)</option>
+              <option value="advanced">پیشرفته (۵×۵)</option>
             </select>
           </div>
 
@@ -212,8 +233,8 @@ export default function SpatialMemoryGame({
               disabled={isPlayingActive}
               className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold disabled:opacity-50"
             >
-              <option value="normal">ترتیب مستقیم</option>
-              <option value="reverse">الگوی معکوس 🔄</option>
+              <option value="normal">مستقیم</option>
+              <option value="reverse">معکوس 🔄 (+۱۰ امتیاز)</option>
             </select>
           </div>
         </div>
@@ -255,7 +276,7 @@ export default function SpatialMemoryGame({
         )}
         {spatialGameState === 'user_turn' && (
           <div className="text-center text-xs font-bold text-emerald-600 dark:text-emerald-400 py-2">
-            {spatialMode === 'reverse' ? 'الگو را برعکس تکرار کنید!' : 'نوبت شماست!'} ({spatialUserSeq.length} از {spatialSequence.length})
+            {spatialMode === 'reverse' ? 'الگو را معکوس تکرار کنید!' : 'نوبت شماست!'} ({spatialUserSeq.length} از {spatialSequence.length})
           </div>
         )}
         {(spatialGameState === 'success' || spatialGameState === 'failed') && (

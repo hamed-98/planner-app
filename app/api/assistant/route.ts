@@ -56,8 +56,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // محاسبه دقیق و ریاضی تاریخ‌های میلادی بر اساس تاریخ کاربر
     const clientToday = userData?.clientToday || new Date().toISOString().split("T")[0];
     const targetDateStr = userData?.targetDate || clientToday;
+
+    const clientTodayObj = new Date(clientToday + "T12:00:00Z");
+    const tomorrowObj = new Date(clientTodayObj.getTime() + 24 * 60 * 60 * 1000);
+    const dayAfterObj = new Date(clientTodayObj.getTime() + 48 * 60 * 60 * 1000);
+    const clientTomorrow = tomorrowObj.toISOString().split("T")[0];
+    const clientDayAfter = dayAfterObj.toISOString().split("T")[0];
+
     const dailyLimit = userPlan === "pro" ? 100 : userPlan === "team" ? 250 : 15;
 
     // ۲. بررسی سهمیه در دیتابیس
@@ -116,15 +124,16 @@ export async function POST(req: NextRequest) {
 
     const ai = new GoogleGenAI({ apiKey: validKey });
 
-    // ۴. ساخت کانتکست اطلاعات کاربر
-    const contextPrompt = `اطلاعات واقعی و زنده کاربر (${userData?.userName || 'کاربر'}):
-- تاریخ امروز سیستم: ${clientToday} (تاریخ باز در تقویم: ${targetDateStr})
-- وضعیت خواب دیشب: ${userData?.sleepHours ? `${userData.sleepHours} ساعت (کیفیت: ${userData.sleepQuality || 'خوب'})` : 'هنوز برای امروز ثبت نشده'}
-- وضعیت آب امروز: ${userData?.waterToday || 0}ml از ۲۵۰۰ml
-- خلق‌وخوی ثبت‌شده: ${userData?.moodScore ? `${userData.moodScore} از ۵` : 'هنوز ثبت نشده'}
-- کارهای در نوبت اقدام امروز: ${userData?.pendingTasksToday || 0} مورد
+    const contextPrompt = `اطلاعات زنده کاربر (${userData?.userName || 'کاربر'}):
+- تاریخ امروز سیستم: ${clientToday}
+- فردا: ${clientTomorrow}
+- پس‌فردا: ${clientDayAfter}
+- وضعیت خواب دیشب: ${userData?.sleepHours ? `${userData.sleepHours} ساعت (کیفیت: ${userData.sleepQuality || 'خوب'})` : 'هنوز ثبت نشده'}
+- مصرف آب امروز: ${userData?.waterToday || 0}ml از ۲۵۰۰ml
+- خلق‌وخو: ${userData?.moodScore ? `${userData.moodScore} از ۵` : 'هنوز ثبت نشده'}
+- کارهای مانده امروز: ${userData?.pendingTasksToday || 0} مورد
 - رویدادهای تقویم امروز: ${userData?.eventsToday || 0} مورد
-- آمارهای باشگاه مغز: حافظه کاری (${userData?.brainMemory ?? 0} از ۱۰۰)، انعطاف استروپ (${userData?.brainFlexibility ?? 0} از ۱۰۰)، میانگین زمان واکنش (${userData?.brainReaction ? `${userData.brainReaction}ms` : 'بدون آزمون'})، دقت شناختی (${userData?.brainAccuracy ? `${userData.brainAccuracy}%` : 'بدون آزمون'})`;
+- وضعیت باشگاه مغز: حافظه کاری (${userData?.brainMemory ?? 0} از ۱۰۰)، انعطاف استروپ (${userData?.brainFlexibility ?? 0} از ۱۰۰)، زمان واکنش (${userData?.brainReaction ? `${userData.brainReaction}ms` : 'بدون آزمون'})`;
 
     // ----------------------------------------------------
     // حالت ۱: تحلیل روزانه پیشخوان (Analyze Mode)
@@ -143,10 +152,7 @@ export async function POST(req: NextRequest) {
 
         const { response } = await generateWithFallback(
           ai,
-          [
-            { text: systemInstruction },
-            { text: `داده‌های کاربر:\n${contextPrompt}` }
-          ],
+          [{ text: systemInstruction }, { text: `داده‌های کاربر:\n${contextPrompt}` }],
           { temperature: 0.3 }
         );
         analysisText = response.text?.trim() || "";
@@ -190,11 +196,27 @@ export async function POST(req: NextRequest) {
     // حالت ۲: چت در فضای اختصاصی Workspace
     // ----------------------------------------------------
     if (mode === "workspace_chat") {
-      const systemInstruction = `تو دستیار هوشمند و مربی شناختی اپلیکیشن «سایبان» هستی (هرگز نگو "من کورتکس هستم").
-وظایف:
-۱. تحلیل واقعی داده‌های کاربر و پاسخ همدلانه و مستدل به سوالات او.
-۲. اگر کاربر مشخصاً خواست کاری یا رویدادی ایجاد شود (مثل: فردا ساعت ۱۸ جلسه با علی ست کن)، action را پر کن.
-۳. اگر کاربر درخواست مشاوره‌ای مثل برنامه‌ریزی مسدودسازی زمانی (Time-Blocking) یا اولویت‌بندی تسک‌ها داشت، برنامه و فواصل زمانی پیشنهادی را صرفاً درون متن توضیح بده و اکشن اضافه نساز (action: "NONE").`;
+      const isOngoingConversation = history && history.length > 0;
+      const systemInstruction = `تو دستیار هوشمند و برنامه‌ریز شخصی اپلیکیشن «سایبان» هستی.
+قوانین بسیار حیاتی و دقیق:
+۱. نام تو «دستیار سایبان» است (هرگز از واژه "کورتکس" استفاده نکن).
+۱. به هیچ عنوان در میان گفتگو عبارت کلیشه‌ای «سلام، من دستیار سایبان هستم» یا معرفی مجدد خودت را تکرار نکن.
+۲. ${isOngoingConversation 
+      ? 'این یک گفتگوی ادامه‌دار است؛ نیازی به سلام مجدد و مقدمه‌چینی نیست، مستقیماً، دوستانه و روان به پیام کاربر پاسخ بده.' 
+      : 'اگر کاربر سلام کرد، یک سلام گرم و کوتاه بده و مستقیم به اصل موضوع بپرداز.'}
+۳. در متن پاسخ هرگز از ماه‌های میلادی (آگوست، سپتامبر و...) استفاده نکن. تاریخ‌ها را به صورت شمسی یا عبارات نسبی (امروز، فردا، پس‌فردا) بیان کن.
+
+۳. جدول قطعی تاریخ‌ها برای فیلد targetDate در خروجی JSON:
+   - "امروز" => "${clientToday}"
+   - "فردا" => "${clientTomorrow}"
+   - "پس‌فردا" یا "پسفردا" => "${clientDayAfter}"
+   - در صورت عدم ذکر تاریخ => "${targetDateStr}"
+
+۴. ساخت اکشن‌ها:
+   - اگر کاربر گفت جلسه‌ای، ورزشی یا قراری ست شود => action: "ADD_EVENT"
+   - اگر کاربر خواست تسکی یا کاری اضافه شود => action: "ADD_TASK"
+   - در پیشنهادات عمومی و مشاوره‌ها (مانند Time-Blocking) => action: "NONE"
+   - فیلد payload.targetDate حتماً باید بر اساس جدول بالا با تاریخ دقیق YYYY-MM-DD پر شود.`;
 
       const contents: any[] = [
         { text: systemInstruction },
@@ -221,21 +243,41 @@ export async function POST(req: NextRequest) {
               payload: {
                 type: Type.OBJECT,
                 properties: {
-                  title: { type: Type.STRING },
+                  title: { type: Type.STRING, description: "عنوان تمیز بدون تاریخ و کلمات اضافه" },
                   priority: { type: Type.STRING },
-                  targetDate: { type: Type.STRING },
-                  time: { type: Type.STRING },
+                  targetDate: { type: Type.STRING, description: "YYYY-MM-DD دقیق" },
+                  time: { type: Type.STRING, description: "HH:MM" },
                   content: { type: Type.STRING }
-                }
+                },
+                required: ["title", "targetDate"]
               }
             },
             required: ["text", "action"]
           },
-          temperature: 0.3
+          temperature: 0.2
         }
       );
 
       const parsed = JSON.parse(response.text || "{}");
+
+      // لایه ایمنی سرور: اعتبارسنجی قطعی تاریخ در صورت خطای احتمالی مدل
+      if (parsed.action && parsed.action !== 'NONE') {
+        if (!parsed.payload) parsed.payload = {};
+        const lowerMsg = message.toLowerCase();
+        
+        if (lowerMsg.includes('پس‌فردا') || lowerMsg.includes('پسفردا') || lowerMsg.includes('۲ روز بعد')) {
+          parsed.payload.targetDate = clientDayAfter;
+        } else if (lowerMsg.includes('فردا')) {
+          parsed.payload.targetDate = clientTomorrow;
+        } else if (!parsed.payload.targetDate) {
+          parsed.payload.targetDate = targetDateStr;
+        }
+
+        if (!parsed.payload.title) {
+          parsed.payload.title = "مورد جدید";
+        }
+      }
+
       return NextResponse.json({
         text: parsed.text || "درخواست شما پردازش شد.",
         actionData: parsed
@@ -243,16 +285,15 @@ export async function POST(req: NextRequest) {
     }
 
     // ----------------------------------------------------
-    // حالت ۳: دستورات مستقیم (Command Mode)
+    // حالت ۳: فرامین مستقیم (Command Mode)
     // ----------------------------------------------------
     if (mode === "command") {
       const systemInstruction = `You are the structured command parser for "Sayeban". Convert Persian text into clean JSON actions.
-Date Reference: Real Today: ${clientToday}, Selected UI Date: ${targetDateStr}.
-Rules:
+Exact Date Reference:
 - "امروز" => ${clientToday}
-- "فردا" => +1 day after ${clientToday}
-- "پس‌فردا" or "پسفردا" => +2 days after ${clientToday}
-- Extract clean title only without dates, times, or command verbs.`;
+- "فردا" => ${clientTomorrow}
+- "پس‌فردا" or "پسفردا" => ${clientDayAfter}
+- default => ${targetDateStr}`;
 
       const { response } = await generateWithFallback(
         ai,
@@ -285,6 +326,19 @@ Rules:
       );
 
       const parsed = JSON.parse(response.text || "{}");
+
+      if (parsed.action && parsed.action !== 'NONE') {
+        if (!parsed.payload) parsed.payload = {};
+        const lowerMsg = message.toLowerCase();
+        if (lowerMsg.includes('پس‌فردا') || lowerMsg.includes('پسفردا')) {
+          parsed.payload.targetDate = clientDayAfter;
+        } else if (lowerMsg.includes('فردا')) {
+          parsed.payload.targetDate = clientTomorrow;
+        } else if (!parsed.payload.targetDate) {
+          parsed.payload.targetDate = targetDateStr;
+        }
+      }
+
       return NextResponse.json({
         text: parsed.text || "ثبت گردید.",
         actionData: parsed

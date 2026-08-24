@@ -64,7 +64,10 @@ import {
   Sun,
   Monitor,
   Droplets,
-  Weight
+  Weight,
+  GlassWater,
+  Minus,
+  CupSoda
 } from 'lucide-react';
 import { calculateAverage, calculateLevelData } from '@/lib/utils/brainMath';
 import { useTheme } from 'next-themes';
@@ -743,16 +746,18 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   };
 
   const saveHealthToLocal = (data: HealthMetrics) => {
-    saveDailyHealth(selectedDateISO, {
-      waterToday: data.waterToday,
-      sleepHours: data.sleepHours,
-      sleepQuality: data.sleepQuality,
-      moodScore: data.moodScore
-    });
-    setGlobalHealth(data);
-    localStorage.setItem('sayeban_health', JSON.stringify(data));
+    // جلوگیری قطعی از ورود اعداد منفی به دیتابیس
+    const safeWater = Math.max(0, Math.min(4000, Number(data.waterToday) || 0));
+    const validatedData = { ...data, waterToday: safeWater };
 
-    // باطل کردن کش هوش مصنوعی همان روز تا تحلیل بلافاصله آپدیت شود
+    saveDailyHealth(selectedDateISO, {
+      waterToday: validatedData.waterToday,
+      sleepHours: validatedData.sleepHours,
+      sleepQuality: validatedData.sleepQuality,
+      moodScore: validatedData.moodScore
+    });
+    setGlobalHealth(validatedData);
+    localStorage.setItem('sayeban_health', JSON.stringify(validatedData));
     localStorage.removeItem(`sayeban_daily_ai_tip_${selectedDateISO}`);
   };
 
@@ -822,9 +827,23 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   };
 
   const handleAddWater = (amount: number) => {
-    if (isSelectedDatePast || isSelectedDateFuture) return;
-    
+    if (isSelectedDatePast || isSelectedDateFuture) {
+      showToast("امکان ثبت مصرف آب برای روزهای گذشته یا آینده وجود ندارد.", "error");
+      return;
+    }
     const currentWater = health.waterToday;
+
+    // حالت کاهش آب با قفل سفت روی صفر
+    if (amount < 0) {
+      if (currentWater <= 0) {
+        showToast("میزان آب مصرفی صفر است و نمی‌تواند کمتر شود.", "info");
+        return;
+      }
+      const nextWater = Math.max(0, currentWater + amount);
+      saveHealthToLocal({ ...health, waterToday: nextWater });
+      return;
+    }
+
     const nextWater = Math.min(4000, currentWater + amount); // سقف ۴ لیتر در روز
     
     if (nextWater === currentWater) {
@@ -2125,7 +2144,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     </div>
                     {isAnalyzingAi ? (
                       <p className="text-xs text-slate-400 font-mono italic animate-pulse">
-                        در حال فراخوانی موتور عصبی با مشخصات تغذیه و کارهای
+                        در حال فراخوانی موتور عصبی با مشخصات و کارهای
                         امروزِ شما...
                       </p>
                     ) : (
@@ -3583,78 +3602,78 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
           {activeTab === "health" && (
             <div className="space-y-6">
               <div className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 lg:gap-6">
-  {/* بخش عنوان */}
-  <div className="space-y-1 text-right flex-shrink-0 lg:max-w-[40%]">
-    <span className="text-[10px] bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 px-2.5 py-1 rounded-full font-bold inline-block">
-      پیشخوان پایش سلامت سایبان
-    </span>
-    <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100">
-      خانه تندرستی و ردیابی ارگانیک خلاق
-    </h2>
-    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-md">
-      شاخص‌های زیستی، زنجیره‌های کایزن عادات، زمان‌بندی مکمل‌ها،
-      توده بدنی، خواب و عاطفه روزانه خود را مانیتور کنید.
-    </p>
-  </div>
+                {/* بخش عنوان */}
+                <div className="space-y-1 text-right flex-shrink-0 lg:max-w-[40%]">
+                  <span className="text-[10px] bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 px-2.5 py-1 rounded-full font-bold inline-block">
+                    پیشخوان پایش سلامت سایبان
+                  </span>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100">
+                    خانه تندرستی و ردیابی ارگانیک خلاق
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-md">
+                    شاخص‌های زیستی، زنجیره‌های کایزن عادات، زمان‌بندی مکمل‌ها،
+                    توده بدنی، خواب و عاطفه روزانه خود را مانیتور کنید.
+                  </p>
+                </div>
 
-  {/* نوار زیرمنو */}
-  <div className="flex flex-wrap gap-1 bg-slate-50 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-700/50 w-full lg:w-auto lg:flex-nowrap">
-    <button
-      type="button"
-      onClick={() => setActiveHealthSubTab("habits_meds")}
-      className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 ${
-        activeHealthSubTab === "habits_meds"
-          ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
-          : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-      }`}
-    >
-      <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-      <span className="hidden sm:inline">عادات و مکمل‌ها</span>
-      <span className="sm:hidden">عادات</span>
-    </button>
+                {/* نوار زیرمنو */}
+                <div className="flex flex-wrap gap-1 bg-slate-50 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-700/50 w-full lg:w-auto lg:flex-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => setActiveHealthSubTab("habits_meds")}
+                    className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 ${
+                      activeHealthSubTab === "habits_meds"
+                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">عادات و مکمل‌ها</span>
+                    <span className="sm:hidden">عادات</span>
+                  </button>
 
-    <button
-      type="button"
-      onClick={() => setActiveHealthSubTab("water_sleep")}
-      className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 ${
-        activeHealthSubTab === "water_sleep"
-          ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
-          : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-      }`}
-    >
-      <Droplets className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-      <span className="hidden sm:inline">پایش آب و خواب</span>
-      <span className="sm:hidden">آب و خواب</span>
-    </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveHealthSubTab("water_sleep")}
+                    className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 ${
+                      activeHealthSubTab === "water_sleep"
+                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <Droplets className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">پایش آب و خواب</span>
+                    <span className="sm:hidden">آب و خواب</span>
+                  </button>
 
-    <button
-      type="button"
-      onClick={() => setActiveHealthSubTab("bmi")}
-      className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 ${
-        activeHealthSubTab === "bmi"
-          ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
-          : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-      }`}
-    >
-      <Weight className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-      <span>توده بدنی</span>
-    </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveHealthSubTab("bmi")}
+                    className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 ${
+                      activeHealthSubTab === "bmi"
+                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <Weight className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span>توده بدنی</span>
+                  </button>
 
-    <button
-      type="button"
-      onClick={() => setActiveHealthSubTab("mood")}
-      className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 ${
-        activeHealthSubTab === "mood"
-          ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
-          : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-      }`}
-    >
-      <Smile className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-      <span className="hidden sm:inline">پایش خلق‌وخو</span>
-      <span className="sm:hidden">خلق</span>
-    </button>
-  </div>
-</div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveHealthSubTab("mood")}
+                    className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 ${
+                      activeHealthSubTab === "mood"
+                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <Smile className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">پایش خلق‌وخو</span>
+                    <span className="sm:hidden">خلق</span>
+                  </button>
+                </div>
+              </div>
 
               {/* Sub-Tab 1: Habits and Medicines */}
               {activeHealthSubTab === "habits_meds" && (
@@ -3942,25 +3961,36 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                         type="button"
                         disabled={isSelectedDatePast || isSelectedDateFuture}
                         onClick={() => handleAddWater(250)}
-                        className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
                       >
-                        🥤 لیوان معمولی (+۲۵۰ml)
+                        <GlassWater className="w-4 h-4 flex-shrink-0" />
+                        <span>لیوان (+۲۵۰ml)</span>
                       </button>
+
                       <button
                         type="button"
                         disabled={isSelectedDatePast || isSelectedDateFuture}
                         onClick={() => handleAddWater(500)}
-                        className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
                       >
-                        🍼 ماگ کورتکس (+۵۰۰ml)
+                        <CupSoda className="w-4 h-4 flex-shrink-0" />
+                        <span>ماگ (+۵۰۰ml)</span>
                       </button>
                       <button
                         type="button"
-                        disabled={isSelectedDatePast || isSelectedDateFuture}
+                        disabled={
+                          isSelectedDatePast ||
+                          isSelectedDateFuture ||
+                          (health.waterToday || 0) <= 0
+                        }
                         onClick={() => handleAddWater(-250)}
-                        className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-500 dark:text-slate-400 hover:text-rose-600 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-bold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-500 dark:text-slate-400 hover:text-rose-600 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-bold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
                       >
-                        ↩️ کاهش آب (-۲۵۰ml)
+                        <div className="flex items-center gap-0.5">
+                          <GlassWater className="w-4 h-4 flex-shrink-0" />
+                          <Minus className="w-3 h-3 flex-shrink-0 text-rose-500" />
+                        </div>
+                        <span>کاهش آب (-۲۵۰ml)</span>
                       </button>
                     </div>
                   </div>
@@ -4568,34 +4598,39 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                 targetDate: selectedDateISO,
                 clientToday: todayISO || getLocalISOString(new Date()),
               }}
-              onAddTask={(t) =>
+              onAddTask={(t: any) => {
+                const targetDate =
+                  t.targetDate || t.dueDate || t.date || selectedDateISO;
                 saveTasksToLocal([
                   ...lastSavedTasksRef.current,
                   {
                     id: crypto.randomUUID(),
                     title: t.title || "کار جدید",
-                    desc: "",
+                    desc: t.content || "",
                     priority: (t.priority as any) || "MEDIUM",
                     status: "todo",
-                    dueDate: t.dueDate || selectedDateISO,
+                    dueDate: targetDate,
                   },
-                ])
-              }
-              onAddEvent={(e) =>
+                ]);
+              }}
+              onAddEvent={(e: any) => {
+                const targetDate = e.targetDate || e.date || selectedDateISO;
                 saveEventsToLocal([
                   ...lastSavedEventsRef.current,
                   {
                     id: crypto.randomUUID(),
                     title: e.title || "رویداد جدید",
-                    desc: "",
-                    date: e.date || selectedDateISO,
+                    desc: e.content || "",
+                    date: targetDate, // 👈 اکنون تاریخ دقیق پس‌فردا ست می‌شود
                     time: e.time || "12:00",
-                    category: "work",
+                    category: (e.category as any) || "work",
                     recurrence: "none",
                   },
-                ])
-              }
-              onAddNote={(n) =>
+                ]);
+              }}
+              onAddNote={(n: any) => {
+                const targetDate =
+                  n.targetDate || n.updatedAt || selectedDateISO;
                 saveNotesToLocal([
                   ...lastSavedNotesRef.current,
                   {
@@ -4605,10 +4640,10 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     folder: "هوشمند",
                     tags: ["هوشمند"],
                     isPinned: false,
-                    updatedAt: selectedDateISO,
+                    updatedAt: targetDate,
                   },
-                ])
-              }
+                ]);
+              }}
               showToast={showToast}
               playAudioFeedback={playAudioFeedback}
             />

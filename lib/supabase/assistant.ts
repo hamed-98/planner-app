@@ -120,3 +120,26 @@ export async function saveChatMessage(
     return null;
   }
 }
+
+export async function getAiUsageToday(): Promise<{ count: number; limit: number; plan: string }> {
+  const supabase = createClient();
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { count: 0, limit: 15, plan: 'free' };
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const { data: profile } = await (supabase.from('profiles') as any).select('plan').eq('id', user.id).maybeSingle();
+    const plan = profile?.plan || 'free';
+    const limit = plan === 'pro' ? 100 : plan === 'team' ? 250 : 15;
+
+    const { data: usage } = await (supabase.from('user_ai_usage') as any)
+      .select('request_count')
+      .eq('user_id', user.id)
+      .eq('usage_date', todayStr)
+      .maybeSingle();
+
+    return { count: usage?.request_count || 0, limit, plan };
+  } catch {
+    return { count: 0, limit: 15, plan: 'free' };
+  }
+}
