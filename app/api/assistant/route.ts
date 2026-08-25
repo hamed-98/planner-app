@@ -41,9 +41,10 @@ export async function POST(req: NextRequest) {
     const authHeader = req.headers.get("Authorization");
     let userId: string | null = null;
     let userPlan: "free" | "pro" | "team" = "free";
+    let token = "";
 
     if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.replace("Bearer ", "");
+      token = authHeader.replace("Bearer ", "");
       const { data: { user } } = await supabase.auth.getUser(token);
       if (user) {
         userId = user.id;
@@ -56,6 +57,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // اعتبارسنجی طول متن ورودی (جلوگیری از ارسال متن‌های نامتعارف و هدررفت توکن)
+    if (typeof message === 'string' && message.trim().length > 1200) {
+      return NextResponse.json({
+        text: '⚠️ متن ارسالی شما بیش از حد مجاز است. لطفاً پیام خود را در حداکثر ۱۰۰۰ کاراکتر خلاصه فرمایید.',
+        actionData: { action: 'NONE', payload: {} }
+      }, { status: 400 });
+    }
+
+
+
+
+    
+
     // محاسبه دقیق و ریاضی تاریخ‌های میلادی بر اساس تاریخ کاربر
     const clientToday = userData?.clientToday || new Date().toISOString().split("T")[0];
     const targetDateStr = userData?.targetDate || clientToday;
@@ -67,10 +81,15 @@ export async function POST(req: NextRequest) {
     const clientDayAfter = dayAfterObj.toISOString().split("T")[0];
 
     const dailyLimit = userPlan === "pro" ? 100 : userPlan === "team" ? 250 : 15;
+    let newUsageCount = 1;
+
+    const authenticatedSupabase = token ? createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "", {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    }) : supabase;
 
     // ۲. بررسی سهمیه در دیتابیس
     if (userId) {
-      const { data: usageRecord } = await supabase
+      const { data: usageRecord } = await authenticatedSupabase
         .from("user_ai_usage")
         .select("request_count")
         .eq("user_id", userId)
@@ -92,15 +111,22 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      await supabase.from("user_ai_usage").upsert(
+      newUsageCount = currentCount + 1;
+
+      // ذخیره قطعی و تضمین‌شده در دیتابیس
+      const { error: upsertErr } = await authenticatedSupabase.from("user_ai_usage").upsert(
         {
           user_id: userId,
           usage_date: clientToday,
-          request_count: currentCount + 1,
+          request_count: newUsageCount,
           created_at: new Date().toISOString()
         },
         { onConflict: "user_id,usage_date" }
       );
+
+      if (upsertErr) {
+        console.error("Failed to persist user_ai_usage:", upsertErr.message);
+      }
     }
 
     // ۳. خواندن کلید پلتفرم
@@ -129,7 +155,7 @@ export async function POST(req: NextRequest) {
 - فردا: ${clientTomorrow}
 - پس‌فردا: ${clientDayAfter}
 - وضعیت خواب دیشب: ${userData?.sleepHours ? `${userData.sleepHours} ساعت (کیفیت: ${userData.sleepQuality || 'خوب'})` : 'هنوز ثبت نشده'}
-- مصرف آب امروز: ${userData?.waterToday || 0}ml از ۲۵۰۰ml
+- مصرف آب امروز: ${userData?.waterToday || 0} لیوان از هدف ۸ لیوان
 - خلق‌وخو: ${userData?.moodScore ? `${userData.moodScore} از ۵` : 'هنوز ثبت نشده'}
 - کارهای مانده امروز: ${userData?.pendingTasksToday || 0} مورد
 - رویدادهای تقویم امروز: ${userData?.eventsToday || 0} مورد
@@ -148,8 +174,9 @@ export async function POST(req: NextRequest) {
 - اگر خواب ثبت نشده یا صفر است بگو خواب ثبت نشده، اگر زیر ۶ ساعت است هشدار کم‌خوابی بده.
 - اگر خلق‌وخو ۱ یا ۲ است تایید احساس و راهکار تنفس بده.
 - اگر آب کم است تذکر بده. اگر بالای ۲۰۰۰ml است تشویق کن.
-پاسخ فارسی، مستقیم و بدون سلام و احوال‌پرسی طولانی باشد.`;
-
+پاسخ فارسی، مستقیم و بدون سلام و احوال‌پرسی طولانی باشد.;
+«در تمام پاسخ‌ها و توصیه‌ها صرفاً بر حسب تعداد لیوان آب صحبت کن و هرگز از واحد میلی‌لیتر استفاده نکن
+`
         const { response } = await generateWithFallback(
           ai,
           [{ text: systemInstruction }, { text: `داده‌های کاربر:\n${contextPrompt}` }],
@@ -177,9 +204,15 @@ export async function POST(req: NextRequest) {
         else if (moodVal === 2) parts.push(`انرژی روحی شما پایین است؛ کارهای سنگین را کاهش دهید.`);
         else if (moodVal >= 4) parts.push(`سطح نشاط و انگیزه شما عالی است.`);
 
-        if (waterVal >= 2000) parts.push(`مصرف آب (${waterVal}ml) در وضعیت ایده‌آل است.`);
-        else if (waterVal < 1200) parts.push(`مصرف آب (${waterVal}ml) کم است؛ نوشیدن آب بیشتر به تمرکز کمک می‌کند.`);
-
+        if (waterVal >= 8) {
+          parts.push(
+            `مصرف آب شما (${waterVal} لیوان) در وضعیت ایده‌آل و تکمیل است.`,
+          );
+        } else if (waterVal < 4) {
+          parts.push(
+            `مصرف آب شما تا الان (${waterVal} لیوان) پایین بوده و تا هدف ۸ لیوان فاصله دارید؛ نوشیدن آب به شادابی ذهن کمک می‌کند.`,
+          );
+        }
         if (pendingT + eventsCount >= 4) parts.push(`امروز با ${eventsCount} رویداد و ${pendingT} وظیفه، روز پرمشغله‌ای دارید.`);
         else parts.push(`برنامه‌های امروز در تعادل مناسبی قرار دارد.`);
 
@@ -213,9 +246,11 @@ export async function POST(req: NextRequest) {
    - در صورت عدم ذکر تاریخ => "${targetDateStr}"
 
 ۴. ساخت اکشن‌ها:
+  -ما تو سیستم قابلیت Time-Blocking نداریم
    - اگر کاربر گفت جلسه‌ای، ورزشی یا قراری ست شود => action: "ADD_EVENT"
    - اگر کاربر خواست تسکی یا کاری اضافه شود => action: "ADD_TASK"
    - در پیشنهادات عمومی و مشاوره‌ها (مانند Time-Blocking) => action: "NONE"
+   «در تمام پاسخ‌ها و توصیه‌ها صرفاً بر حسب تعداد لیوان آب صحبت کن و هرگز از واحد میلی‌لیتر استفاده نکن.»
    - فیلد payload.targetDate حتماً باید بر اساس جدول بالا با تاریخ دقیق YYYY-MM-DD پر شود.`;
 
       const contents: any[] = [
@@ -280,7 +315,9 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         text: parsed.text || "درخواست شما پردازش شد.",
-        actionData: parsed
+        actionData: parsed,
+        currentUsage: newUsageCount, // 👈 بازگشت مقدار واقعی ذخیره‌شده به کلاینت
+        dailyLimit
       });
     }
 
@@ -341,7 +378,9 @@ Exact Date Reference:
 
       return NextResponse.json({
         text: parsed.text || "ثبت گردید.",
-        actionData: parsed
+        actionData: parsed,
+        currentUsage: newUsageCount, // 👈 بازگشت مقدار واقعی ذخیره‌شده به کلاینت
+        dailyLimit
       });
     }
 

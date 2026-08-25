@@ -429,6 +429,8 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
+  const [isHealthDataLoaded, setIsHealthDataLoaded] = useState(false);
+
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
   };
@@ -439,6 +441,29 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       return () => clearTimeout(timer);
     }
   }, [toast]);
+
+  // پاک‌سازی خودکار کش‌های قدیمی هوش مصنوعی (نگهداری فقط ۷ روز اخیر)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const now = new Date();
+      const cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      Object.keys(localStorage).forEach(key => {
+        // حذف کش‌های روزانه قدیمی
+        if (key.startsWith('sayeban_daily_ai_tip_')) {
+          const datePart = key.replace('sayeban_daily_ai_tip_', '');
+          if (datePart < cutoffDate) {
+            localStorage.removeItem(key);
+          }
+        }
+        // حذف کلیدهای مجزای اکشن (چون در دیتابیس پیام‌ها ذخیره شده است)
+        if (key.startsWith('sayeban_action_status_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (e) {}
+  }, []);
 
   const saveCustomApiKey = (key: string) => {
     setCustomApiKey(key);
@@ -626,7 +651,8 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
         if (p) {
           if (p.calendar_type !== undefined) setUseJalaliCalendar(p.calendar_type === 'jalali');
         }
-                if (hl !== null) {
+
+        if (hl !== null) {
           const daily: Record<string, any> = {};
           let latestWeight = 0;
           let latestLogDate = '';
@@ -656,6 +682,8 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
         }
       } catch (err) {
         console.error('Error loading data', err);
+      } finally {
+        setIsHealthDataLoaded(true);
       }
     }
     loadData();
@@ -831,12 +859,12 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       showToast("امکان ثبت مصرف آب برای روزهای گذشته یا آینده وجود ندارد.", "error");
       return;
     }
-    const currentWater = health.waterToday;
+    const currentWater = Math.max(0, Number(health.waterToday) || 0);
 
-    // حالت کاهش آب با قفل سفت روی صفر
+    // کاهش آب
     if (amount < 0) {
       if (currentWater <= 0) {
-        showToast("میزان آب مصرفی صفر است و نمی‌تواند کمتر شود.", "info");
+        showToast("تعداد لیوان آب صفر است و نمی‌تواند کمتر شود.", "info");
         return;
       }
       const nextWater = Math.max(0, currentWater + amount);
@@ -844,19 +872,19 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       return;
     }
 
-    const nextWater = Math.min(4000, currentWater + amount); // سقف ۴ لیتر در روز
-    
-    if (nextWater === currentWater) {
-      showToast("به سقف مجاز مصرف آب روزانه (۴۰۰۰ml) رسیده‌اید.", "info");
+    // افزایش آب (سقف ۱۶ لیوان)
+    const nextWater = Math.min(14, currentWater + amount);
+    if (nextWater === currentWater && currentWater >= 14) {
+      showToast("به حداکثر سقف ثبت آب روزانه (۱۴ لیوان) رسیده‌اید.", "info");
       return;
     }
 
     saveHealthToLocal({ ...health, waterToday: nextWater });
 
-    // اعطای امتیاز فقط در لحظه عبور از هدف ۲۵۰۰ml و فقط یکبار در روز
+    // اعطای امتیاز تجربه با رسیدن به ۸ لیوان
     const waterXpKey = `water_xp_${selectedDateISO}`;
-    if (nextWater >= 2500 && currentWater < 2500 && !localStorage.getItem(waterXpKey)) {
-      earnXp(20, "تکمیل هدف نوشیدن ۲۵۰۰ میلی‌لیتر آب روزانه 💧");
+    if (nextWater >= 8 && currentWater < 8 && !localStorage.getItem(waterXpKey)) {
+      earnXp(20, "تکمیل هدف نوشیدن ۸ لیوان آب روزانه 💧");
       localStorage.setItem(waterXpKey, 'true');
     }
   };
@@ -993,16 +1021,15 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   };
 
   useEffect(() => {
-    if (!userName || !selectedDateISO) return;
+    // اگر کاربر لاگین نیست یا هنوز دیتای سلامتی از سرور واکشی نشده، صبر کن
+    if (!userName || !selectedDateISO || !isHealthDataLoaded) return;
 
-    // مقایسه بر اساس تاریخ واقعی محلی
     const currentLocalToday = todayISO || getLocalISOString(new Date());
     if (selectedDateISO > currentLocalToday) {
       setTimeout(() => setAiTip("روز انتخاب شده در آینده است! امکان تحلیل آینده وجود ندارد."), 0);
       return;
     }
 
-    // بررسی کش تحلیل برای روز انتخاب‌شده
     const cached = typeof window !== "undefined" ? localStorage.getItem(`sayeban_daily_ai_tip_${selectedDateISO}`) : null;
     if (cached) {
       try {
@@ -1014,6 +1041,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       } catch (e) {}
     }
 
+    // ارسال دیتای واقعی لود شده از سرور
     const analyzeData = {
       userName,
       waterToday: health.waterToday,
@@ -1021,21 +1049,22 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       sleepQuality: health.sleepQuality,
       moodScore: health.moodScore,
       weight: userWeight,
-      eventsToday: events.filter(e => e.date === selectedDateISO).length, 
+      eventsToday: events.filter(e => e.date === selectedDateISO).length,
       completedTasksToday: tasks.filter(t => t.dueDate === selectedDateISO && t.status === 'done').length,
       pendingTasksToday: tasks.filter(t => t.dueDate === selectedDateISO && t.status !== 'done').length,
       totalMedicinesToday: medicines.length,
       completedMedicinesToday: medicines.filter(m => isMedicineCompleted(m)).length,
       totalHabitsToday: habits.length,
       completedHabitsToday: habits.filter(h => isHabitCompleted(h)).length,
+      targetDate: selectedDateISO
     };
 
     const timer = setTimeout(() => {
       fetchSmartAiAnalysis(analyzeData, false);
-    }, 800);
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [userName, selectedDateISO, todayISO]);
+  }, [userName, selectedDateISO, todayISO, isHealthDataLoaded]); // 👈 وابسته به لود شدن دیتای سرور
 
 
   // Handle Smart Chat with Assistant
@@ -2144,8 +2173,8 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     </div>
                     {isAnalyzingAi ? (
                       <p className="text-xs text-slate-400 font-mono italic animate-pulse">
-                        در حال فراخوانی موتور عصبی با مشخصات و کارهای
-                        امروزِ شما...
+                        در حال فراخوانی موتور عصبی با مشخصات و کارهای امروزِ
+                        شما...
                       </p>
                     ) : (
                       <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
@@ -2192,6 +2221,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
               {/* Quad Widgets Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Quick Hydration Track Widget */}
+                {/* ویجت مصرف آب پیشخوان */}
                 <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                   <div className="flex justify-between items-center mb-4">
                     <span className="text-xs text-slate-400 font-bold">
@@ -2203,29 +2233,35 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">
                       {health.waterToday}{" "}
                       <span className="text-xs font-normal text-slate-400">
-                        میلی‌لیتر
+                        لیوان
                       </span>
                     </h4>
                     <p className="text-[10px] text-teal-600 font-bold mt-1">
-                      طرح هدف: ۲۵۰۰ میلی‌لیتر (سقف ۴۰۰۰ml)
+                      هدف روزانه: ۸ لیوان آب
                     </p>
                   </div>
-                  <div className="flex gap-1.5 mt-3">
+                  <div className="flex gap-2 mt-3">
                     <button
                       type="button"
                       disabled={isSelectedDatePast || isSelectedDateFuture}
-                      onClick={() => handleAddWater(250)}
-                      className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300 rounded-lg text-[10px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      onClick={() => handleAddWater(1)}
+                      className="flex-1 py-2 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 hover:bg-teal-100 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
                     >
-                      + ۲۵۰ml
+                      <span>+ ۱ لیوان</span>
+                      <span>🥛</span>
                     </button>
                     <button
                       type="button"
-                      disabled={isSelectedDatePast || isSelectedDateFuture}
-                      onClick={() => handleAddWater(500)}
-                      className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300 rounded-lg text-[10px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      disabled={
+                        isSelectedDatePast ||
+                        isSelectedDateFuture ||
+                        (health.waterToday || 0) <= 0
+                      }
+                      onClick={() => handleAddWater(-1)}
+                      className="px-3 py-2 bg-slate-50 dark:bg-slate-950 text-slate-500 hover:text-rose-600 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="کاهش یک لیوان"
                     >
-                      + ۵۰۰ml
+                      - ۱
                     </button>
                   </div>
                 </div>
@@ -3898,34 +3934,39 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
               {activeHealthSubTab === "water_sleep" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Detailed Water Hydration */}
+                  {/* بخش هیدراتاسیون تب تندرستی */}
                   <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-50">
                       <h4 className="font-extrabold text-sm text-slate-850 flex items-center gap-2">
                         <span className="text-teal-500 text-lg">💧</span>
-                        <span>هیدراتاسیون و هرم نوشیدن آب کورتکس</span>
+                        <span>پایش نوشیدن آب روزانه</span>
                       </h4>
-                      <span className="text-xs font-mono font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded-lg">
-                        هدف روزانه: ۲۵۰۰ میلی‌لیتر
+                      <span className="text-xs font-bold text-teal-600 bg-teal-50 dark:bg-teal-950/40 px-2.5 py-1 rounded-lg">
+                        هدف: ۸ لیوان در روز
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between bg-teal-50/20 p-5 rounded-2xl border border-teal-100/50">
                       <div className="space-y-1">
                         <span className="text-[10px] text-slate-400 block font-bold">
-                          مصرف شده امروز:
+                          مصرف شده تا این لحظه:
                         </span>
-                        <span className="text-2xl font-black text-slate-850 font-mono">
-                          {health.waterToday} / ۲۵۰۰
+                        <span className="text-2xl font-black text-slate-850 dark:text-slate-100 font-mono">
+                          {health.waterToday} از ۸
                         </span>
                         <span className="text-xs text-slate-500 dark:text-slate-400 block">
-                          میلی‌لیتر (ML)
+                          لیوان آب
                         </span>
                       </div>
 
-                      {/* Progress Circle Visualizer */}
+                      {/* دایره پیشرفت درصد */}
                       <div className="relative w-16 h-16 flex items-center justify-center">
-                        <span className="font-extrabold text-xs text-teal-650">
-                          {Math.round((health.waterToday / 2500) * 100)}%
+                        <span className="font-extrabold text-xs text-teal-600">
+                          {Math.min(
+                            100,
+                            Math.round((health.waterToday / 8) * 100),
+                          )}
+                          %
                         </span>
                         <svg className="absolute inset-0 w-full h-full -rotate-90">
                           <circle
@@ -3941,14 +3982,12 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                             cy="32"
                             r="28"
                             fill="none"
-                            stroke="#0ea5e9"
+                            stroke="#0d9488"
                             strokeWidth="4"
                             strokeDasharray="176"
                             strokeDashoffset={Math.max(
                               0,
-                              176 -
-                                (176 * Math.min(health.waterToday, 2500)) /
-                                  2500,
+                              176 - (176 * Math.min(health.waterToday, 8)) / 8,
                             )}
                             className="transition-all duration-500"
                           />
@@ -3956,26 +3995,17 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 pt-2">
+                    <div className="grid grid-cols-2 gap-3 pt-2">
                       <button
                         type="button"
                         disabled={isSelectedDatePast || isSelectedDateFuture}
-                        onClick={() => handleAddWater(250)}
-                        className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                        onClick={() => handleAddWater(1)}
+                        className="py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         <GlassWater className="w-4 h-4 flex-shrink-0" />
-                        <span>لیوان (+۲۵۰ml)</span>
+                        <span> نوشیدن ۱ لیوان آب</span>
                       </button>
 
-                      <button
-                        type="button"
-                        disabled={isSelectedDatePast || isSelectedDateFuture}
-                        onClick={() => handleAddWater(500)}
-                        className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-                      >
-                        <CupSoda className="w-4 h-4 flex-shrink-0" />
-                        <span>ماگ (+۵۰۰ml)</span>
-                      </button>
                       <button
                         type="button"
                         disabled={
@@ -3983,14 +4013,12 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                           isSelectedDateFuture ||
                           (health.waterToday || 0) <= 0
                         }
-                        onClick={() => handleAddWater(-250)}
-                        className="px-3 py-2 bg-slate-50 dark:bg-slate-950 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-500 dark:text-slate-400 hover:text-rose-600 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-bold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                        onClick={() => handleAddWater(-1)}
+                        className="py-2.5 bg-slate-50 dark:bg-slate-950 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-0.5"
                       >
-                        <div className="flex items-center gap-0.5">
-                          <GlassWater className="w-4 h-4 flex-shrink-0" />
-                          <Minus className="w-3 h-3 flex-shrink-0 text-rose-500" />
-                        </div>
-                        <span>کاهش آب (-۲۵۰ml)</span>
+                        <GlassWater className="w-4 h-4 flex-shrink-0" />
+                        <Minus className="w-3 h-3 flex-shrink-0 text-rose-500" />
+                        <span> کاهش (۱- لیوان)</span>
                       </button>
                     </div>
                   </div>

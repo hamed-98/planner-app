@@ -75,6 +75,7 @@ export default function AssistantView({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     async function initThreads() {
@@ -157,6 +158,12 @@ export default function AssistantView({
 
   const handleNewConversation = async () => {
     playAudioFeedback?.('click');
+    // لغو درخواست در حال اجرای چت قبلی و خاموش کردن لودینگ
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setIsAiResponding(false);
+
     const fresh = await createConversation('گفتگوی جدید');
     if (fresh) {
       setConversations(prev => [fresh, ...prev]);
@@ -238,6 +245,13 @@ export default function AssistantView({
   const handleSendMessage = async (customPrompt?: string) => {
     const textToSend = (customPrompt || inputMessage).trim();
     if (!textToSend || !activeConvId || isAiResponding) return;
+    if (textToSend.length > 1000) {
+    showToast('متن پیام نمی‌تواند بیش از ۱۰۰۰ کاراکتر باشد.', 'error');
+      return;
+    }
+
+    // آماده‌سازی سیگنال کنسل کردن
+    abortControllerRef.current = new AbortController();
 
     setInputMessage('');
     playAudioFeedback?.('click');
@@ -271,6 +285,7 @@ export default function AssistantView({
       const res = await fetch('/api/assistant', {
         method: 'POST',
         headers,
+        signal: abortControllerRef.current.signal,
         body: JSON.stringify({
           mode: 'workspace_chat',
           message: textToSend,
@@ -441,6 +456,7 @@ export default function AssistantView({
                 key={conv.id}
                 onClick={() => {
                   if (editingConvId !== conv.id) {
+                    setIsAiResponding(false);
                     setActiveConvId(conv.id);
                     setIsMobileSidebarOpen(false);
                   }
@@ -778,6 +794,7 @@ export default function AssistantView({
               <textarea
                 ref={textareaRef}
                 rows={1}
+                maxLength={1000}
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={(e) => {
@@ -799,8 +816,10 @@ export default function AssistantView({
               </button>
             </form>
             <div className="flex justify-between items-center text-[10px] text-slate-400 px-2 font-bold">
-              {/* <span>Shift + Enter برای ایجاد خط جدید</span> */}
-              {/* <span>تایید دستی اقدامات سیستمی فعال است</span> */}
+              {/* <span>Shift + Enter برای خط جدید</span> */}
+              <span className={inputMessage.length >= 900 ? 'text-amber-500 font-mono' : 'font-mono'}>
+                {inputMessage.length} / ۱۰۰۰ کاراکتر
+              </span>
             </div>
           </div>
         </div>

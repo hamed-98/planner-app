@@ -73,14 +73,16 @@ export async function deleteConversation(id: string): Promise<boolean> {
 export async function getConversationMessages(conversationId: string): Promise<ChatMessage[]> {
   const supabase = createClient();
   try {
+    // واکشی ۳۰ پیام آخر به ترتیب نزولی و سپس معکوس کردن آن برای نمایش طبیعی
     const { data, error } = await (supabase as any)
       .from('ai_messages')
       .select('*')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false })
+      .limit(30);
 
     if (error) throw error;
-    return data || [];
+    return (data || []).reverse();
   } catch (err) {
     console.error('getConversationMessages error:', err);
     return [];
@@ -127,19 +129,30 @@ export async function getAiUsageToday(): Promise<{ count: number; limit: number;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { count: 0, limit: 15, plan: 'free' };
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    // محاسبه دقیق تاریخ محلی سیستم (نه UTC)
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const localTodayStr = `${y}-${m}-${d}`;
+
     const { data: profile } = await (supabase.from('profiles') as any).select('plan').eq('id', user.id).maybeSingle();
     const plan = profile?.plan || 'free';
     const limit = plan === 'pro' ? 100 : plan === 'team' ? 250 : 15;
 
-    const { data: usage } = await (supabase.from('user_ai_usage') as any)
+    const { data: usage, error } = await (supabase.from('user_ai_usage') as any)
       .select('request_count')
       .eq('user_id', user.id)
-      .eq('usage_date', todayStr)
+      .eq('usage_date', localTodayStr)
       .maybeSingle();
 
+    if (error && error.code !== 'PGRST116') {
+      console.warn('getAiUsageToday notice:', error.message);
+    }
+
     return { count: usage?.request_count || 0, limit, plan };
-  } catch {
+  } catch (err) {
+    console.error('getAiUsageToday error:', err);
     return { count: 0, limit: 15, plan: 'free' };
   }
 }
