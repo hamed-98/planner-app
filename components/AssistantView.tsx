@@ -327,12 +327,16 @@ export default function AssistantView({
         setMessages(prev => [...prev, aiMsg]);
         playAudioFeedback?.('done');
       }
-    } catch (err) {
+    } catch (err: any) {
+      // اگر کاربر چت جدید باز کرد یا تغییر چت داد، خطای لغو نادیده گرفته می‌شود
+      if (err.name === 'AbortError') {
+        return;
+      }
       console.error(err);
       showToast('خطا در دریافت پاسخ از هوش مصنوعی.', 'error');
     } finally {
       setIsAiResponding(false);
-    }
+    } 
   };
 
   const copyToClipboard = (text: string, id: string) => {

@@ -28,6 +28,32 @@ async function generateWithFallback(ai: GoogleGenAI, contents: any, config: any)
   throw lastError || new Error("All AI models exhausted.");
 }
 
+function formatGeminiErrorMessage(error: any): string {
+  const errStr = typeof error === 'string' ? error : (error?.message || JSON.stringify(error) || '');
+  
+  // خطای ۴۰۳ تحریم جغرافیایی یا دسترسی
+  if (errStr.includes('403') || errStr.includes('Forbidden') || errStr.includes('permission') || errStr.includes('location is not supported')) {
+    return '⚠️ دسترسی به سرویس هوش مصنوعی گوگل به دلیل محدودیت‌های جغرافیایی یا تحریم IP مسدود است (خطای ۴۰۳). سرور به اینترنت بین‌الملل بدون فیلتر نیاز دارد.';
+  }
+  
+  // خطای ۴۲۹ پر شدن سهمیه
+  if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('Quota')) {
+    return '⚠️ سقف مجاز ارسال پیام به سرورها در این لحظه تکمیل شده است (خطای ۴۲۹). لطفاً دقایقی دیگر دوباره امتحان کنید.';
+  }
+  
+  // خطای کلید نامعتبر
+  if (errStr.includes('API_KEY_INVALID') || errStr.includes('API key not valid') || errStr.includes('401')) {
+    return '⚠️  هوش مصنوعی نامعتبر یا منقضی شده است. .';
+  }
+  
+  // قطعی اتصال
+  if (errStr.includes('fetch failed') || errStr.includes('ENOTFOUND') || errStr.includes('ETIMEDOUT') || errStr.includes('NetworkError')) {
+    return '⚠️ برقراری ارتباط با سرورهای هوش مصنوعی امکان‌پذیر نیست. لطفاً اتصال اینترنت را بررسی فرمایید.';
+  }
+
+  return `⚠️ پردازش با مشکل مواجه شد: ${error?.message?.slice(0, 120) || 'پاسخی از مدل دریافت نشد.'}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -386,9 +412,14 @@ Exact Date Reference:
 
     return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
   } catch (error: any) {
-    console.error("AI Route Error:", error);
+    console.error("AI API Fatal Error:", error);
+    const friendlyMessage = formatGeminiErrorMessage(error);
+
     return NextResponse.json(
-      { text: `⚠️ خطا در پردازش: ${error?.message || "پاسخی دریافت نشد."}`, actionData: { action: "NONE" } },
+      {
+        text: friendlyMessage,
+        actionData: { action: "NONE", payload: {} }
+      },
       { status: 500 }
     );
   }
