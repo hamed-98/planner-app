@@ -1,69 +1,28 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-
-// لیست مدل‌های به‌روز برای سوییچ خودکار در زمان ترافیک
-const FALLBACK_MODELS = [
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
-  "gemini-3.5-flash-lite",
-  "gemini-3.1-pro-preview",
-  "gemini-3.1-flash-lite",
-  "gemini-3-flash-preview",
-  "gemini-2.5-flash"
-];
-
-async function generateWithFallback(ai: GoogleGenAI, contents: any, config: any) {
-  let lastError: any = null;
-  for (const model of FALLBACK_MODELS) {
-    try {
-      const response = await ai.models.generateContent({ model, contents, config });
-      return { response, modelUsed: model };
-    } catch (err: any) {
-      console.warn(`Model ${model} failed/limited. Trying fallback...`);
-      lastError = err;
-    }
-  }
-  throw lastError || new Error("All AI models exhausted.");
-}
-
-function formatGeminiErrorMessage(error: any): string {
-  const errStr = typeof error === 'string' ? error : (error?.message || JSON.stringify(error) || '');
-  
-  // خطای ۴۰۳ تحریم جغرافیایی یا دسترسی
-  if (errStr.includes('403') || errStr.includes('Forbidden') || errStr.includes('permission') || errStr.includes('location is not supported')) {
-    return '⚠️ دسترسی به سرویس هوش مصنوعی گوگل به دلیل محدودیت‌های جغرافیایی یا تحریم IP مسدود است (خطای ۴۰۳). سرور به اینترنت بین‌الملل بدون فیلتر نیاز دارد.';
-  }
-  
-  // خطای ۴۲۹ پر شدن سهمیه
-  if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('Quota')) {
-    return '⚠️ سقف مجاز ارسال پیام به سرورها در این لحظه تکمیل شده است (خطای ۴۲۹). لطفاً دقایقی دیگر دوباره امتحان کنید.';
-  }
-  
-  // خطای کلید نامعتبر
-  if (errStr.includes('API_KEY_INVALID') || errStr.includes('API key not valid') || errStr.includes('401')) {
-    return '⚠️  هوش مصنوعی نامعتبر یا منقضی شده است. .';
-  }
-  
-  // قطعی اتصال
-  if (errStr.includes('fetch failed') || errStr.includes('ENOTFOUND') || errStr.includes('ETIMEDOUT') || errStr.includes('NetworkError')) {
-    return '⚠️ برقراری ارتباط با سرورهای هوش مصنوعی امکان‌پذیر نیست. لطفاً اتصال اینترنت را بررسی فرمایید.';
-  }
-
-  return `⚠️ پردازش با مشکل مواجه شد: ${error?.message?.slice(0, 120) || 'پاسخی از مدل دریافت نشد.'}`;
-}
+import { executeAiGateway, AiProviderConfig } from "@/lib/ai/gateway";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { message, mode, userData, history = [] } = body;
 
+    // اعتبارسنجی طول پیام ورودی
+    if (typeof message === "string" && message.trim().length > 1200) {
+      return NextResponse.json(
+        {
+          text: "⚠️ طول پیام شما بیش از حد مجاز است. لطفاً درخواست خود را در حداکثر ۱۰۰۰ کاراکتر خلاصه فرمایید.",
+          actionData: { action: "NONE", payload: {} }
+        },
+        { status: 400 }
+      );
+    }
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // ۱. بررسی احراز هویت و پلن کاربر
+    // ۱. بررسی احراز هویت و سهمیه مصرف روزانه در سرور
     const authHeader = req.headers.get("Authorization");
     let userId: string | null = null;
     let userPlan: "free" | "pro" | "team" = "free";
@@ -83,37 +42,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // اعتبارسنجی طول متن ورودی (جلوگیری از ارسال متن‌های نامتعارف و هدررفت توکن)
-    if (typeof message === 'string' && message.trim().length > 1200) {
-      return NextResponse.json({
-        text: '⚠️ متن ارسالی شما بیش از حد مجاز است. لطفاً پیام خود را در حداکثر ۱۰۰۰ کاراکتر خلاصه فرمایید.',
-        actionData: { action: 'NONE', payload: {} }
-      }, { status: 400 });
-    }
-
-
-
-
-    
-
-    // محاسبه دقیق و ریاضی تاریخ‌های میلادی بر اساس تاریخ کاربر
     const clientToday = userData?.clientToday || new Date().toISOString().split("T")[0];
     const targetDateStr = userData?.targetDate || clientToday;
 
     const clientTodayObj = new Date(clientToday + "T12:00:00Z");
-    const tomorrowObj = new Date(clientTodayObj.getTime() + 24 * 60 * 60 * 1000);
-    const dayAfterObj = new Date(clientTodayObj.getTime() + 48 * 60 * 60 * 1000);
-    const clientTomorrow = tomorrowObj.toISOString().split("T")[0];
-    const clientDayAfter = dayAfterObj.toISOString().split("T")[0];
+    const clientTomorrow = new Date(clientTodayObj.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const clientDayAfter = new Date(clientTodayObj.getTime() + 48 * 60 * 60 * 1000).toISOString().split("T")[0];
 
     const dailyLimit = userPlan === "pro" ? 100 : userPlan === "team" ? 250 : 15;
     let newUsageCount = 1;
 
-    const authenticatedSupabase = token ? createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "", {
-      global: { headers: { Authorization: `Bearer ${token}` } }
-    }) : supabase;
+    const authenticatedSupabase = token
+      ? createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "", {
+          global: { headers: { Authorization: `Bearer ${token}` } }
+        })
+      : supabase;
 
-    // ۲. بررسی سهمیه در دیتابیس
     if (userId) {
       const { data: usageRecord } = await authenticatedSupabase
         .from("user_ai_usage")
@@ -138,9 +82,7 @@ export async function POST(req: NextRequest) {
       }
 
       newUsageCount = currentCount + 1;
-
-      // ذخیره قطعی و تضمین‌شده در دیتابیس
-      const { error: upsertErr } = await authenticatedSupabase.from("user_ai_usage").upsert(
+      await authenticatedSupabase.from("user_ai_usage").upsert(
         {
           user_id: userId,
           usage_date: clientToday,
@@ -149,200 +91,180 @@ export async function POST(req: NextRequest) {
         },
         { onConflict: "user_id,usage_date" }
       );
-
-      if (upsertErr) {
-        console.error("Failed to persist user_ai_usage:", upsertErr.message);
-      }
     }
 
-    // ۳. خواندن کلید پلتفرم
-    let platformKey = process.env.GEMINI_API_KEY || "";
+    // ۲. دریافت لیست پویا از پرووایدرها (ابتدا از دیتابیس، در غیر این صورت از .env)
+    let providers: AiProviderConfig[] = [];
+
     try {
-      const { data: keysData } = await supabase
+      const { data: dbSettings } = await supabase
         .from("global_settings")
         .select("value")
-        .eq("id", "api_keys")
+        .eq("id", "ai_providers")
         .maybeSingle();
-      if (keysData?.value?.gemini) platformKey = keysData.value.gemini;
+
+      if (dbSettings?.value && Array.isArray(dbSettings.value) && dbSettings.value.length > 0) {
+        providers = dbSettings.value;
+      }
     } catch {}
 
-    const validKey = platformKey.split(",").map(k => k.trim()).find(k => k.length > 10 && !k.includes("MY_GEMINI"));
-    if (!validKey) {
-      return NextResponse.json({
-        text: "⚠️ سرویس هوش مصنوعی در دسترس نیست.",
-        actionData: { action: "NONE", payload: {} }
-      }, { status: 503 });
-    }
+    // فال‌بک پیش‌فرض در صورت نبود تنظیمات در دیتابیس
+    const geminiKeys = (process.env.GEMINI_API_KEY || "")
+      .split(",")
+      .map(k => k.trim())
+      .filter(k => k.length > 10 && !k.includes("MY_GEMINI"));
 
-    const ai = new GoogleGenAI({ apiKey: validKey });
+    geminiKeys.forEach((k, idx) => {
+      if (!providers.some(p => p.apiKey === k)) {
+        providers.push({
+          id: `env-gemini-fallback-${idx}`,
+          name: `Google Gemini Native (Fallback ${idx + 1})`,
+          providerType: "gemini_native",
+          apiKey: k,
+          model: "gemini-3.7-flash",
+          priority: 999 + idx,
+          isActive: true
+        });
+      }
+    });
 
-    const contextPrompt = `اطلاعات زنده کاربر (${userData?.userName || 'کاربر'}):
+    // ۳. آماده‌سازی کانتکست مشترک داده‌های سلامت بر حسب واحد لیوان
+    const contextPrompt = `داده‌های وضعیت کاربر (${userData?.userName || "کاربر"}):
 - تاریخ امروز سیستم: ${clientToday}
 - فردا: ${clientTomorrow}
 - پس‌فردا: ${clientDayAfter}
-- وضعیت خواب دیشب: ${userData?.sleepHours ? `${userData.sleepHours} ساعت (کیفیت: ${userData.sleepQuality || 'خوب'})` : 'هنوز ثبت نشده'}
-- مصرف آب امروز: ${userData?.waterToday || 0} لیوان از هدف ۸ لیوان
-- خلق‌وخو: ${userData?.moodScore ? `${userData.moodScore} از ۵` : 'هنوز ثبت نشده'}
+- وضعیت خواب دیشب: ${userData?.sleepHours ? `${userData.sleepHours} ساعت (کیفیت: ${userData.sleepQuality || "خوب"})` : "هنوز ثبت نشده"}
+- وضعیت مصرف آب امروز: ${userData?.waterToday || 0} لیوان از هدف ۸ لیوان
+- خلق‌وخو: ${userData?.moodScore ? `${userData.moodScore} از ۵` : "هنوز ثبت نشده"}
 - کارهای مانده امروز: ${userData?.pendingTasksToday || 0} مورد
 - رویدادهای تقویم امروز: ${userData?.eventsToday || 0} مورد
-- وضعیت باشگاه مغز: حافظه کاری (${userData?.brainMemory ?? 0} از ۱۰۰)، انعطاف استروپ (${userData?.brainFlexibility ?? 0} از ۱۰۰)، زمان واکنش (${userData?.brainReaction ? `${userData.brainReaction}ms` : 'بدون آزمون'})`;
+- وضعیت باشگاه مغز: حافظه کاری (${userData?.brainMemory ?? 0} از ۱۰۰)، انعطاف استروپ (${userData?.brainFlexibility ?? 0} از ۱۰۰)، زمان واکنش (${userData?.brainReaction ? `${userData.brainReaction}ms` : "بدون آزمون"})`;
 
     // ----------------------------------------------------
-    // حالت ۱: تحلیل روزانه پیشخوان (Analyze Mode)
+    // حالت ۱: تحلیل سلامت پیشخوان (Analyze Mode)
     // ----------------------------------------------------
     if (mode === "analyze") {
       let analysisText = "";
       try {
-        const systemInstruction = `تو دستیار هوشمند و مشاور تندرستی و روانشناسی شناختی اپلیکیشن "سایبان" هستی.
-وظیفه: تحلیل دقیق داده‌های امروز کاربر در حداکثر ۳ تا ۴ جمله کوتاه و کاربردی.
+        const systemInstruction = `تو مشاور سلامت و تندرستی شناختی اپلیکیشن "سایبان" هستی.
+وظیفه: تحلیل داده‌های امروز کاربر در ۳ تا ۴ جمله کوتاه، مستقیم و علمی.
 قوانین:
-- هرگز خودت را «کورتکس» صدا نزن؛ تو «دستیار هوشمند سایبان» هستی.
-- اگر خواب ثبت نشده یا صفر است بگو خواب ثبت نشده، اگر زیر ۶ ساعت است هشدار کم‌خوابی بده.
-- اگر خلق‌وخو ۱ یا ۲ است تایید احساس و راهکار تنفس بده.
-- اگر آب کم است تذکر بده. اگر بالای ۲۰۰۰ml است تشویق کن.
-پاسخ فارسی، مستقیم و بدون سلام و احوال‌پرسی طولانی باشد.;
-«در تمام پاسخ‌ها و توصیه‌ها صرفاً بر حسب تعداد لیوان آب صحبت کن و هرگز از واحد میلی‌لیتر استفاده نکن
-`
-        const { response } = await generateWithFallback(
-          ai,
-          [{ text: systemInstruction }, { text: `داده‌های کاربر:\n${contextPrompt}` }],
-          { temperature: 0.3 }
-        );
-        analysisText = response.text?.trim() || "";
-      } catch (err) {
-        console.warn("AI analyze failed, running guaranteed local logic:", err);
-      }
+- در مورد آب فقط از واحد «تعداد لیوان آب» نسبت به هدف ۸ لیوان صحبت کن و هرگز میلی‌لیتر نگو.
+- اگر خواب زیر ۶ ساعت است هشدار کم‌خوابی بده.
+- پاسخ مستقیم، صمیمی و بدون سلام و احوال‌پرسی طولانی باشد.`;
 
-      // فال‌بک پایدار محلی
+        console.log(`[AI Gateway] Active Providers Loaded: ${providers.map(p => p.name).join(' -> ')}`);
+        const result = await executeAiGateway(providers, {
+          systemInstruction,
+          messages: [{ role: "user", content: contextPrompt }],
+          temperature: 0.3,
+          jsonMode: false
+        });
+
+        analysisText = result.text;
+      } catch {}
+
+      // فال‌بک بومی در صورت قطعی کامل
       if (!analysisText) {
-        const waterVal = userData?.waterToday ?? 0;
+        const waterGlasses = userData?.waterToday ?? 0;
         const sleepVal = userData?.sleepHours ?? 0;
         const moodVal = userData?.moodScore ?? 3;
         const pendingT = userData?.pendingTasksToday ?? 0;
         const eventsCount = userData?.eventsToday ?? 0;
 
         const parts: string[] = [];
-        if (sleepVal > 0 && sleepVal < 6) parts.push(`میزان خواب دیشب (${sleepVal} ساعت) کم بوده و استراحت زودهنگام امشب توصیه می‌شود.`);
-        else if (sleepVal >= 6) parts.push(`خواب ${sleepVal} ساعته شما ریکاوری مناسبی را فراهم کرده است.`);
-        else parts.push(`هنوز ساعات خواب دیشب را ثبت نکرده‌اید.`);
-
-        if (moodVal === 1) parts.push(`تنش و استرس بالایی ثبت کرده‌اید؛ چند دقیقه تنفس آرامش‌بخش در حالت Zen را امتحان کنید.`);
-        else if (moodVal === 2) parts.push(`انرژی روحی شما پایین است؛ کارهای سنگین را کاهش دهید.`);
-        else if (moodVal >= 4) parts.push(`سطح نشاط و انگیزه شما عالی است.`);
-
-        if (waterVal >= 8) {
-          parts.push(
-            `مصرف آب شما (${waterVal} لیوان) در وضعیت ایده‌آل و تکمیل است.`,
-          );
-        } else if (waterVal < 4) {
-          parts.push(
-            `مصرف آب شما تا الان (${waterVal} لیوان) پایین بوده و تا هدف ۸ لیوان فاصله دارید؛ نوشیدن آب به شادابی ذهن کمک می‌کند.`,
-          );
+        if (sleepVal > 0 && sleepVal < 6) {
+          parts.push(`میزان خواب دیشب (${sleepVal} ساعت) کم بوده و استراحت زودهنگام امشب توصیه می‌شود.`);
+        } else if (sleepVal >= 6) {
+          parts.push(`خواب ${sleepVal} ساعته شما ریکاوری مناسبی فراهم کرده است.`);
+        } else {
+          parts.push(`ساعات خواب دیشب هنوز ثبت نشده است.`);
         }
+
+        if (moodVal === 1) parts.push(`تنش بالایی ثبت کرده‌اید؛ چند دقیقه تمرین تنفس آرام را پیشنهاد می‌کنم.`);
+        else if (moodVal >= 4) parts.push(`سطح انگیزه و نشاط شما عالی است.`);
+
+        if (waterGlasses >= 8) parts.push(`مصرف آب شما (${waterGlasses} لیوان) کامل و در وضعیت ایده‌آل است.`);
+        else if (waterGlasses < 4) parts.push(`مصرف آب (${waterGlasses} لیوان) پایین است و تا هدف ۸ لیوان فاصله دارید.`);
+
         if (pendingT + eventsCount >= 4) parts.push(`امروز با ${eventsCount} رویداد و ${pendingT} وظیفه، روز پرمشغله‌ای دارید.`);
-        else parts.push(`برنامه‌های امروز در تعادل مناسبی قرار دارد.`);
+        else parts.push(`برنامه‌های امروز در تعادل است.`);
 
         analysisText = parts.join(" ");
       }
 
       return NextResponse.json({
         text: analysisText,
-        actionData: { action: "ANALYZE_RESPONSE" }
+        actionData: { action: "ANALYZE_RESPONSE" },
+        currentUsage: newUsageCount,
+        dailyLimit
       });
     }
 
     // ----------------------------------------------------
-    // حالت ۲: چت در فضای اختصاصی Workspace
+    // حالت ۲: چت در فضای Workspace
     // ----------------------------------------------------
     if (mode === "workspace_chat") {
-      const isOngoingConversation = history && history.length > 0;
-      const systemInstruction = `تو دستیار هوشمند و برنامه‌ریز شخصی اپلیکیشن «سایبان» هستی.
-قوانین بسیار حیاتی و دقیق:
-۱. نام تو «دستیار سایبان» است (هرگز از واژه "کورتکس" استفاده نکن).
-۱. به هیچ عنوان در میان گفتگو عبارت کلیشه‌ای «سلام، من دستیار سایبان هستم» یا معرفی مجدد خودت را تکرار نکن.
-۲. ${isOngoingConversation 
-      ? 'این یک گفتگوی ادامه‌دار است؛ نیازی به سلام مجدد و مقدمه‌چینی نیست، مستقیماً، دوستانه و روان به پیام کاربر پاسخ بده.' 
-      : 'اگر کاربر سلام کرد، یک سلام گرم و کوتاه بده و مستقیم به اصل موضوع بپرداز.'}
-۳. در متن پاسخ هرگز از ماه‌های میلادی (آگوست، سپتامبر و...) استفاده نکن. تاریخ‌ها را به صورت شمسی یا عبارات نسبی (امروز، فردا، پس‌فردا) بیان کن.
+      const isOngoing = history && history.length > 0;
 
-۳. جدول قطعی تاریخ‌ها برای فیلد targetDate در خروجی JSON:
-   - "امروز" => "${clientToday}"
-   - "فردا" => "${clientTomorrow}"
-   - "پس‌فردا" یا "پسفردا" => "${clientDayAfter}"
-   - در صورت عدم ذکر تاریخ => "${targetDateStr}"
+      const systemInstruction = `You are the intelligent cognitive assistant for the "Sayeban" productivity app.
+Respond strictly in natural Persian with a structured JSON format containing {"text": "...", "action": "...", "payload": {...}}.
 
-۴. ساخت اکشن‌ها:
-  -ما تو سیستم قابلیت Time-Blocking نداریم
-   - اگر کاربر گفت جلسه‌ای، ورزشی یا قراری ست شود => action: "ADD_EVENT"
-   - اگر کاربر خواست تسکی یا کاری اضافه شود => action: "ADD_TASK"
-   - در پیشنهادات عمومی و مشاوره‌ها (مانند Time-Blocking) => action: "NONE"
-   «در تمام پاسخ‌ها و توصیه‌ها صرفاً بر حسب تعداد لیوان آب صحبت کن و هرگز از واحد میلی‌لیتر استفاده نکن.»
-   - فیلد payload.targetDate حتماً باید بر اساس جدول بالا با تاریخ دقیق YYYY-MM-DD پر شود.`;
+Tone and Rules:
+1. ${isOngoing ? "This is an ongoing conversation; respond directly without repeating introductions or greetings." : "If the user greets, give a warm, brief greeting and answer directly."}
+2. Water intake must strictly use "لیوان" (glasses of water out of 8), never milliliters.
+3. In text, always refer to dates relatively (امروز, فردا, پس‌فردا) or in Jalali/Solar Hijri. Never use Gregorian month names (August, etc.).
 
-      const contents: any[] = [
-        { text: systemInstruction },
-        { text: contextPrompt }
-      ];
+Action Generation Rules:
+- "ADD_EVENT": For workouts, meetings, doctor visits, appointments with specific times.
+- "ADD_TASK": For to-dos, checklists, chores.
+- "NONE": For normal conversational questions, time-blocking recommendations, or advice.
+- When action is NOT "NONE", fill payload: {"title": "Clean short title", "targetDate": "YYYY-MM-DD", "time": "HH:MM", "priority": "HIGH"|"MEDIUM"|"LOW"}.
+
+Exact Gregorian Date Reference for targetDate:
+- "امروز" => "${clientToday}"
+- "فردا" => "${clientTomorrow}"
+- "پس‌فردا" or "پسفردا" => "${clientDayAfter}"
+- default => "${targetDateStr}"`;
+
+      const formattedMessages: { role: "system" | "user" | "assistant"; content: string }[] = [];
+      formattedMessages.push({ role: "system", content: contextPrompt });
 
       history.slice(-6).forEach((h: any) => {
-        contents.push({ text: `${h.sender === 'user' ? 'کاربر' : 'دستیار'}: ${h.content}` });
+        formattedMessages.push({
+          role: h.sender === "user" ? "user" : "assistant",
+          content: h.content
+        });
       });
 
-      contents.push({ text: `پیام جدید کاربر: ${message}` });
+      formattedMessages.push({ role: "user", content: message });
+      console.log(`[AI Gateway] Active Providers Loaded: ${providers.map(p => p.name).join(' -> ')}`);
+      const result = await executeAiGateway(providers, {
+        systemInstruction,
+        messages: formattedMessages,
+        temperature: 0.2,
+        jsonMode: true
+      });
 
-      const { response } = await generateWithFallback(
-        ai,
-        contents,
-        {
-          thinkingConfig: { thinkingBudget: 0 },
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              text: { type: Type.STRING, description: "پاسخ کامل، مستدل و ساختاریافته به زبان فارسی" },
-              action: { type: Type.STRING, description: "ADD_TASK, ADD_EVENT, ADD_NOTE, NONE" },
-              payload: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING, description: "عنوان تمیز بدون تاریخ و کلمات اضافه" },
-                  priority: { type: Type.STRING },
-                  targetDate: { type: Type.STRING, description: "YYYY-MM-DD دقیق" },
-                  time: { type: Type.STRING, description: "HH:MM" },
-                  content: { type: Type.STRING }
-                },
-                required: ["title", "targetDate"]
-              }
-            },
-            required: ["text", "action"]
-          },
-          temperature: 0.2
-        }
-      );
+      const parsed = result.actionData || { action: "NONE" };
 
-      const parsed = JSON.parse(response.text || "{}");
-
-      // لایه ایمنی سرور: اعتبارسنجی قطعی تاریخ در صورت خطای احتمالی مدل
-      if (parsed.action && parsed.action !== 'NONE') {
+      // اعتبارسنجی قطعی تاریخ روی سرور
+      if (parsed.action && parsed.action !== "NONE") {
         if (!parsed.payload) parsed.payload = {};
         const lowerMsg = message.toLowerCase();
-        
-        if (lowerMsg.includes('پس‌فردا') || lowerMsg.includes('پسفردا') || lowerMsg.includes('۲ روز بعد')) {
+        if (lowerMsg.includes("پس‌فردا") || lowerMsg.includes("پسفردا") || lowerMsg.includes("۲ روز بعد")) {
           parsed.payload.targetDate = clientDayAfter;
-        } else if (lowerMsg.includes('فردا')) {
+        } else if (lowerMsg.includes("فردا")) {
           parsed.payload.targetDate = clientTomorrow;
         } else if (!parsed.payload.targetDate) {
           parsed.payload.targetDate = targetDateStr;
         }
-
-        if (!parsed.payload.title) {
-          parsed.payload.title = "مورد جدید";
-        }
       }
 
       return NextResponse.json({
-        text: parsed.text || "درخواست شما پردازش شد.",
+        text: result.text || parsed.text || "درخواست شما پردازش شد.",
         actionData: parsed,
-        currentUsage: newUsageCount, // 👈 بازگشت مقدار واقعی ذخیره‌شده به کلاینت
+        currentUsage: newUsageCount,
         dailyLimit
       });
     }
@@ -351,51 +273,29 @@ export async function POST(req: NextRequest) {
     // حالت ۳: فرامین مستقیم (Command Mode)
     // ----------------------------------------------------
     if (mode === "command") {
-      const systemInstruction = `You are the structured command parser for "Sayeban". Convert Persian text into clean JSON actions.
+      const systemInstruction = `You are the structured command parser for "Sayeban". Convert Persian input into a clean JSON action.
 Exact Date Reference:
 - "امروز" => ${clientToday}
 - "فردا" => ${clientTomorrow}
 - "پس‌فردا" or "پسفردا" => ${clientDayAfter}
-- default => ${targetDateStr}`;
+- default => ${targetDateStr}
 
-      const { response } = await generateWithFallback(
-        ai,
-        message,
-        {
-          systemInstruction,
-          thinkingConfig: { thinkingBudget: 0 },
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              text: { type: Type.STRING },
-              action: { type: Type.STRING },
-              payload: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING },
-                  priority: { type: Type.STRING },
-                  targetDate: { type: Type.STRING },
-                  time: { type: Type.STRING },
-                  content: { type: Type.STRING }
-                },
-                required: ["title", "targetDate"]
-              }
-            },
-            required: ["text", "action"]
-          },
-          temperature: 0.1
-        }
-      );
+Schema: {"text": "پاسخ کوتاه فارسی", "action": "ADD_TASK"|"ADD_EVENT"|"NONE", "payload": {"title": "...", "targetDate": "YYYY-MM-DD", "time": "HH:MM"}}`;
 
-      const parsed = JSON.parse(response.text || "{}");
+      const result = await executeAiGateway(providers, {
+        systemInstruction,
+        messages: [{ role: "user", content: message }],
+        temperature: 0.1,
+        jsonMode: true
+      });
 
-      if (parsed.action && parsed.action !== 'NONE') {
+      const parsed = result.actionData || { action: "NONE" };
+      if (parsed.action && parsed.action !== "NONE") {
         if (!parsed.payload) parsed.payload = {};
         const lowerMsg = message.toLowerCase();
-        if (lowerMsg.includes('پس‌فردا') || lowerMsg.includes('پسفردا')) {
+        if (lowerMsg.includes("پس‌فردا") || lowerMsg.includes("پسفردا")) {
           parsed.payload.targetDate = clientDayAfter;
-        } else if (lowerMsg.includes('فردا')) {
+        } else if (lowerMsg.includes("فردا")) {
           parsed.payload.targetDate = clientTomorrow;
         } else if (!parsed.payload.targetDate) {
           parsed.payload.targetDate = targetDateStr;
@@ -403,21 +303,19 @@ Exact Date Reference:
       }
 
       return NextResponse.json({
-        text: parsed.text || "ثبت گردید.",
+        text: result.text || parsed.text || "ثبت گردید.",
         actionData: parsed,
-        currentUsage: newUsageCount, // 👈 بازگشت مقدار واقعی ذخیره‌شده به کلاینت
+        currentUsage: newUsageCount,
         dailyLimit
       });
     }
 
     return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
   } catch (error: any) {
-    console.error("AI API Fatal Error:", error);
-    const friendlyMessage = formatGeminiErrorMessage(error);
-
+    console.error("AI API Error:", error);
     return NextResponse.json(
       {
-        text: friendlyMessage,
+        text: `⚠️ خطا در پردازش هوش مصنوعی: ${error?.message || "پاسخی دریافت نشد."}`,
         actionData: { action: "NONE", payload: {} }
       },
       { status: 500 }

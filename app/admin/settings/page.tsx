@@ -4,6 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { createClient } from '../../../lib/supabase/client';
 import { Key, Save, AlertCircle } from 'lucide-react';
+import AiProvidersManager from '@/components/admin/AiProvidersManager';
 
 export default function SettingsManagement() {
   const [loading, setLoading] = useState(true);
@@ -110,6 +111,13 @@ export default function SettingsManagement() {
               </div>
             </div>
           </div>
+
+          <div className="space-y-6">
+  {/* کامپوننت مدیریت هوش مصنوعی و مدل‌های چندگانه */}
+  <AiProvidersManager />
+
+  {/* سایر تنظیمات سیستم ... */}
+</div>
 
           {/* Feature Flags */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
