@@ -6,23 +6,34 @@ import {
   Plus, 
   Trash2, 
   Edit2, 
-  Check, 
-  X, 
   Power, 
   ArrowUp, 
   ArrowDown, 
-  Key, 
-  Globe, 
-  Cpu, 
-  Clock, 
   Layers,
-  Save
+  Save,
+  X,
+  Zap,
+  Clock,
+  Globe
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { AiProviderConfig } from '@/lib/ai/gateway';
 
-// الگوهای آماده برای سرعت عمل ادمین
 const PROVIDER_PRESETS = [
+  {
+    name: 'OpenRouter (Qwen 2.5 72B Free)',
+    providerType: 'openai_compatible' as const,
+    baseUrl: 'https://openrouter.ai/api/v1',
+    model: 'qwen/qwen-2.5-72b-instruct:free',
+    timeoutMs: 15000
+  },
+  {
+    name: 'OpenRouter (GLM-5.2 Free)',
+    providerType: 'openai_compatible' as const,
+    baseUrl: 'https://openrouter.ai/api/v1',
+    model: 'z-ai/glm-5.2:free',
+    timeoutMs: 15000
+  },
   {
     name: 'ZenMux (GLM-4.7 Flash Free)',
     providerType: 'openai_compatible' as const,
@@ -31,24 +42,17 @@ const PROVIDER_PRESETS = [
     timeoutMs: 15000
   },
   {
-    name: 'DeepSeek Chat (V3)',
+    name: 'DeepSeek Chat (V3 Official)',
     providerType: 'openai_compatible' as const,
     baseUrl: 'https://api.deepseek.com/v1',
     model: 'deepseek-chat',
     timeoutMs: 15000
   },
   {
-    name: 'OpenRouter (Qwen 2.5 72B Free/Paid)',
-    providerType: 'openai_compatible' as const,
-    baseUrl: 'https://openrouter.ai/api/v1',
-    model: 'qwen/qwen-2.5-72b-instruct',
-    timeoutMs: 15000
-  },
-  {
-    name: 'Google Gemini 2.5 Flash Native',
+    name: 'Google Gemini 3.7 Flash Native',
     providerType: 'gemini_native' as const,
     baseUrl: '',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3.7-flash',
     timeoutMs: 12000
   }
 ];
@@ -59,13 +63,12 @@ export default function AiProvidersManager() {
   const [isSaving, setIsSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  // فرم ایجاد/ویرایش
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<AiProviderConfig>>({
     name: '',
     providerType: 'openai_compatible',
-    baseUrl: 'https://api.zenmux.ai/v1',
+    baseUrl: 'https://openrouter.ai/api/v1',
     apiKey: '',
     model: '',
     priority: 1,
@@ -78,7 +81,6 @@ export default function AiProvidersManager() {
     setTimeout(() => setToastMsg(null), 3500);
   };
 
-  // لود تنظیمات از دیتابیس
   useEffect(() => {
     async function loadProviders() {
       setIsLoading(true);
@@ -103,7 +105,6 @@ export default function AiProvidersManager() {
     loadProviders();
   }, []);
 
-  // ذخیره لیست در دیتابیس
   const saveProvidersToDb = async (updatedList: AiProviderConfig[]) => {
     setIsSaving(true);
     const supabase = createClient();
@@ -119,7 +120,7 @@ export default function AiProvidersManager() {
 
       if (error) throw error;
       setProviders(updatedList);
-      showToast('پیکربندی هوش مصنوعی ذخیره و فوراً اعمال شد.', 'success');
+      showToast('پیکربندی هوش مصنوعی ذخیره و فوراً فعال شد.', 'success');
     } catch (err: any) {
       showToast(`خطا در ذخیره‌سازی: ${err.message}`, 'error');
     } finally {
@@ -133,10 +134,10 @@ export default function AiProvidersManager() {
       id: `ai-provider-${Date.now()}`,
       name: '',
       providerType: 'openai_compatible',
-      baseUrl: 'https://api.zenmux.ai/v1',
+      baseUrl: 'https://openrouter.ai/api/v1',
       apiKey: '',
       model: '',
-      priority: providers.length + 1,
+      priority: 1, // 👈 به عنوان اولویت ۱ ثبت می‌شود
       isActive: true,
       timeoutMs: 15000
     });
@@ -171,17 +172,23 @@ export default function AiProvidersManager() {
     if (editingId) {
       updated = providers.map(p => p.id === editingId ? { ...p, ...formData } as AiProviderConfig : p);
     } else {
-      updated = [...providers, { ...formData, id: formData.id || `provider-${Date.now()}` } as AiProviderConfig];
+      // افزودن به ابتدای صف (اولویت ۱) و شیفت بقیه موارد به پایین
+      const newProvider = { ...formData, id: formData.id || `provider-${Date.now()}`, priority: 1 } as AiProviderConfig;
+      const shifted = providers.map(p => ({ ...p, priority: p.priority + 1 }));
+      updated = [newProvider, ...shifted];
     }
 
     updated.sort((a, b) => a.priority - b.priority);
-    saveProvidersToDb(updated);
+    // بازآرایی مرتب شماره اولویت‌ها
+    const cleanIndexed = updated.map((item, idx) => ({ ...item, priority: idx + 1 }));
+
+    saveProvidersToDb(cleanIndexed);
     setIsModalOpen(false);
   };
 
   const handleDelete = (id: string) => {
     if (!confirm('آیا از حذف این سرویس هوش مصنوعی اطمینان دارید؟')) return;
-    const updated = providers.filter(p => p.id !== id);
+    const updated = providers.filter(p => p.id !== id).map((item, idx) => ({ ...item, priority: idx + 1 }));
     saveProvidersToDb(updated);
   };
 
@@ -199,26 +206,28 @@ export default function AiProvidersManager() {
     listCopy[index] = listCopy[targetIdx];
     listCopy[targetIdx] = temp;
 
-    // شماره‌گذاری مجدد اولویت‌ها
     const reordered = listCopy.map((item, idx) => ({ ...item, priority: idx + 1 }));
     saveProvidersToDb(reordered);
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm space-y-6 text-right" dir="rtl">
+    <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-sm space-y-6 text-right" dir="rtl">
       
       {/* هدر بخش مدیریت هوش مصنوعی */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-950/50 text-teal-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-black text-slate-900 dark:text-slate-100">
-              مدیریت زنجیره هوش مصنوعی (Universal AI Gateway)
+            <h3 className="text-base font-black text-white flex items-center gap-2">
+              <span>زنجیره هوش مصنوعی پویا (AI Gateway)</span>
+              <span className="text-[10px] bg-teal-500/20 text-teal-300 font-mono px-2 py-0.5 rounded-full">
+                {providers.filter(p => p.isActive).length} مدل فعال
+              </span>
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              مدل‌های رایگان یا تجاری را اضافه کنید؛ درخواست‌ها به ترتیب اولویت فراخوانی شده و در صورت لیمیت خودکار سوییچ می‌شوند.
+              درخواست‌ها به ترتیب اولویت شماره ۱ تا انتها ارسال می‌شوند؛ در صورت خطای ۴۲۹ یا تاخیر، بدون قطعی به مدل بعدی منتقل خواهند شد.
             </p>
           </div>
         </div>
@@ -226,117 +235,124 @@ export default function AiProvidersManager() {
         <button
           type="button"
           onClick={handleOpenAdd}
-          className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-teal-600/20 shrink-0"
+          className="px-4 py-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-teal-600/20 shrink-0"
         >
           <Plus className="w-4 h-4" />
-          <span>افزودن مدل جدید</span>
+          <span>افزودن مدل به اول صف</span>
         </button>
       </div>
 
       {toastMsg && (
-        <div className={`p-3.5 rounded-xl text-xs font-bold text-center ${toastMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+        <div className={`p-3.5 rounded-xl text-xs font-bold text-center ${toastMsg.type === 'success' ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800' : 'bg-rose-950/80 text-rose-300 border border-rose-800'}`}>
           {toastMsg.text}
         </div>
       )}
 
-      {/* لیست پرووایدرهای ثبت‌شده */}
+      {/* لیست پرووایدرهای ثبت‌شده با اسکرولبار اختصاصی */}
       {isLoading ? (
         <div className="py-12 text-center text-xs text-slate-400 font-bold animate-pulse">
-          در حال بارگذاری دروازه هوش مصنوعی...
+          در حال بازخوانی دروازه هوش مصنوعی...
         </div>
       ) : providers.length === 0 ? (
-        <div className="py-12 text-center space-y-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+        <div className="py-12 text-center space-y-3 bg-slate-950 rounded-2xl border border-dashed border-slate-800">
           <Sparkles className="w-8 h-8 text-teal-500 opacity-40 mx-auto" />
-          <p className="text-xs text-slate-500 font-bold">هیچ ارائه‌دهنده‌ای هنوز اضافه نشده است.</p>
+          <p className="text-xs text-slate-400 font-bold">هیچ مدلی در دیتابیس ثبت نشده است (سیستم از جمینای پیش‌فرض سرور استفاده می‌کند).</p>
           <button
             onClick={handleOpenAdd}
-            className="text-xs text-teal-600 font-bold hover:underline"
+            className="text-xs text-teal-400 font-bold hover:underline"
           >
-            افزودن اولین مدل (مثلاً ZenMux رایگان)
+            افزودن مدل جدید (مثل OpenRouter یا ZenMux)
           </button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 max-h-[480px] overflow-y-auto pl-1 pr-0.5">
           {providers.map((p, idx) => (
             <div
               key={p.id}
               className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
                 p.isActive 
-                  ? 'bg-white dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 shadow-sm' 
-                  : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200/50 opacity-60'
+                  ? 'bg-slate-950 border-slate-800 hover:border-slate-700 shadow-sm' 
+                  : 'bg-slate-950/40 border-slate-850 opacity-40'
               }`}
             >
               <div className="flex items-center gap-3">
-                <span className="w-7 h-7 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-mono font-black text-slate-600 dark:text-slate-300">
+                <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-mono font-black ${idx === 0 ? 'bg-teal-500 text-slate-950' : 'bg-slate-800 text-slate-300'}`}>
                   {idx + 1}
                 </span>
 
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-black text-slate-900 dark:text-slate-100">{p.name}</h4>
-                    <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded-md font-mono">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-xs font-black text-white">{p.name}</h4>
+                    <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-mono">
                       {p.model}
                     </span>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${p.providerType === 'gemini_native' ? 'bg-indigo-50 text-indigo-700' : 'bg-teal-50 text-teal-700'}`}>
-                      {p.providerType === 'gemini_native' ? 'Gemini Native' : 'OpenAI Compatible'}
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${p.providerType === 'gemini_native' ? 'bg-indigo-950 text-indigo-400 border border-indigo-800' : 'bg-teal-950 text-teal-400 border border-teal-800'}`}>
+                      {p.providerType === 'gemini_native' ? 'Gemini Native' : 'OpenAI-Compatible'}
                     </span>
+                    {idx === 0 && p.isActive && (
+                      <span className="text-[9px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                        ★ اولویت اول پاسخ‌دهی
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-3 text-[11px] text-slate-400 font-mono">
-                    <span>Base: {p.baseUrl || 'Google AI Studio'}</span>
+                  <div className="flex items-center gap-3 text-[11px] text-slate-400 font-mono flex-wrap">
+                    <span className="flex items-center gap-1">
+                      <Globe className="w-3 h-3 text-slate-500" />
+                      {p.baseUrl || 'Google Studio Native'}
+                    </span>
                     <span>•</span>
                     <span>Key: {p.apiKey.slice(0, 6)}...{p.apiKey.slice(-4)}</span>
                     <span>•</span>
-                    <span>Timeout: {p.timeoutMs || 15000}ms</span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-slate-500" />
+                      {p.timeoutMs || 15000}ms
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* کنترل اولویت و اکشن‌ها */}
+              {/* اکشن‌های کنترل اولویت */}
               <div className="flex items-center gap-2 self-end md:self-center">
-                {/* دکمه‌های ترتیب اولویت */}
-                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl gap-0.5">
+                <div className="flex bg-slate-900 border border-slate-800 p-1 rounded-xl gap-0.5">
                   <button
                     disabled={idx === 0}
                     onClick={() => handleMovePriority(idx, 'up')}
-                    className="p-1 text-slate-500 hover:text-teal-600 disabled:opacity-20 cursor-pointer"
-                    title="افزایش اولویت"
+                    className="p-1 text-slate-400 hover:text-teal-400 disabled:opacity-20 cursor-pointer"
+                    title="افزایش اولویت (یک پله بالاتر)"
                   >
                     <ArrowUp className="w-3.5 h-3.5" />
                   </button>
                   <button
                     disabled={idx === providers.length - 1}
                     onClick={() => handleMovePriority(idx, 'down')}
-                    className="p-1 text-slate-500 hover:text-teal-600 disabled:opacity-20 cursor-pointer"
-                    title="کاهش اولویت"
+                    className="p-1 text-slate-400 hover:text-teal-400 disabled:opacity-20 cursor-pointer"
+                    title="کاهش اولویت (یک پله پایین‌تر)"
                   >
                     <ArrowDown className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
-                {/* فعال / غیرفعال */}
                 <button
                   onClick={() => handleToggleActive(p.id)}
-                  className={`p-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${p.isActive ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
-                  title={p.isActive ? 'غیرفعال‌سازی' : 'فعال‌سازی'}
+                  className={`p-2 rounded-xl text-xs font-bold transition-colors cursor-pointer border ${p.isActive ? 'bg-emerald-950/60 border-emerald-800 text-emerald-400 hover:bg-emerald-900/60' : 'bg-slate-900 border-slate-800 text-slate-500 hover:bg-slate-800'}`}
+                  title={p.isActive ? 'غیرفعال‌سازی موقت' : 'فعال‌سازی'}
                 >
                   <Power className="w-3.5 h-3.5" />
                 </button>
 
-                {/* ویرایش */}
                 <button
                   onClick={() => handleOpenEdit(p)}
-                  className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-teal-600 rounded-xl transition-colors cursor-pointer"
+                  className="p-2 bg-slate-900 border border-slate-800 text-slate-300 hover:text-teal-400 rounded-xl transition-colors cursor-pointer"
                   title="ویرایش پیکربندی"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
                 </button>
 
-                {/* حذف */}
                 <button
                   onClick={() => handleDelete(p.id)}
-                  className="p-2 bg-rose-50 dark:bg-rose-950/40 text-rose-500 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer"
-                  title="حذف"
+                  className="p-2 bg-rose-950/60 border border-rose-900 text-rose-400 hover:bg-rose-900/60 rounded-xl transition-colors cursor-pointer"
+                  title="حذف کامل"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -346,31 +362,32 @@ export default function AiProvidersManager() {
         </div>
       )}
 
-      {/* مدال ایجاد / ویرایش پرووایدر */}
+      {/* مدال افزودن / ویرایش مدل */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-xl w-full space-y-4 shadow-2xl text-right max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">
-                {editingId ? 'ویرایش ارائه‌دهنده هوش مصنوعی' : 'افزودن ارائه‌دهنده جدید'}
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-xl w-full space-y-4 shadow-2xl text-right max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h4 className="text-sm font-black text-white">
+                {editingId ? 'ویرایش ارائه‌دهنده هوش مصنوعی' : 'افزودن مدل جدید به ابتدای صف'}
               </h4>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-rose-500">
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-rose-400 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* کلیدهای سریع برای انتخاب الگو */}
+            {/* الگوهای آماده */}
             <div>
-              <span className="text-[11px] font-bold text-slate-400 block mb-1.5">الگوهای آماده و سریع:</span>
-              <div className="grid grid-cols-2 gap-1.5">
+              <span className="text-[11px] font-bold text-slate-400 block mb-2">تکمیل سریع با الگوهای آماده:</span>
+              <div className="grid grid-cols-2 gap-2">
                 {PROVIDER_PRESETS.map((preset, i) => (
                   <button
                     key={i}
                     type="button"
                     onClick={() => handleApplyPreset(preset)}
-                    className="p-2 bg-slate-50 dark:bg-slate-800/60 hover:bg-teal-50 dark:hover:bg-teal-950/40 border border-slate-200/60 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-bold transition-all text-right truncate cursor-pointer"
+                    className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-teal-300 rounded-xl text-[10px] font-bold transition-all text-right truncate cursor-pointer flex items-center gap-1.5"
                   >
-                    ⚡ {preset.name}
+                    <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="truncate">{preset.name}</span>
                   </button>
                 ))}
               </div>
@@ -379,25 +396,25 @@ export default function AiProvidersManager() {
             <form onSubmit={handleSaveForm} className="space-y-3.5 pt-2">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1">نام نمایشی:</label>
+                  <label className="block text-[11px] font-bold text-slate-400 mb-1">نام نمایشی:</label>
                   <input
                     type="text"
                     required
                     value={formData.name || ''}
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="مثلاً: ZenMux Free"
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:border-teal-500"
+                    placeholder="مثلاً: OpenRouter Qwen Free"
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-white font-bold focus:outline-none focus:border-teal-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1">نوع پروتکل:</label>
+                  <label className="block text-[11px] font-bold text-slate-400 mb-1">نوع پروتکل:</label>
                   <select
                     value={formData.providerType}
                     onChange={e => setFormData({ ...formData, providerType: e.target.value as any })}
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:border-teal-500"
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-white font-bold focus:outline-none focus:border-teal-500"
                   >
-                    <option value="openai_compatible">OpenAI-Compatible (ZenMux, DeepSeek, Qwen)</option>
+                    <option value="openai_compatible">OpenAI-Compatible (OpenRouter, ZenMux, DeepSeek)</option>
                     <option value="gemini_native">Google Gemini Native SDK</option>
                   </select>
                 </div>
@@ -405,67 +422,70 @@ export default function AiProvidersManager() {
 
               {formData.providerType === 'openai_compatible' && (
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1">آدرس Base URL:</label>
+                  <label className="block text-[11px] font-bold text-slate-400 mb-1">آدرس Base URL:</label>
                   <input
                     type="text"
                     required
                     value={formData.baseUrl || ''}
                     onChange={e => setFormData({ ...formData, baseUrl: e.target.value })}
-                    placeholder="https://api.zenmux.ai/v1"
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-teal-500"
+                    placeholder="https://openrouter.ai/api/v1"
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-white font-mono focus:outline-none focus:border-teal-500"
+                    dir="ltr"
                   />
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1">شناسه دقیق مدل (Model ID):</label>
+                  <label className="block text-[11px] font-bold text-slate-400 mb-1">شناسه مدل (Model ID):</label>
                   <input
                     type="text"
                     required
                     value={formData.model || ''}
                     onChange={e => setFormData({ ...formData, model: e.target.value })}
-                    placeholder="z-ai/glm-4.7-flash-free"
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-teal-500"
+                    placeholder="qwen/qwen-2.5-72b-instruct:free"
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-white font-mono focus:outline-none focus:border-teal-500"
+                    dir="ltr"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1">حداکثر زمان انتظار (Timeout ms):</label>
+                  <label className="block text-[11px] font-bold text-slate-400 mb-1">حداکثر زمان انتظار (ms):</label>
                   <input
                     type="number"
                     value={formData.timeoutMs || 15000}
                     onChange={e => setFormData({ ...formData, timeoutMs: Number(e.target.value) })}
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-teal-500"
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-white font-mono focus:outline-none focus:border-teal-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 mb-1">کلید اختصاصی API (API Key):</label>
+                <label className="block text-[11px] font-bold text-slate-400 mb-1">کلید اختصاصی API Key:</label>
                 <input
                   type="password"
                   required
                   value={formData.apiKey || ''}
                   onChange={e => setFormData({ ...formData, apiKey: e.target.value })}
                   placeholder="sk-..."
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-teal-500"
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-white font-mono focus:outline-none focus:border-teal-500"
+                  dir="ltr"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-3">
+              <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-800">
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  className="py-3 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Save className="w-4 h-4" />
-                  <span>{isSaving ? 'در حال ذخیره‌سازی...' : 'ذخیره و اعمال در سامانه'}</span>
+                  <span>{isSaving ? 'در حال ذخیره‌سازی...' : 'ذخیره و قرارگیری در اولویت ۱'}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 cursor-pointer"
+                  className="py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
                 >
                   انصراف
                 </button>

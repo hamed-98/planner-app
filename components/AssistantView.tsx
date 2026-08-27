@@ -246,17 +246,14 @@ export default function AssistantView({
     const textToSend = (customPrompt || inputMessage).trim();
     if (!textToSend || !activeConvId || isAiResponding) return;
     if (textToSend.length > 1000) {
-    showToast('متن پیام نمی‌تواند بیش از ۱۰۰۰ کاراکتر باشد.', 'error');
+      showToast('متن پیام نمی‌تواند بیش از ۱۰۰۰ کاراکتر باشد.', 'error');
       return;
     }
 
-    // آماده‌سازی سیگنال کنسل کردن
     abortControllerRef.current = new AbortController();
-
     setInputMessage('');
     playAudioFeedback?.('click');
 
-    // نام‌گذاری هوشمند در اولین پیام
     const isFirstMsg = messages.length === 0;
     if (isFirstMsg) {
       const autoTitle = textToSend.slice(0, 26) + (textToSend.length > 26 ? '...' : '');
@@ -265,7 +262,6 @@ export default function AssistantView({
       setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, title: autoTitle } : c));
     }
 
-    // ثبت پیام کاربر
     const userMsg = await saveChatMessage(activeConvId, 'user', textToSend);
     if (userMsg) {
       setMessages(prev => [...prev, userMsg]);
@@ -296,31 +292,32 @@ export default function AssistantView({
 
       const data = await res.json();
 
-      // ۱. اگر سقف پیام‌ها پر شده بود
-      if (res.status === 429) {
+      // ۱. اگر خطای HTTP رخ داده است (سهمیه ۴۲۹ یا خطای سرور ۵۰۰)
+      if (!res.ok) {
         if (data.currentUsage !== undefined && data.dailyLimit) {
           setAiUsage(prev => ({ ...prev, count: data.currentUsage, limit: data.dailyLimit }));
         }
-        showToast(data.text, 'error');
+        showToast(data.text || 'خطا در ارتباط با سرور هوش مصنوعی.', 'error');
         setIsAiResponding(false);
-        return;
+        return; // جلوگیری از ذخیره پیام خطا در دیتابیس چت
       }
 
-      // ۲. آپدیت آنی شمارنده مصرف
+      // ۲. آپدیت سهمیه مصرف پس از پاسخ موفق
       if (data.currentUsage !== undefined && data.dailyLimit) {
         setAiUsage(prev => ({ ...prev, count: data.currentUsage, limit: data.dailyLimit }));
-      } else {
-        setAiUsage(prev => ({ ...prev, count: Math.min(prev.limit, prev.count + 1) }));
       }
 
-      const hasValidAction = data.actionData?.action && data.actionData.action !== 'NONE' && data.actionData?.payload?.title;
+      const actionPayloadToSave = {
+        ...(data.actionData || {}),
+        provider: data.providerUsed || data.actionData?.provider
+      };
 
-      // ۳. ثبت پاسخ دستیار در دیتابیس
+      // ۳. ثبت پاسخ دستیار در دیتابیس همراه با نام مدل
       const aiMsg = await saveChatMessage(
         activeConvId,
         'assistant',
         data.text,
-        hasValidAction ? data.actionData : undefined
+        actionPayloadToSave
       );
 
       if (aiMsg) {
@@ -328,12 +325,11 @@ export default function AssistantView({
         playAudioFeedback?.('done');
       }
     } catch (err: any) {
-      // اگر کاربر چت جدید باز کرد یا تغییر چت داد، خطای لغو نادیده گرفته می‌شود
       if (err.name === 'AbortError') {
         return;
       }
       console.error(err);
-      showToast('خطا در دریافت پاسخ از هوش مصنوعی.', 'error');
+      showToast('برقراری ارتباط با هوش مصنوعی مقدور نشد.', 'error');
     } finally {
       setIsAiResponding(false);
     } 
@@ -673,6 +669,15 @@ export default function AssistantView({
                     <p className="whitespace-pre-wrap leading-loose">
                       {msg.content}
                     </p>
+                    {/* برچسب نمایش نام مدل در زمان توسعه */}
+                    {msg.sender === 'assistant' && msg.action_payload?.provider && (
+                      <div className="flex items-center gap-1.5 text-[9px] text-teal-700/70 dark:text-teal-400/70 font-mono mt-1.5 pt-1.5 border-t border-slate-200/50 dark:border-slate-700/40 select-none">
+                        <span>🤖 مدل فعال:</span>
+                        <span className="font-bold bg-teal-50 dark:bg-teal-950/60 px-1.5 py-0.5 rounded border border-teal-200/60 dark:border-teal-800/60">
+                          {msg.action_payload.provider}
+                        </span>
+                      </div>
+                    )}
 
                     {/* کارت تایید اقدام پیشنهادی */}
                     {msg.action_payload &&

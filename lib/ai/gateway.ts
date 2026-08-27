@@ -31,23 +31,42 @@ export interface GatewayResponse {
 
 // تابع کمکی برای استخراج و تمیز کردن JSON از خروجی تمام مدل‌ها
 function extractJsonFromText(rawText: string): any {
-  if (!rawText) return { action: "NONE", payload: {} };
+  if (!rawText || !rawText.trim()) {
+    return { text: "پاسخی دریافت نشد.", action: "NONE", payload: {} };
+  }
+
   try {
     const clean = rawText
       .replace(/```json/gi, "")
       .replace(/```/g, "")
       .trim();
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean);
+    if (typeof parsed === "object" && parsed !== null) {
+      return {
+        text: parsed.text || clean,
+        action: parsed.action || "NONE",
+        payload: parsed.payload || {}
+      };
+    }
   } catch {
     const firstBrace = rawText.indexOf("{");
     const lastBrace = rawText.lastIndexOf("}");
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
       try {
-        return JSON.parse(rawText.substring(firstBrace, lastBrace + 1));
+        const parsed = JSON.parse(rawText.substring(firstBrace, lastBrace + 1));
+        if (typeof parsed === "object" && parsed !== null) {
+          return {
+            text: parsed.text || rawText,
+            action: parsed.action || "NONE",
+            payload: parsed.payload || {}
+          };
+        }
       } catch {}
     }
-    return { text: rawText, action: "NONE", payload: {} };
   }
+
+  // اگر مدل متن آزاد و بدون ساختار JSON برگرداند
+  return { text: rawText.trim(), action: "NONE", payload: {} };
 }
 
 // فراخوانی پرووایدرهای سازگار با پروتکل استاندارد OpenAI (ZenMux / DeepSeek / OpenRouter / Qwen)
@@ -112,29 +131,38 @@ async function callOpenAiCompatible(
 }
 
 // فراخوانی موتور Gemini Native
+// فراخوانی موتور Gemini Native بدون خطای ۴۰۰
 async function callGeminiNative(
   provider: AiProviderConfig,
   options: GatewayRequestOptions
 ): Promise<GatewayResponse> {
   const ai = new GoogleGenAI({ apiKey: provider.apiKey.trim() });
 
-  const contents = options.messages.map(m => ({
-    text: `${m.role === "user" ? "کاربر" : "دستیار"}: ${m.content}`
-  }));
+  // فرمت استاندارد پیام‌ها در SDK جدید گوگل (فقط نقش‌های user و model معتبرند)
+  const contents: any[] = options.messages
+    .filter(m => m.content && m.content.trim())
+    .map(m => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }]
+    }));
+
+  if (contents.length === 0) {
+    contents.push({ role: "user", parts: [{ text: "سلام" }] });
+  }
+
+  const config: any = {
+    systemInstruction: options.systemInstruction,
+    temperature: options.temperature ?? 0.3,
+  };
+
+  if (options.jsonMode) {
+    config.responseMimeType = "application/json";
+  }
 
   const response = await ai.models.generateContent({
-    model: provider.model || "gemini-3.7-flash",
+    model: provider.model || "gemini-3.6-flash",
     contents,
-    config: {
-      systemInstruction: options.systemInstruction,
-      temperature: options.temperature ?? 0.3,
-      ...(options.jsonMode
-        ? {
-            thinkingConfig: { thinkingBudget: 0 },
-            responseMimeType: "application/json"
-          }
-        : {})
-    }
+    config
   });
 
   const rawText = response.text || "";

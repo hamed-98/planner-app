@@ -1,44 +1,45 @@
 'use client';
-/* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { useEffect, useState } from 'react';
 import { createClient } from '../../../lib/supabase/client';
-import { Key, Save, AlertCircle } from 'lucide-react';
+import { Save, AlertCircle, Sparkles, Shield, Wrench, Share2 } from 'lucide-react';
 import AiProvidersManager from '@/components/admin/AiProvidersManager';
 
 export default function SettingsManagement() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  
-  const [apiKeys, setApiKeys] = useState({
-    gemini: '',
-    supabase_service_role: ''
-  });
-  
+  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
   const [featureFlags, setFeatureFlags] = useState({
-    enable_gemini: true,
+    enable_ai_assistant: true,
     enable_sharing: false,
-    ai_daily_limit: 5
+    free_tier_daily_limit: 15,
+    maintenance_mode: false
   });
 
   const supabase = createClient();
 
   async function fetchSettings() {
     setLoading(true);
-    const { data: keysData } = await supabase.from('global_settings').select('value').eq('id', 'api_keys').single() as any;
-    if (keysData?.value) setApiKeys(keysData.value);
+    try {
+      const { data: flagsData } = await (supabase.from('global_settings') as any)
+        .select('value')
+        .eq('id', 'feature_flags')
+        .maybeSingle();
 
-    const { data: flagsData } = await supabase.from('global_settings').select('value').eq('id', 'feature_flags').single() as any;
-    if (flagsData?.value) {
-      setFeatureFlags({
-        enable_gemini: flagsData.value.enable_gemini ?? true,
-        enable_sharing: flagsData.value.enable_sharing ?? false,
-        ai_daily_limit: flagsData.value.ai_daily_limit ?? 5
-      });
+      if (flagsData?.value) {
+        setFeatureFlags({
+          enable_ai_assistant: flagsData.value.enable_ai_assistant ?? flagsData.value.enable_gemini ?? true,
+          enable_sharing: flagsData.value.enable_sharing ?? false,
+          free_tier_daily_limit: flagsData.value.free_tier_daily_limit ?? flagsData.value.ai_daily_limit ?? 15,
+          maintenance_mode: flagsData.value.maintenance_mode ?? false
+        });
+      }
+    } catch (err) {
+      console.error('Error loading settings:', err);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -47,145 +48,155 @@ export default function SettingsManagement() {
 
   const handleSave = async () => {
     setSaving(true);
-    setMessage('');
-    
-    const { error: err1 } = await (supabase.from('global_settings') as any).upsert({ id: 'api_keys', value: apiKeys });
-    const { error: err2 } = await (supabase.from('global_settings') as any).upsert({ id: 'feature_flags', value: featureFlags });
-    
-    if (err1 || err2) {
-      setMessage('خطا در ذخیره تنظیمات');
-    } else {
-      setMessage('تنظیمات با موفقیت ذخیره شد');
+    setMessage(null);
+
+    try {
+      const { error } = await (supabase.from('global_settings') as any).upsert(
+        {
+          id: 'feature_flags',
+          value: featureFlags,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'id' }
+      );
+
+      if (error) throw error;
+      setMessage({ text: 'قابلیت‌های سیستم با موفقیت ذخیره شدند.', type: 'success' });
+    } catch (err: any) {
+      setMessage({ text: `خطا در ذخیره تنظیمات: ${err.message}`, type: 'error' });
+    } finally {
+      setSaving(false);
+      setTimeout(() => setMessage(null), 4000);
     }
-    setSaving(false);
-    
-    setTimeout(() => setMessage(''), 3000);
   };
 
   return (
-    <div className="space-y-8">
-      <header className="mb-8">
-        <h1 className="text-2xl font-black text-white">تنظیمات سامانه</h1>
-        <p className="text-sm text-slate-400 mt-1">پیکربندی کلیدها و قابلیت‌های سراسری اپلیکیشن</p>
+    <div className="space-y-8 max-w-7xl mx-auto p-4 sm:p-6" dir="rtl">
+      <header className="pb-4 border-b border-slate-800">
+        <h1 className="text-2xl font-black text-white">تنظیمات و پیکربندی سامانه</h1>
+        <p className="text-xs text-slate-400 mt-1">مدیریت زنجیره هوش مصنوعی، سهمیه‌ها و کلیدهای کنترل سراسری اپلیکیشن</p>
       </header>
 
-      {loading ? (
-        <div className="text-slate-400">در حال بارگذاری...</div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* API Keys */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                <Key className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white">کلیدهای API</h3>
-                <p className="text-xs text-slate-400">تنظیمات اتصال به سرویس‌های خارجی</p>
-              </div>
+      {/* ۱. ماژول تمام‌عرض و اختصاصی مدیریت هوش مصنوعی */}
+      <AiProvidersManager />
+
+      {/* ۲. ماژول قابلیت‌های سیستم (Feature Flags) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-6 text-right">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
+              <AlertCircle className="w-5 h-5" />
             </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Google Gemini API Key</label>
-                <input 
-                  type="password"
-                  value={apiKeys.gemini}
-                  onChange={(e) => setApiKeys({...apiKeys, gemini: e.target.value})}
-                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-left text-white focus:outline-none focus:border-teal-500"
-                  dir="ltr"
-                  placeholder="AIzaSy..."
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Supabase Service Role Key</label>
-                <input 
-                  type="password"
-                  value={apiKeys.supabase_service_role}
-                  onChange={(e) => setApiKeys({...apiKeys, supabase_service_role: e.target.value})}
-                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-left text-white focus:outline-none focus:border-teal-500"
-                  dir="ltr"
-                  placeholder="eyJhbGciOiJIUzI1NiIs..."
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-  {/* کامپوننت مدیریت هوش مصنوعی و مدل‌های چندگانه */}
-  <AiProvidersManager />
-
-  {/* سایر تنظیمات سیستم ... */}
-</div>
-
-          {/* Feature Flags */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
-              <div className="w-10 h-10 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-400">
-                <AlertCircle className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white">قابلیت‌های سیستم (Feature Flags)</h3>
-                <p className="text-xs text-slate-400">فعال یا غیرفعال کردن بخش‌های اپلیکیشن</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-xl cursor-pointer hover:border-slate-700 transition-colors">
-                <div>
-                  <span className="block text-sm font-medium text-white">دستیار هوش مصنوعی (Gemini)</span>
-                  <span className="text-xs text-slate-400">امکان چت و برنامه‌ریزی هوشمند</span>
-                </div>
-                <div className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={featureFlags.enable_gemini} onChange={(e) => setFeatureFlags({...featureFlags, enable_gemini: e.target.checked})} />
-                  <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-500"></div>
-                </div>
-              </label>
-
-              <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-xl cursor-pointer hover:border-slate-700 transition-colors">
-                <div>
-                  <span className="block text-sm font-medium text-white">اشتراک‌گذاری رویدادها</span>
-                  <span className="text-xs text-slate-400">تیم ورک و اشتراک پلن با دوستان</span>
-                </div>
-                <div className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={featureFlags.enable_sharing} onChange={(e) => setFeatureFlags({...featureFlags, enable_sharing: e.target.checked})} />
-                  <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-500"></div>
-                </div>
-              </label>
-
-              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-right">
-                    <span className="block text-sm font-medium text-white">سقف درخواست روزانه هوش مصنوعی</span>
-                    <span className="text-xs text-slate-400">حداکثر دفعات مجاز استفاده هر کاربر از دستیار هوش مصنوعی در ۲۴ ساعت</span>
-                  </div>
-                  <input 
-                    type="number" 
-                    min="1"
-                    max="100"
-                    value={featureFlags.ai_daily_limit} 
-                    onChange={(e) => setFeatureFlags({...featureFlags, ai_daily_limit: Math.max(1, parseInt(e.target.value, 10) || 5)})}
-                    className="w-20 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-center text-white text-xs focus:outline-none focus:border-teal-500 font-mono"
-                  />
-                </div>
-              </div>
+            <div>
+              <h3 className="text-base font-black text-white">کلیدهای کنترل سراسری (Feature Flags)</h3>
+              <p className="text-xs text-slate-400">تنظیم محدودیت‌ها و سوییچ‌های لحظه‌ای سیستم بدون نیاز به دیپلوی مجدد</p>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Save Action */}
-      <div className="flex items-center gap-4">
-        <button 
-          onClick={handleSave}
-          disabled={saving || loading}
-          className="flex items-center gap-2 px-6 py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl transition-all disabled:opacity-50"
-        >
-          {saving ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="w-5 h-5" />}
-          <span>ذخیره تغییرات</span>
-        </button>
-        {message && <span className={`text-sm ${message.includes('خطا') ? 'text-rose-400' : 'text-emerald-400'}`}>{message}</span>}
+        {loading ? (
+          <div className="text-xs text-slate-400 font-bold py-6 text-center animate-pulse">در حال فراخوانی تنظیمات...</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* سوییچ هوش مصنوعی */}
+            <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
+              <div className="space-y-1">
+                <span className="text-xs font-black text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-teal-400" />
+                  <span>سرویس دستیار هوش مصنوعی</span>
+                </span>
+                <span className="text-[11px] text-slate-400 block">فعال بودن ماژول چت و پردازش فرامین صوتی</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={featureFlags.enable_ai_assistant}
+                onChange={(e) => setFeatureFlags({ ...featureFlags, enable_ai_assistant: e.target.checked })}
+                className="w-5 h-5 text-teal-600 rounded-lg accent-teal-500 cursor-pointer"
+              />
+            </label>
+
+            {/* سوییچ اشتراک‌گذاری */}
+            <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
+              <div className="space-y-1">
+                <span className="text-xs font-black text-white flex items-center gap-2">
+                  <Share2 className="w-4 h-4 text-indigo-400" />
+                  <span>اشتراک‌گذاری پلن‌ها و رویدادها</span>
+                </span>
+                <span className="text-[11px] text-slate-400 block">امکان ساخت لینک عمومی برای تقویم و یادداشت‌ها</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={featureFlags.enable_sharing}
+                onChange={(e) => setFeatureFlags({ ...featureFlags, enable_sharing: e.target.checked })}
+                className="w-5 h-5 text-teal-600 rounded-lg accent-teal-500 cursor-pointer"
+              />
+            </label>
+
+            {/* سقف مجاز کاربران رایگان */}
+            <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between">
+              <div className="space-y-1">
+                <span className="text-xs font-black text-white flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-amber-400" />
+                  <span>سقف سهمیه روزانه پلن رایگان</span>
+                </span>
+                <span className="text-[11px] text-slate-400 block">تعداد مجاز درخواست در هر ۲۴ ساعت</span>
+              </div>
+              <div className="flex items-center gap-1.5 font-mono">
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={featureFlags.free_tier_daily_limit}
+                  onChange={(e) => setFeatureFlags({ ...featureFlags, free_tier_daily_limit: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                  className="w-16 px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-center text-white text-xs font-bold focus:outline-none focus:border-teal-500"
+                />
+                <span className="text-[10px] text-slate-400">پیام</span>
+              </div>
+            </div>
+
+            {/* حالت تعمیرات */}
+            <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
+              <div className="space-y-1">
+                <span className="text-xs font-black text-white flex items-center gap-2">
+                  <Wrench className="w-4 h-4 text-rose-400" />
+                  <span>حالت تعمیر و نگهداری (Maintenance)</span>
+                </span>
+                <span className="text-[11px] text-slate-400 block">نمایش صفحه دردسترس نبودن برای کاربران عادی</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={featureFlags.maintenance_mode}
+                onChange={(e) => setFeatureFlags({ ...featureFlags, maintenance_mode: e.target.checked })}
+                className="w-5 h-5 text-rose-600 rounded-lg accent-rose-500 cursor-pointer"
+              />
+            </label>
+
+          </div>
+        )}
+
+        {/* دکمه ذخیره تنظیمات */}
+        <div className="flex items-center gap-4 pt-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || loading}
+            className="flex items-center gap-2 px-6 py-3 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-md shadow-teal-600/20"
+          >
+            {saving ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            <span>ذخیره کلیدهای کنترلی</span>
+          </button>
+          
+          {message && (
+            <span className={`text-xs font-bold ${message.type === 'error' ? 'text-rose-400' : 'text-emerald-400'}`}>
+              {message.text}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
