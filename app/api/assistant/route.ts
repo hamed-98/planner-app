@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { executeAiGateway, AiProviderConfig } from "@/lib/ai/gateway";
 
+// تابع تبدیل خطاهای خام به پیام‌های شفاف فارسی
 function formatFriendlyErrorMessage(error: any): string {
   const errStr = typeof error === "string" ? error : (error?.message || JSON.stringify(error) || "");
 
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { message, mode, userData, history = [] } = body;
 
+    // ۱. اعتبارسنجی طول پیام ورودی
     if (typeof message === "string" && message.trim().length > 1200) {
       return NextResponse.json(
         {
@@ -40,6 +42,37 @@ export async function POST(req: NextRequest) {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // ۲. خواندن تنظیمات سراسری سیستم (Feature Flags) از دیتابیس
+    let featureFlags: any = {
+      enable_ai_assistant: true,
+      free_tier_daily_limit: 15,
+      enable_gemini_fallback: true
+    };
+
+    try {
+      const { data: flagRecord } = await supabase
+        .from("global_settings")
+        .select("value")
+        .eq("id", "feature_flags")
+        .maybeSingle();
+
+      if (flagRecord?.value) {
+        featureFlags = { ...featureFlags, ...flagRecord.value };
+      }
+    } catch {}
+
+    // ۳. بررسی فعال بودن سرویس دستیار هوش مصنوعی
+    if (!featureFlags.enable_ai_assistant) {
+      return NextResponse.json(
+        {
+          text: "⚠️ سرویس دستیار هوش مصنوعی در حال حاضر توسط مدیریت سامانه موقتاً غیرفعال شده است.",
+          actionData: { action: "NONE", payload: {} }
+        },
+        { status: 503 }
+      );
+    }
+
+    // ۴. بررسی هویت و محاسبه سهمیه روزانه کاربر
     const authHeader = req.headers.get("Authorization");
     let userId: string | null = null;
     let userPlan: "free" | "pro" | "team" = "free";
@@ -66,7 +99,8 @@ export async function POST(req: NextRequest) {
     const clientTomorrow = new Date(clientTodayObj.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     const clientDayAfter = new Date(clientTodayObj.getTime() + 48 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-    const dailyLimit = userPlan === "pro" ? 100 : userPlan === "team" ? 250 : 15;
+    const freeDailyLimit = Number(featureFlags.free_tier_daily_limit) || 15;
+    const dailyLimit = userPlan === "pro" ? 100 : userPlan === "team" ? 250 : freeDailyLimit;
     let currentUsage = 0;
 
     const authenticatedSupabase = token
@@ -99,7 +133,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // واکشی لیست ارائه‌دهندگان
+    // ۵. واکشی لیست ارائه‌دهندگان از دیتابیس
     let providers: AiProviderConfig[] = [];
     try {
       const { data: dbSettings } = await supabase
@@ -113,25 +147,27 @@ export async function POST(req: NextRequest) {
       }
     } catch {}
 
-    // افزودن کلیدهای جمینای سرور به انتهای صف فال‌بک
-    const geminiKeys = (process.env.GEMINI_API_KEY || "")
-      .split(",")
-      .map(k => k.trim())
-      .filter(k => k.length > 10 && !k.includes("MY_GEMINI"));
+    // ۶. افزودن کلیدهای جمینای محیطی به انتهای صف (در صورت فعال بودن سوئیچ در پنل ادمین)
+    if (featureFlags.enable_gemini_fallback !== false) {
+      const geminiKeys = (process.env.GEMINI_API_KEY || "")
+        .split(",")
+        .map(k => k.trim())
+        .filter(k => k.length > 10 && !k.includes("MY_GEMINI"));
 
-    geminiKeys.forEach((k, idx) => {
-      if (!providers.some(p => p.apiKey === k)) {
-        providers.push({
-          id: `env-gemini-fallback-${idx}`,
-          name: `Google Gemini 3.7 Flash (${idx + 1})`,
-          providerType: "gemini_native",
-          apiKey: k,
-          model: "gemini-3.6-flash",
-          priority: 999 + idx,
-          isActive: true
-        });
-      }
-    });
+      geminiKeys.forEach((k, idx) => {
+        if (!providers.some(p => p.apiKey === k)) {
+          providers.push({
+            id: `env-gemini-fallback-${idx}`,
+            name: `Google Gemini 3.7 Flash (${idx + 1})`,
+            providerType: "gemini_native",
+            apiKey: k,
+            model: "gemini-3.7-flash",
+            priority: 999 + idx,
+            isActive: true
+          });
+        }
+      });
+    }
 
     const contextPrompt = `داده‌های وضعیت کاربر (${userData?.userName || "کاربر"}):
 - تاریخ امروز سیستم: ${clientToday}
@@ -145,7 +181,7 @@ export async function POST(req: NextRequest) {
 - وضعیت باشگاه مغز: حافظه کاری (${userData?.brainMemory ?? 0} از ۱۰۰)، انعطاف استروپ (${userData?.brainFlexibility ?? 0} از ۱۰۰)، زمان واکنش (${userData?.brainReaction ? `${userData.brainReaction}ms` : "بدون آزمون"})`;
 
     // ----------------------------------------------------
-    // حالت ۱: تحلیل روزانه پیشخوان
+    // حالت ۱: تحلیل سلامت پیشخوان
     // ----------------------------------------------------
     if (mode === "analyze") {
       let analysisText = "";
@@ -281,15 +317,16 @@ export async function POST(req: NextRequest) {
         text: parsed.text || result.text || "درخواست شما بررسی شد.",
         actionData: {
           ...parsed,
-          provider: result.providerUsed // 👈 ارسال نام مدل فعال
+          provider: result.providerUsed
         },
+        providerUsed: result.providerUsed,
         currentUsage,
         dailyLimit
       });
     }
 
     // ----------------------------------------------------
-    // حالت ۳: فرامین صوتی/مستقیم
+    // حالت ۳: فرامین مستقیم
     // ----------------------------------------------------
     if (mode === "command") {
       const systemInstruction = `You are the structured command parser for "Sayeban". Convert Persian input into a clean JSON action.

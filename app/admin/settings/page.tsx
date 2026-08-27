@@ -2,17 +2,17 @@
 
 import React, { useEffect, useState } from 'react';
 import { createClient } from '../../../lib/supabase/client';
-import { Save, AlertCircle, Sparkles, Shield, Wrench, Share2 } from 'lucide-react';
+import { Save, AlertCircle, Sparkles, Shield, Wrench, Zap } from 'lucide-react';
 import AiProvidersManager from '@/components/admin/AiProvidersManager';
 
 export default function SettingsManagement() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const [featureFlags, setFeatureFlags] = useState({
     enable_ai_assistant: true,
-    enable_sharing: false,
+    enable_gemini_fallback: true,
     free_tier_daily_limit: 15,
     maintenance_mode: false
   });
@@ -22,20 +22,20 @@ export default function SettingsManagement() {
   async function fetchSettings() {
     setLoading(true);
     try {
-      const { data: flagsData } = await (supabase.from('global_settings') as any)
+      const { data: flagsData, error } = await (supabase.from('global_settings') as any)
         .select('value')
         .eq('id', 'feature_flags')
         .maybeSingle();
 
       if (flagsData?.value) {
         setFeatureFlags({
-          enable_ai_assistant: flagsData.value.enable_ai_assistant ?? flagsData.value.enable_gemini ?? true,
-          enable_sharing: flagsData.value.enable_sharing ?? false,
-          free_tier_daily_limit: flagsData.value.free_tier_daily_limit ?? flagsData.value.ai_daily_limit ?? 15,
+          enable_ai_assistant: flagsData.value.enable_ai_assistant ?? true,
+          enable_gemini_fallback: flagsData.value.enable_gemini_fallback ?? true,
+          free_tier_daily_limit: flagsData.value.free_tier_daily_limit ?? 15,
           maintenance_mode: flagsData.value.maintenance_mode ?? false
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading settings:', err);
     } finally {
       setLoading(false);
@@ -46,9 +46,10 @@ export default function SettingsManagement() {
     fetchSettings();
   }, []);
 
-  const handleSave = async () => {
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
     setSaving(true);
-    setMessage(null);
+    setToastMsg(null);
 
     try {
       const { error } = await (supabase.from('global_settings') as any).upsert(
@@ -61,12 +62,12 @@ export default function SettingsManagement() {
       );
 
       if (error) throw error;
-      setMessage({ text: 'قابلیت‌های سیستم با موفقیت ذخیره شدند.', type: 'success' });
+      setToastMsg({ text: 'تنظیمات و سهمیه‌های سیستم با موفقیت ذخیره و اعمال شدند.', type: 'success' });
     } catch (err: any) {
-      setMessage({ text: `خطا در ذخیره تنظیمات: ${err.message}`, type: 'error' });
+      setToastMsg({ text: `خطا در ذخیره‌سازی: ${err.message}`, type: 'error' });
     } finally {
       setSaving(false);
-      setTimeout(() => setMessage(null), 4000);
+      setTimeout(() => setToastMsg(null), 4000);
     }
   };
 
@@ -77,11 +78,11 @@ export default function SettingsManagement() {
         <p className="text-xs text-slate-400 mt-1">مدیریت زنجیره هوش مصنوعی، سهمیه‌ها و کلیدهای کنترل سراسری اپلیکیشن</p>
       </header>
 
-      {/* ۱. ماژول تمام‌عرض و اختصاصی مدیریت هوش مصنوعی */}
+      {/* ۱. ماژول مدیریت ارائه‌دهندگان هوش مصنوعی */}
       <AiProvidersManager />
 
-      {/* ۲. ماژول قابلیت‌های سیستم (Feature Flags) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-6 text-right">
+      {/* ۲. ماژول قابلیت‌های سیستم و سهمیه‌ها */}
+      <form onSubmit={handleSave} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-6 text-right">
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
@@ -89,10 +90,16 @@ export default function SettingsManagement() {
             </div>
             <div>
               <h3 className="text-base font-black text-white">کلیدهای کنترل سراسری (Feature Flags)</h3>
-              <p className="text-xs text-slate-400">تنظیم محدودیت‌ها و سوییچ‌های لحظه‌ای سیستم بدون نیاز به دیپلوی مجدد</p>
+              <p className="text-xs text-slate-400">تنظیم محدودیت‌ها و سوییچ‌های لحظه‌ای سیستم</p>
             </div>
           </div>
         </div>
+
+        {toastMsg && (
+          <div className={`p-3.5 rounded-xl text-xs font-bold text-center ${toastMsg.type === 'success' ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800' : 'bg-rose-950/80 text-rose-300 border border-rose-800'}`}>
+            {toastMsg.text}
+          </div>
+        )}
 
         {loading ? (
           <div className="text-xs text-slate-400 font-bold py-6 text-center animate-pulse">در حال فراخوانی تنظیمات...</div>
@@ -106,7 +113,7 @@ export default function SettingsManagement() {
                   <Sparkles className="w-4 h-4 text-teal-400" />
                   <span>سرویس دستیار هوش مصنوعی</span>
                 </span>
-                <span className="text-[11px] text-slate-400 block">فعال بودن ماژول چت و پردازش فرامین صوتی</span>
+                <span className="text-[11px] text-slate-400 block">فعال/غیرفعال‌سازی کلی چت و فرامین هوشمند</span>
               </div>
               <input
                 type="checkbox"
@@ -116,37 +123,37 @@ export default function SettingsManagement() {
               />
             </label>
 
-            {/* سوییچ اشتراک‌گذاری */}
+            {/* سوییچ سپر نجات جمینای */}
             <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
               <div className="space-y-1">
                 <span className="text-xs font-black text-white flex items-center gap-2">
-                  <Share2 className="w-4 h-4 text-indigo-400" />
-                  <span>اشتراک‌گذاری پلن‌ها و رویدادها</span>
+                  <Shield className="w-4 h-4 text-indigo-400" />
+                  <span>سپر نجات Gemini سرور (Fallback)</span>
                 </span>
-                <span className="text-[11px] text-slate-400 block">امکان ساخت لینک عمومی برای تقویم و یادداشت‌ها</span>
+                <span className="text-[11px] text-slate-400 block">سوئیچ خودکار به جمینای در صورت خرابی سایر مدل‌ها</span>
               </div>
               <input
                 type="checkbox"
-                checked={featureFlags.enable_sharing}
-                onChange={(e) => setFeatureFlags({ ...featureFlags, enable_sharing: e.target.checked })}
-                className="w-5 h-5 text-teal-600 rounded-lg accent-teal-500 cursor-pointer"
+                checked={featureFlags.enable_gemini_fallback}
+                onChange={(e) => setFeatureFlags({ ...featureFlags, enable_gemini_fallback: e.target.checked })}
+                className="w-5 h-5 text-indigo-600 rounded-lg accent-indigo-500 cursor-pointer"
               />
             </label>
 
-            {/* سقف مجاز کاربران رایگان */}
+            {/* سقف سهمیه کاربران رایگان */}
             <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between">
               <div className="space-y-1">
                 <span className="text-xs font-black text-white flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-amber-400" />
-                  <span>سقف سهمیه روزانه پلن رایگان</span>
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  <span>سقف روزانه پلن رایگان</span>
                 </span>
-                <span className="text-[11px] text-slate-400 block">تعداد مجاز درخواست در هر ۲۴ ساعت</span>
+                <span className="text-[11px] text-slate-400 block">تعداد مجاز پیام کاربر عادی در ۲۴ ساعت</span>
               </div>
               <div className="flex items-center gap-1.5 font-mono">
                 <input
                   type="number"
                   min="1"
-                  max="100"
+                  max="200"
                   value={featureFlags.free_tier_daily_limit}
                   onChange={(e) => setFeatureFlags({ ...featureFlags, free_tier_daily_limit: Math.max(1, parseInt(e.target.value, 10) || 1) })}
                   className="w-16 px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-center text-white text-xs font-bold focus:outline-none focus:border-teal-500"
@@ -155,14 +162,14 @@ export default function SettingsManagement() {
               </div>
             </div>
 
-            {/* حالت تعمیرات */}
+            {/* حالت تعمیر و نگهداری */}
             <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
               <div className="space-y-1">
                 <span className="text-xs font-black text-white flex items-center gap-2">
                   <Wrench className="w-4 h-4 text-rose-400" />
-                  <span>حالت تعمیر و نگهداری (Maintenance)</span>
+                  <span>حالت تعمیر و ارتقای سامانه</span>
                 </span>
-                <span className="text-[11px] text-slate-400 block">نمایش صفحه دردسترس نبودن برای کاربران عادی</span>
+                <span className="text-[11px] text-slate-400 block">نمایش اعلان حالت نگهداری به کاربران</span>
               </div>
               <input
                 type="checkbox"
@@ -175,11 +182,10 @@ export default function SettingsManagement() {
           </div>
         )}
 
-        {/* دکمه ذخیره تنظیمات */}
-        <div className="flex items-center gap-4 pt-2">
+        {/* دکمه ذخیره کلیدهای کنترلی */}
+        <div className="flex items-center gap-4 pt-4 border-t border-slate-800">
           <button
-            type="button"
-            onClick={handleSave}
+            type="submit"
             disabled={saving || loading}
             className="flex items-center gap-2 px-6 py-3 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-md shadow-teal-600/20"
           >
@@ -190,14 +196,8 @@ export default function SettingsManagement() {
             )}
             <span>ذخیره کلیدهای کنترلی</span>
           </button>
-          
-          {message && (
-            <span className={`text-xs font-bold ${message.type === 'error' ? 'text-rose-400' : 'text-emerald-400'}`}>
-              {message.text}
-            </span>
-          )}
         </div>
-      </div>
+      </form>
     </div>
   );
 }

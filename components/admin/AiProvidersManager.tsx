@@ -467,7 +467,7 @@ export default function AiProvidersManager() {
                   required
                   value={formData.apiKey || ''}
                   onChange={e => setFormData({ ...formData, apiKey: e.target.value })}
-                  placeholder="sk-..."
+                  
                   className="w-full text-xs p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-white font-mono focus:outline-none focus:border-teal-500"
                   dir="ltr"
                 />

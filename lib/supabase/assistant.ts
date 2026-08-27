@@ -129,30 +129,33 @@ export async function getAiUsageToday(): Promise<{ count: number; limit: number;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { count: 0, limit: 15, plan: 'free' };
 
-    // محاسبه دقیق تاریخ محلی سیستم (نه UTC)
     const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    const localTodayStr = `${y}-${m}-${d}`;
+    const localTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    // خواندن سقف تعیین‌شده توسط ادمین
+    let freeLimit = 15;
+    try {
+      const { data: flagData } = await (supabase.from('global_settings') as any)
+        .select('value')
+        .eq('id', 'feature_flags')
+        .maybeSingle();
+      if (flagData?.value?.free_tier_daily_limit) {
+        freeLimit = Number(flagData.value.free_tier_daily_limit);
+      }
+    } catch {}
 
     const { data: profile } = await (supabase.from('profiles') as any).select('plan').eq('id', user.id).maybeSingle();
     const plan = profile?.plan || 'free';
-    const limit = plan === 'pro' ? 100 : plan === 'team' ? 250 : 15;
+    const limit = plan === 'pro' ? 100 : plan === 'team' ? 250 : freeLimit;
 
-    const { data: usage, error } = await (supabase.from('user_ai_usage') as any)
+    const { data: usage } = await (supabase.from('user_ai_usage') as any)
       .select('request_count')
       .eq('user_id', user.id)
       .eq('usage_date', localTodayStr)
       .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
-      console.warn('getAiUsageToday notice:', error.message);
-    }
-
     return { count: usage?.request_count || 0, limit, plan };
   } catch (err) {
-    console.error('getAiUsageToday error:', err);
     return { count: 0, limit: 15, plan: 'free' };
   }
 }
