@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { BrainProfile } from '@/lib/supabase/brainGym';
-import { pushWithLimit } from '@/lib/utils/brainMath';
+import { BrainProfile, logBrainActivity } from '@/lib/supabase/brainGym';
+import { pushWithLimit, calculateMathSpeedScore, calculateAverage } from '@/lib/utils/brainMath';
 
 type MathTimeMode = 'sprint_30' | 'endurance_60' | 'survival_3';
 type MathDiffMode = 'basic' | 'advanced' | 'operator_reverse';
@@ -28,9 +28,11 @@ export default function MathSpeedGame({
 
   const [mathState, setMathState] = useState<'idle' | 'playing' | 'finished'>('idle');
   const [mathScore, setMathScore] = useState(0);
+  const [mathMistakes, setMathMistakes] = useState(0);
   const [mathRound, setMathRound] = useState(0);
   const [mathTimer, setMathTimer] = useState(30);
   const [mathLives, setMathLives] = useState(3);
+  const [reactionTimes, setReactionTimes] = useState<number[]>([]);
 
   const [mathProblem, setMathProblem] = useState<{
     displayStr: string;
@@ -38,26 +40,46 @@ export default function MathSpeedGame({
     correctAnswer: string;
   } | null>(null);
 
-  const stateRef = useRef({ mathScore, mathRound, brainProfile });
-  stateRef.current = { mathScore, mathRound, brainProfile };
+  const startTimeRef = useRef<number>(0);
+  const stateRef = useRef({ mathScore, mathMistakes, reactionTimes, brainProfile });
+  stateRef.current = { mathScore, mathMistakes, reactionTimes, brainProfile };
 
-  const finishGame = useCallback((scoreVal: number, roundsVal: number) => {
+  const finishGame = useCallback((correctCount: number, mistakeCount: number, reactions: number[]) => {
     setMathState('finished');
     playAudioFeedback?.('xp');
 
-    const attempts = Math.max(1, roundsVal);
-    const mathAccuracy = Math.min(100, Math.round((scoreVal / attempts) * 100));
+    const avgReaction = calculateAverage(reactions) || 1500;
+    
+    // ۱. محاسبه علمی سرعت پردازش مغز (ضربی)
+    const { normalizedScore, rawMetrics, isValid } = calculateMathSpeedScore(correctCount, mistakeCount, avgReaction);
 
-    earnXp(scoreVal * 3 + 10, 'تست سرعت پردازش و محاسبات ذهنی');
-    showToast(`پایان تست! پاسخ‌های درست: ${scoreVal} | دقت: ${mathAccuracy}٪`, 'info');
+    // فیلتر آزمون غیرمعتبر
+    if (!isValid || normalizedScore === null) {
+      logBrainActivity('math_speed', rawMetrics, null); // 👈 ارسال null به جای 0
+      showToast('⚠️ آزمون به دلیل عدم پاسخ‌دهی کافی یا کلیک غیرواقعی ثبت نشد.', 'error');
+      return;
+    }
 
+    // ۳. ثبت تلاش در دیتابیس سری زمانی
+    logBrainActivity('math_speed', {
+      ...rawMetrics,
+      time_mode: mathTimeMode,
+      diff_mode: mathDiffMode,
+      total_questions: correctCount + mistakeCount
+    }, normalizedScore);
+
+    // ۴. آپدیت پروفایل کلی با مقدار number تضمین‌شده
     saveProfile({
       ...stateRef.current.brainProfile,
-      processingSpeed: Math.min(100, Math.max(stateRef.current.brainProfile.processingSpeed, Math.round(scoreVal * 3))),
-      gamesPlayed: stateRef.current.brainProfile.gamesPlayed + 1,
-      totalAccuracies: pushWithLimit(stateRef.current.brainProfile.totalAccuracies, mathAccuracy)
+      processingSpeed: normalizedScore,
+      gamesPlayed: (stateRef.current.brainProfile.gamesPlayed || 0) + 1,
+      totalAccuracies: pushWithLimit(stateRef.current.brainProfile.totalAccuracies, normalizedScore),
+      reactionTimes: avgReaction > 0 ? pushWithLimit(stateRef.current.brainProfile.reactionTimes, avgReaction) : stateRef.current.brainProfile.reactionTimes
     });
-  }, [earnXp, showToast, saveProfile, playAudioFeedback]);
+
+    earnXp(Math.max(15, Math.round(normalizedScore / 3)), 'تست سرعت پردازش و محاسبات ذهنی');
+    showToast(`پایان تست! امتیاز سرعت پردازش: ${normalizedScore} از ۱۰۰`, 'info');
+  }, [earnXp, showToast, saveProfile, playAudioFeedback, mathTimeMode, mathDiffMode]);
 
   useEffect(() => {
     if (mathState !== 'playing' || mathTimeMode === 'survival_3') return;
@@ -66,7 +88,7 @@ export default function MathSpeedGame({
       setMathTimer(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          finishGame(stateRef.current.mathScore, stateRef.current.mathRound);
+          finishGame(stateRef.current.mathScore, stateRef.current.mathMistakes, stateRef.current.reactionTimes);
           return 0;
         }
         return prev - 1;
@@ -77,6 +99,8 @@ export default function MathSpeedGame({
   }, [mathState, mathTimeMode, finishGame]);
 
   const generateMathProblem = useCallback(() => {
+    startTimeRef.current = Date.now();
+
     if (mathDiffMode === 'operator_reverse') {
       const isOperatorMode = Math.random() > 0.5;
       if (isOperatorMode) {
@@ -174,6 +198,8 @@ export default function MathSpeedGame({
   const startMathGame = () => {
     playAudioFeedback?.('click');
     setMathScore(0);
+    setMathMistakes(0);
+    setReactionTimes([]);
     setMathRound(1);
     setMathLives(3);
     setMathTimer(mathTimeMode === 'sprint_30' ? 30 : mathTimeMode === 'endurance_60' ? 60 : 999);
@@ -184,16 +210,23 @@ export default function MathSpeedGame({
   const handleMathAnswer = (val: string) => {
     if (!mathProblem || mathState !== 'playing') return;
 
+    const reactionMs = Date.now() - startTimeRef.current;
+    const updatedReactions = [...reactionTimes, reactionMs];
+    setReactionTimes(updatedReactions);
+
     if (val === mathProblem.correctAnswer) {
       playAudioFeedback?.('click');
       setMathScore(prev => prev + 1);
     } else {
       playAudioFeedback?.('click');
+      const updatedMistakes = mathMistakes + 1;
+      setMathMistakes(updatedMistakes);
+
       if (mathTimeMode === 'survival_3') {
         const remaining = mathLives - 1;
         setMathLives(remaining);
         if (remaining <= 0) {
-          finishGame(mathScore, mathRound);
+          finishGame(mathScore, updatedMistakes, updatedReactions);
           return;
         }
       }
@@ -258,8 +291,8 @@ export default function MathSpeedGame({
           </motion.div>
         ) : mathState === 'finished' ? (
           <div className="space-y-1">
-            <div className="text-lg font-black text-amber-600 dark:text-amber-400">پاسخ صحیح: {mathScore}</div>
-            <p className="text-[11px] text-slate-400">سرعت پردازش عصبی به‌روزرسانی شد.</p>
+            <div className="text-lg font-black text-amber-600 dark:text-amber-400">پاسخ‌های صحیح: {mathScore}</div>
+            <p className="text-[11px] text-slate-400">شاخص سرعت پردازش عصبی محاسبه و در دیتابیس ثبت شد.</p>
           </div>
         ) : (
           <div className="text-xs text-slate-400 italic">برای شروع روی دکمه زیر کلیک کنید.</div>

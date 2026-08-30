@@ -419,3 +419,185 @@ export async function getNeuroArticlesGlobal(): Promise<any[]> {
   } catch (e) {}
   return DEFAULT_NEURO_ARTICLES;
 }
+
+export interface BrainActivityLog {
+  id?: string;
+  game_type: 'spatial_memory' | 'stroop_test' | 'math_speed';
+  played_at?: string;
+  raw_metrics: Record<string, any>;
+  normalized_score: number | null;
+}
+
+export interface CognitiveMetricStatus {
+  score: number | null;
+  isCalibrating: boolean;
+  sampleSize: number;
+  todayScore: number | null;
+  todayAttempts: number;
+  lastPlayedAt: string | null;
+}
+
+export interface AggregatedBrainMetrics {
+  spatialMemory: CognitiveMetricStatus;
+  stroopFlexibility: CognitiveMetricStatus;
+  mathSpeed: CognitiveMetricStatus;
+  avgReactionTimeMs: number | null;
+  accuracyRate: number | null;
+  overallIndex: number | null;
+  totalGamesAllTime: number;
+}
+
+// ۱. ثبت لاگ (با پذیرش مقدار null برای بازی‌های باطل‌شده)
+export async function logBrainActivity(
+  gameType: 'spatial_memory' | 'stroop_test' | 'math_speed',
+  rawMetrics: Record<string, any>,
+  normalizedScore: number | null
+): Promise<boolean> {
+  const cleanScore = normalizedScore !== null 
+    ? Math.max(0, Math.min(100, Math.round(normalizedScore))) 
+    : null;
+
+  const logItem: BrainActivityLog = {
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'log_' + Date.now(),
+    game_type: gameType,
+    played_at: new Date().toISOString(),
+    raw_metrics: rawMetrics,
+    normalized_score: cleanScore
+  };
+
+  if (typeof window !== 'undefined') {
+    try {
+      const localLogs: BrainActivityLog[] = JSON.parse(localStorage.getItem('sayeban_brain_activity_logs') || '[]');
+      localLogs.unshift(logItem);
+      localStorage.setItem('sayeban_brain_activity_logs', JSON.stringify(localLogs.slice(0, 100)));
+    } catch (e) {}
+  }
+
+  const supabase = createClient();
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return true;
+
+    await (supabase.from('brain_activity_logs') as any).insert({
+      user_id: user.id,
+      game_type: gameType,
+      played_at: logItem.played_at,
+      raw_metrics: rawMetrics,
+      normalized_score: cleanScore
+    });
+
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+// ۲. محاسبه آمار (فیلتر کردن بازی‌های نامعتبر و محاسبه صرفاً بر اساس آزمون‌های معتبر)
+export async function getAggregatedBrainMetrics(clientTodayStr?: string): Promise<AggregatedBrainMetrics> {
+  const todayDate = clientTodayStr || new Date().toISOString().split('T')[0];
+  const supabase = createClient();
+  let logs: BrainActivityLog[] = [];
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data, error } = await (supabase.from('brain_activity_logs') as any)
+        .select('*')
+        .eq('user_id', user.id)
+        .order('played_at', { ascending: false })
+        .limit(100);
+
+      if (!error && data && data.length > 0) {
+        logs = data;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('sayeban_brain_activity_logs', JSON.stringify(data));
+        }
+      }
+    }
+  } catch {}
+
+  if (logs.length === 0 && typeof window !== 'undefined') {
+    try {
+      logs = JSON.parse(localStorage.getItem('sayeban_brain_activity_logs') || '[]');
+    } catch {}
+  }
+
+  const processGameType = (gType: 'spatial_memory' | 'stroop_test' | 'math_speed'): CognitiveMetricStatus => {
+    const allGameLogs = logs.filter(l => l.game_type === gType);
+    
+    // فیلتر حیاتی: فقط لاگ‌هایی که معتبر هستند و نمره دارند وارد محاسبه عملکرد می‌شوند
+    const validLogs = allGameLogs.filter(
+      l => l.normalized_score !== null && 
+           !l.raw_metrics?.status?.includes('invalid')
+    );
+
+    const recent20Valid = validLogs.slice(0, 20);
+    const sampleSize = recent20Valid.length;
+
+    // بازی‌های معتبر امروز
+    const todayValidLogs = validLogs.filter(l => l.played_at && l.played_at.startsWith(todayDate));
+    const todayAttempts = todayValidLogs.length;
+    const todayScore = todayAttempts > 0
+      ? Math.round(todayValidLogs.reduce((acc, curr) => acc + Number(curr.normalized_score), 0) / todayAttempts)
+      : null;
+
+    if (sampleSize < 3) {
+      return {
+        score: null,
+        isCalibrating: true,
+        sampleSize,
+        todayScore,
+        todayAttempts,
+        lastPlayedAt: validLogs[0]?.played_at || null
+      };
+    }
+
+    const rollingAvg = Math.round(recent20Valid.reduce((acc, curr) => acc + Number(curr.normalized_score), 0) / sampleSize);
+
+    return {
+      score: rollingAvg,
+      isCalibrating: false,
+      sampleSize,
+      todayScore,
+      todayAttempts,
+      lastPlayedAt: validLogs[0]?.played_at || null
+    };
+  };
+
+  const spatial = processGameType('spatial_memory');
+  const stroop = processGameType('stroop_test');
+  const math = processGameType('math_speed');
+
+  const validRecentLogs = logs
+    .filter(l => l.normalized_score !== null && !l.raw_metrics?.status?.includes('invalid'))
+    .slice(0, 20);
+
+  const reactions: number[] = [];
+  validRecentLogs.forEach(l => {
+    if (l.raw_metrics?.avg_reaction_ms) reactions.push(l.raw_metrics.avg_reaction_ms);
+    if (l.raw_metrics?.avg_incongruent_ms) reactions.push(l.raw_metrics.avg_incongruent_ms);
+  });
+
+  const avgReactionTimeMs = reactions.length > 0 
+    ? Math.round(reactions.reduce((a, b) => a + b, 0) / reactions.length) 
+    : null;
+
+  const validScores = [spatial.score, stroop.score, math.score].filter((s): s is number => s !== null);
+  const accuracyRate = validScores.length > 0 
+    ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length) 
+    : null;
+
+  const overallIndex = validScores.length > 0
+    ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length)
+    : null;
+
+  return {
+    spatialMemory: spatial,
+    stroopFlexibility: stroop,
+    mathSpeed: math,
+    avgReactionTimeMs,
+    accuracyRate,
+    overallIndex,
+    totalGamesAllTime: logs.length
+  };
+}

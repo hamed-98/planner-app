@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { BrainProfile } from '@/lib/supabase/brainGym';
-import { pushWithLimit } from '@/lib/utils/brainMath';
+import { BrainProfile, logBrainActivity } from '@/lib/supabase/brainGym';
+import { pushWithLimit, calculateSpatialScore, calculateAverage } from '@/lib/utils/brainMath';
 import { RotateCcw, XCircle } from 'lucide-react';
 
 type SpatialDifficulty = 'easy' | 'medium' | 'hard' | 'advanced';
@@ -62,14 +62,6 @@ export default function SpatialMemoryGame({
     }
   };
 
-  // فرمول محاسبه امتیاز حافظه کاری بر اساس سطح و مود
-  const calculateMemoryScore = (diff: SpatialDifficulty, lvl: number, mode: SpatialMode) => {
-    const baseMap = { easy: 30, medium: 50, hard: 70, advanced: 85 };
-    const stepBonus = (lvl - 1) * 5;
-    const reverseBonus = mode === 'reverse' ? 10 : 0;
-    return Math.min(100, baseMap[diff] + stepBonus + reverseBonus);
-  };
-
   const generateSpatialSequence = useCallback((lvl: number) => {
     clearAllTimeouts();
     const config = getGridConfig(spatialDifficulty);
@@ -121,61 +113,79 @@ export default function SpatialMemoryGame({
     const targetSeq = spatialMode === 'reverse' ? [...spatialSequence].reverse() : spatialSequence;
     const currentStep = nextUserSeq.length - 1;
 
-    // شکست در بازی
+    const config = getGridConfig(spatialDifficulty);
+
+    // ۱. شکست در تکرار الگو
     if (nextUserSeq[currentStep] !== targetSeq[currentStep]) {
       setSpatialGameState('failed');
       showToast('الگو قطع شد!', 'error');
 
+      // محاسبه طول مؤثر زنجیره با موفقیت طی‌شده
       const completedLevels = Math.max(0, spatialLevel - 1);
-      const earnedScore = completedLevels > 0 ? calculateMemoryScore(spatialDifficulty, completedLevels, spatialMode) : brainProfile.memoryScore;
-      const partialAcc = Math.round((completedLevels / 4) * 100);
-      const avgReaction = spatialReactionTimes.length > 0
-        ? Math.round(spatialReactionTimes.reduce((a, b) => a + b, 0) / spatialReactionTimes.length)
-        : 500;
+      const spanReached = completedLevels > 0 
+        ? config.length + (completedLevels - 1) + (spatialMode === 'reverse' ? 1 : 0)
+        : 0;
 
+      const { normalizedScore, rawMetrics } = calculateSpatialScore(spanReached, 1);
+      const avgReaction = calculateAverage(spatialReactionTimes) || 500;
+
+      // ثبت تلاش در لاگ دیتابیس
+      logBrainActivity('spatial_memory', {
+        ...rawMetrics,
+        difficulty: spatialDifficulty,
+        mode: spatialMode,
+        completed_levels: completedLevels,
+        avg_reaction_ms: avgReaction
+      }, normalizedScore);
+
+      // آپدیت پروفایل کلی
       saveProfile({
         ...brainProfile,
-        memoryScore: Math.max(brainProfile.memoryScore, earnedScore), // 👈 ارتقای امتیاز حتی در باخت
-        gamesPlayed: brainProfile.gamesPlayed + 1,
-        totalAccuracies: pushWithLimit(brainProfile.totalAccuracies, partialAcc),
+        memoryScore: normalizedScore,
+        gamesPlayed: (brainProfile.gamesPlayed || 0) + 1,
+        totalAccuracies: pushWithLimit(brainProfile.totalAccuracies, normalizedScore),
         reactionTimes: avgReaction > 0 ? pushWithLimit(brainProfile.reactionTimes, avgReaction) : brainProfile.reactionTimes
       });
+
+      if (normalizedScore > 0) {
+        earnXp(Math.max(10, Math.round(normalizedScore / 4)), `تمرین حافظه فضایی (مرحله ${completedLevels})`);
+      }
       return;
     }
 
-    // پایان موفق مرحله
+    // ۲. پایان موفق کل دوره یا رفتن به مرحله بعد
     if (nextUserSeq.length === targetSeq.length) {
-      const currentEarnedScore = calculateMemoryScore(spatialDifficulty, spatialLevel, spatialMode);
-      const newMemoryScore = Math.max(brainProfile.memoryScore, currentEarnedScore);
-
       if (spatialLevel >= 4) {
         setSpatialGameState('success');
         playAudioFeedback?.('xp');
 
-        const avgReaction = spatialReactionTimes.length > 0
-          ? Math.round(spatialReactionTimes.reduce((a, b) => a + b, 0) / spatialReactionTimes.length)
-          : 450;
+        const spanReached = config.length + 3 + (spatialMode === 'reverse' ? 1 : 0);
+        const { normalizedScore, rawMetrics } = calculateSpatialScore(spanReached, 0);
+        const avgReaction = calculateAverage(spatialReactionTimes) || 450;
 
-        earnXp(40, `تکمیل چالش حافظه فضایی (${spatialDifficulty})`);
-        showToast(`چالش حافظه با موفقیت کامل شد! امتیاز حافظه: ${newMemoryScore}`, 'success');
+        // ثبت موفقیت در دیتابیس سری زمانی
+        logBrainActivity('spatial_memory', {
+          ...rawMetrics,
+          difficulty: spatialDifficulty,
+          mode: spatialMode,
+          completed_levels: 4,
+          avg_reaction_ms: avgReaction
+        }, normalizedScore);
 
         saveProfile({
           ...brainProfile,
-          memoryScore: newMemoryScore,
-          gamesPlayed: brainProfile.gamesPlayed + 1,
-          totalAccuracies: pushWithLimit(brainProfile.totalAccuracies, 100),
+          memoryScore: normalizedScore,
+          gamesPlayed: (brainProfile.gamesPlayed || 0) + 1,
+          totalAccuracies: pushWithLimit(brainProfile.totalAccuracies, normalizedScore),
           reactionTimes: pushWithLimit(brainProfile.reactionTimes, avgReaction)
         });
-      } else {
-        // ثبت مرحله‌ای امتیاز در هر دور
-        saveProfile({
-          ...brainProfile,
-          memoryScore: newMemoryScore
-        });
 
+        earnXp(40, `تکمیل ۴ مرحله حافظه فضایی (${spatialDifficulty})`);
+        showToast(`چالش کامل شد! امتیاز حافظه کاری: ${normalizedScore} از ۱۰۰`, 'success');
+      } else {
         const nextLvl = spatialLevel + 1;
         setSpatialLevel(nextLvl);
-        showToast(`مرحله ${spatialLevel} موفق! امتیاز فعلی: ${newMemoryScore}`, 'info');
+        showToast(`مرحله ${spatialLevel} با موفقیت طی شد!`, 'info');
         const nextTimer = setTimeout(() => generateSpatialSequence(nextLvl), 800);
         timeoutsRef.current.push(nextTimer);
       }
@@ -234,7 +244,7 @@ export default function SpatialMemoryGame({
               className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold disabled:opacity-50"
             >
               <option value="normal">مستقیم</option>
-              <option value="reverse">معکوس 🔄 (+۱۰ امتیاز)</option>
+              <option value="reverse">معکوس 🔄 (+۱ ظرفیت)</option>
             </select>
           </div>
         </div>

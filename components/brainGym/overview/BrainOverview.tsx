@@ -1,14 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Brain, Layers, Clock, CheckCircle2, Play, HelpCircle } from 'lucide-react';
-import { BrainProfile, CbtRecord, NeuroHabit } from '@/lib/supabase/brainGym';
-import { calculateAverage } from '@/lib/utils/brainMath';
-import CognitiveBadges from './CognitiveBadges';
+import { BrainProfile, CbtRecord, NeuroHabit, AggregatedBrainMetrics } from '@/lib/supabase/brainGym';
+import { Layers, Activity, Zap, Play, Sparkles, CheckCircle2, HelpCircle, Target } from 'lucide-react';
 import CognitiveGuideModal, { GuideTopicKey } from '../common/CognitiveGuideModal';
 
 interface BrainOverviewProps {
   brainProfile: BrainProfile;
+  aggregatedMetrics: AggregatedBrainMetrics | null;
   cbtRecords: CbtRecord[];
   neuroHabits: NeuroHabit[];
   completedMissionsCount: number;
@@ -17,151 +16,210 @@ interface BrainOverviewProps {
 
 export default function BrainOverview({
   brainProfile,
+  aggregatedMetrics,
   cbtRecords,
   neuroHabits,
   completedMissionsCount,
   onStartSpatialGame
 }: BrainOverviewProps) {
-  const [activeGuide, setActiveGuide] = useState<GuideTopicKey | null>(null);
+  const [selectedGuideTopic, setSelectedGuideTopic] = useState<GuideTopicKey | null>(null);
 
-  const avgAccuracy = calculateAverage(brainProfile.totalAccuracies);
-  const avgReactionMs = calculateAverage(brainProfile.reactionTimes);
+  const renderMetricCard = (
+    title: string,
+    topicKey: GuideTopicKey,
+    metricStatus: any,
+    fallbackScore: number,
+    icon: React.ReactNode,
+    colorClass: { bg: string; text: string; ring: string }
+  ) => {
+    // اولویت قطعی با لاگ‌های تجمیعی برای جلوگیری از پرش عدد
+    const isCalibrating = aggregatedMetrics ? (metricStatus?.isCalibrating ?? true) : (brainProfile.gamesPlayed < 3);
+    const score = metricStatus?.score ?? (isCalibrating ? null : fallbackScore);
+    const sampleSize = metricStatus?.sampleSize ?? (aggregatedMetrics ? 0 : brainProfile.gamesPlayed);
+    const todayAttempts = metricStatus?.todayAttempts ?? 0;
+    const todayScore = metricStatus?.todayScore ?? null;
+
+    return (
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 space-y-4 shadow-sm flex flex-col justify-between">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-9 h-9 rounded-2xl flex items-center justify-center ${colorClass.bg} ${colorClass.text}`}>
+              {icon}
+            </div>
+            <div>
+              <h4 className="text-xs font-black text-slate-900 dark:text-slate-100">{title}</h4>
+              <span className="text-[10px] text-slate-400 font-medium">
+                {isCalibrating 
+                  ? `کالیبراسیون (${sampleSize} از ۳ آزمون)` 
+                  : `بر اساس ${sampleSize} فعالیت اخیر`}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSelectedGuideTopic(topicKey)}
+            className="p-1.5 text-slate-400 hover:text-indigo-500 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            title="راهنما و مبنای علمی"
+          >
+            <HelpCircle className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-1">
+          {isCalibrating ? (
+            <div className="py-2">
+              <span className="text-xs font-bold text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800/40">
+                در حال ارزیابی اولیه...
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-black font-mono text-slate-900 dark:text-white">
+                {score}
+              </span>
+              <span className="text-xs text-slate-400 font-bold">از ۱۰۰</span>
+            </div>
+          )}
+
+          <div className="pt-2 border-t border-slate-50 dark:border-slate-800/60 flex items-center justify-between text-[10px]">
+            <span className="text-slate-400 font-medium">وضعیت امروز:</span>
+            {todayAttempts > 0 ? (
+              <span className="text-emerald-500 dark:text-emerald-400 font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" />
+                <span>{todayAttempts} تمرین (امتیاز: {todayScore})</span>
+              </span>
+            ) : (
+              <span className="text-slate-400 italic">هنوز ثبت نشده</span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const reactionTimeVal = aggregatedMetrics?.avgReactionTimeMs || (brainProfile.reactionTimes?.[0] ?? null);
+  const accuracyRateVal = aggregatedMetrics?.accuracyRate || (brainProfile.totalAccuracies?.[0] ?? null);
 
   return (
     <div className="space-y-6">
-      <CognitiveGuideModal topicKey={activeGuide} onClose={() => setActiveGuide(null)} />
+      {/* ردیف اول: ۳ مهارت شناختی */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {renderMetricCard(
+          'قدرت حافظه کاری',
+          'memory_score',
+          aggregatedMetrics?.spatialMemory,
+          brainProfile.memoryScore,
+          <Layers className="w-4 h-4" />,
+          { bg: 'bg-purple-50 dark:bg-purple-950/40', text: 'text-purple-600 dark:text-purple-300', ring: 'border-purple-500' }
+        )}
 
-      {/* ۴ کارت اصلی شاخص‌ها با دکمه‌های راهنما */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* حافظه کاری */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
-          <div className="flex justify-between items-center text-slate-500">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">قدرت حافظه کاری</span>
-              <button
-                type="button"
-                onClick={() => setActiveGuide('memory_score')}
-                className="text-slate-400 hover:text-purple-600 transition-colors cursor-pointer"
-                title="راهنمای شاخص حافظه کاری"
-              >
-                <HelpCircle className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <Brain className="w-5 h-5 text-purple-500" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-purple-600 dark:text-purple-400">{brainProfile.memoryScore}</span>
-            <span className="text-[10px] text-slate-400">از ۱۰۰</span>
-          </div>
-          <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-            <div className="bg-purple-500 h-full rounded-full transition-all duration-500" style={{ width: `${brainProfile.memoryScore}%` }} />
-          </div>
-        </div>
+        {renderMetricCard(
+          'انعطاف‌پذیری استروپ',
+          'flexibility_score',
+          aggregatedMetrics?.stroopFlexibility,
+          brainProfile.flexibilityScore,
+          <Activity className="w-4 h-4" />,
+          { bg: 'bg-indigo-50 dark:bg-indigo-950/40', text: 'text-indigo-600 dark:text-indigo-300', ring: 'border-indigo-500' }
+        )}
 
-        {/* انعطاف استروپ */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
-          <div className="flex justify-between items-center text-slate-500">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">انعطاف‌پذیری استروپ</span>
-              <button
-                type="button"
-                onClick={() => setActiveGuide('flexibility_score')}
-                className="text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
-                title="راهنمای انعطاف‌پذیری استروپ"
-              >
-                <HelpCircle className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <Layers className="w-5 h-5 text-indigo-500" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{brainProfile.flexibilityScore}</span>
-            <span className="text-[10px] text-slate-400">از ۱۰۰</span>
-          </div>
-          <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-            <div className="bg-indigo-500 h-full rounded-full transition-all duration-500" style={{ width: `${brainProfile.flexibilityScore}%` }} />
-          </div>
-        </div>
+        {renderMetricCard(
+          'سرعت محاسبات ذهنی',
+          'reaction_time',
+          aggregatedMetrics?.mathSpeed,
+          brainProfile.processingSpeed,
+          <Zap className="w-4 h-4" />,
+          { bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-600 dark:text-amber-300', ring: 'border-amber-500' }
+        )}
+      </div>
 
-        {/* زمان واکنش */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
-          <div className="flex justify-between items-center text-slate-500">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">میانگین زمان واکنش</span>
-              <button
-                type="button"
-                onClick={() => setActiveGuide('reaction_time')}
-                className="text-slate-400 hover:text-amber-600 transition-colors cursor-pointer"
-                title="راهنمای زمان واکنش و میانگین ۲۰ آزمون"
-              >
-                <HelpCircle className="w-3.5 h-3.5" />
-              </button>
+      {/* ردیف دوم: شاخص‌های تکمیلی زمان واکنش و دقت */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* میانگین زمان واکنش عصبی */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-500 flex items-center justify-center">
+              <Zap className="w-5 h-5" />
             </div>
-            <Clock className="w-5 h-5 text-amber-500" />
+            <div>
+              <h4 className="text-xs font-black text-slate-900 dark:text-slate-100">میانگین زمان واکنش عصبی</h4>
+              <p className="text-[10px] text-slate-400">سرعت پردازش پالس‌های عصبی در آزمون‌ها</p>
+            </div>
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-amber-600 dark:text-amber-400">{avgReactionMs}</span>
-            <span className="text-[10px] text-slate-400">میلی‌ثانیه (۲۰ آزمون اخیر)</span>
-          </div>
-          <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-            <div className="bg-amber-500 h-full rounded-full transition-all duration-500" style={{ width: `${avgReactionMs > 0 ? Math.max(15, 100 - avgReactionMs / 10) : 0}%` }} />
+
+          <div className="flex items-center gap-2">
+            <div className="text-left font-mono">
+              <span className="text-2xl font-black text-slate-900 dark:text-white">
+                {reactionTimeVal ? reactionTimeVal : '---'}
+              </span>
+              <span className="text-xs text-slate-400 font-bold ml-1">ms</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedGuideTopic('reaction_time')}
+              className="p-1.5 text-slate-400 hover:text-indigo-500 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
         {/* دقت شناختی */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
-          <div className="flex justify-between items-center text-slate-500">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">میزان دقت شناختی</span>
-              <button
-                type="button"
-                onClick={() => setActiveGuide('accuracy_score')}
-                className="text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
-                title="راهنمای درصد دقت شناختی"
-              >
-                <HelpCircle className="w-3.5 h-3.5" />
-              </button>
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 flex items-center justify-center">
+              <Target className="w-5 h-5" />
             </div>
-            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+            <div>
+              <h4 className="text-xs font-black text-slate-900 dark:text-slate-100">میزان دقت شناختی</h4>
+              <p className="text-[10px] text-slate-400">درصد پاسخ‌های صحیح در تعاملات</p>
+            </div>
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{avgAccuracy}٪</span>
-            <span className="text-[10px] text-slate-400">
-              {brainProfile.totalAccuracies.length > 0 ? `بر پایه ${brainProfile.totalAccuracies.length} آزمون اخیر` : 'بدون آزمون'}
-            </span>
-          </div>
-          <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-            <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${avgAccuracy}%` }} />
+
+          <div className="flex items-center gap-2">
+            <div className="text-left font-mono">
+              <span className="text-2xl font-black text-slate-900 dark:text-white">
+                {accuracyRateVal ? `${accuracyRateVal}٪` : '---'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedGuideTopic('accuracy_score')}
+              className="p-1.5 text-slate-400 hover:text-indigo-500 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* بنر چالش پیشنهادی روز */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="space-y-2 text-right">
-          <span className="text-[10px] font-extrabold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 px-2.5 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
-            🧠 تمرین پیشنهادی امروز
-          </span>
-          <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">چالش حافظه فضایی (الگوی مستقیم و معکوس)</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-xl">
-            الگوها را بر روی شبکه‌های متغیر به خاطر بسپارید یا در حالت معکوس بازسازی کنید.
+      {/* بنر شروع تمرین روزانه */}
+      <div className="bg-gradient-to-r from-teal-600 to-indigo-600 rounded-3xl p-6 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-teal-500/10">
+        <div className="space-y-1 text-center sm:text-right">
+          <div className="flex items-center justify-center sm:justify-start gap-1.5 text-xs font-bold text-teal-200">
+            <Sparkles className="w-4 h-4" />
+            <span>نرمش روزانه نورون‌ها</span>
+          </div>
+          <h3 className="text-base font-black">آماده ارزیابی انعطاف ذهنی امروز هستید؟</h3>
+          <p className="text-xs text-teal-100 opacity-90 max-w-md">
+            تنها ۵ دقیقه تمرین در روز باعث افزایش توانمندی سیناپس‌ها و تثبیت تمرکز می‌شود.
           </p>
         </div>
 
         <button
+          type="button"
           onClick={onStartSpatialGame}
-          className="px-6 py-3.5 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl text-xs font-extrabold shadow-lg shadow-purple-500/20 shrink-0 flex items-center gap-2 cursor-pointer transition-all hover:scale-105"
+          className="px-6 py-3 bg-white text-slate-900 rounded-2xl text-xs font-black hover:bg-teal-50 transition-all flex items-center gap-2 cursor-pointer shrink-0 shadow-md"
         >
-          <Play className="w-4 h-4 fill-current" />
-          <span>شروع چالش حافظه (+۴۰ XP)</span>
+          <Play className="w-4 h-4 fill-slate-900" />
+          <span>شروع تمرینات</span>
         </button>
       </div>
 
-      {/* تالار افتخارات */}
-      <CognitiveBadges
-        brainProfile={brainProfile}
-        cbtRecords={cbtRecords}
-        neuroHabits={neuroHabits}
+      {/* مودال راهنمای شناختی */}
+      <CognitiveGuideModal
+        topicKey={selectedGuideTopic}
+        onClose={() => setSelectedGuideTopic(null)}
       />
     </div>
   );

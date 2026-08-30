@@ -2,8 +2,8 @@
 
 import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
-import { BrainProfile } from '@/lib/supabase/brainGym';
-import { pushWithLimit, calculateStroopInterference } from '@/lib/utils/brainMath';
+import { BrainProfile, logBrainActivity } from '@/lib/supabase/brainGym';
+import { pushWithLimit, calculateStroopScore, calculateAverage } from '@/lib/utils/brainMath';
 
 type StroopMode = 'congruent' | 'incongruent' | 'neutral' | 'mixed';
 
@@ -34,6 +34,7 @@ export default function StroopTestGame({
 }: StroopTestGameProps) {
   const [stroopMode, setStroopMode] = useState<StroopMode>('mixed');
   const [stroopScore, setStroopScore] = useState(0);
+  const [stroopMistakes, setStroopMistakes] = useState(0);
   const [stroopRound, setStroopRound] = useState(0);
   const [stroopState, setStroopState] = useState<'idle' | 'playing' | 'finished'>('idle');
   const [stroopCurrentWord, setStroopCurrentWord] = useState<{
@@ -88,6 +89,7 @@ export default function StroopTestGame({
   const startStroopGame = () => {
     playAudioFeedback?.('click');
     setStroopScore(0);
+    setStroopMistakes(0);
     setStroopRound(1);
     setStroopCongruentTimes([]);
     setStroopIncongruentTimes([]);
@@ -101,14 +103,15 @@ export default function StroopTestGame({
     const reactionMs = Date.now() - startTimeRef.current;
     const isCorrect = selectedColorName === stroopCurrentWord.correctColorName;
     const finalScore = isCorrect ? stroopScore + 1 : stroopScore;
+    const finalMistakes = isCorrect ? stroopMistakes : stroopMistakes + 1;
 
     let updatedCongruent = stroopCongruentTimes;
     let updatedIncongruent = stroopIncongruentTimes;
 
-    if (isCorrect) {
-      playAudioFeedback?.('click');
-      setStroopScore(finalScore);
+    playAudioFeedback?.('click');
 
+    if (isCorrect) {
+      setStroopScore(finalScore);
       if (stroopCurrentWord.isCongruent) {
         updatedCongruent = [...stroopCongruentTimes, reactionMs];
         setStroopCongruentTimes(updatedCongruent);
@@ -116,30 +119,51 @@ export default function StroopTestGame({
         updatedIncongruent = [...stroopIncongruentTimes, reactionMs];
         setStroopIncongruentTimes(updatedIncongruent);
       }
+    } else {
+      setStroopMistakes(finalMistakes);
     }
 
     if (stroopRound >= 10) {
       setStroopState('finished');
       playAudioFeedback?.('xp');
 
-      const interferenceEffect = calculateStroopInterference(updatedCongruent, updatedIncongruent);
-      const finalEarn = finalScore * 4;
-      const accuracyPercent = Math.min(100, Math.round((finalScore / 10) * 100));
+      // ۱. محاسبه علمی انعطاف شناختی با فیلتر ضربی و فیزیولوژیک
+      const { normalizedScore, rawMetrics, isValid } = calculateStroopScore(
+        updatedCongruent,
+        updatedIncongruent,
+        finalMistakes,
+        10
+      );
 
-      earnXp(finalEarn + 10, 'تکمیل ارزیابی تداخل استروپ');
-      showToast(`آزمون پایان یافت! دقت: ${accuracyPercent}٪ | اثر تداخل: ${interferenceEffect}ms. +${finalEarn + 10} XP`, 'success');
+      // فیلتر آزمون غیرمعتبر
+      if (!isValid || normalizedScore === null) {
+        logBrainActivity('stroop_test', rawMetrics, null); // 👈 ارسال null به جای 0
+        showToast('⚠️ آزمون به دلیل کلیک‌های فوق‌سریع و نامعتبر ثبت نشد. لطفاً با تمرکز دوباره امتحان کنید.', 'error');
+        return;
+      }
 
-      const avgReaction = updatedIncongruent.length > 0
-        ? Math.round(updatedIncongruent.reduce((a, b) => a + b, 0) / updatedIncongruent.length)
-        : reactionMs;
+      // ۳. ثبت تلاش معتبر در لاگ سری زمانی
+      logBrainActivity('stroop_test', {
+        ...rawMetrics,
+        mode: stroopMode,
+        correct_count: finalScore,
+        total_rounds: 10
+      }, normalizedScore);
+
+      // ۴. آپدیت پروفایل کلی با عدد تضمین‌شده
+      const allReactions = [...updatedCongruent, ...updatedIncongruent];
+      const avgReaction = calculateAverage(allReactions) || reactionMs;
 
       saveProfile({
         ...brainProfile,
-        flexibilityScore: Math.min(100, Math.max(brainProfile.flexibilityScore, Math.round(finalScore * 10))),
-        gamesPlayed: brainProfile.gamesPlayed + 1,
-        totalAccuracies: pushWithLimit(brainProfile.totalAccuracies, accuracyPercent),
+        flexibilityScore: normalizedScore,
+        gamesPlayed: (brainProfile.gamesPlayed || 0) + 1,
+        totalAccuracies: pushWithLimit(brainProfile.totalAccuracies, normalizedScore),
         reactionTimes: avgReaction > 0 ? pushWithLimit(brainProfile.reactionTimes, avgReaction) : brainProfile.reactionTimes
       });
+
+      earnXp(Math.max(15, Math.round(normalizedScore / 3)), 'آزمون انعطاف‌پذیری شناختی استروپ');
+      showToast(`آزمون استروپ کامل شد! امتیاز انعطاف: ${normalizedScore} از ۱۰۰ (تداخل: ${rawMetrics.interference_ms}ms)`, 'success');
     } else {
       setStroopRound(prev => prev + 1);
       nextStroopRound();
@@ -189,8 +213,8 @@ export default function StroopTestGame({
           </motion.div>
         ) : stroopState === 'finished' ? (
           <div className="space-y-1">
-            <div className="text-lg font-black text-emerald-600 dark:text-emerald-400">امتیاز: {stroopScore} از ۱۰</div>
-            <p className="text-[11px] text-slate-400">شاخص اثر تداخل محاسبه و ثبت گردید.</p>
+            <div className="text-lg font-black text-emerald-600 dark:text-emerald-400">پاسخ‌های صحیح: {stroopScore} از ۱۰</div>
+            <p className="text-[11px] text-slate-400">شاخص اثر تداخل محاسبه و در تاریخچه ثبت شد.</p>
           </div>
         ) : (
           <div className="text-xs text-slate-400 italic">برای شروع روی دکمه زیر کلیک کنید.</div>
