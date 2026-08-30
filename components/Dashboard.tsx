@@ -977,7 +977,6 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   const fetchSmartAiAnalysis = async (userMetrics: any, forceRefresh: boolean = false) => {
     const todayStr = selectedDateISO;
 
-    // Read cache first unless forced
     if (!forceRefresh && typeof window !== "undefined") {
       const cached = localStorage.getItem(`sayeban_daily_ai_tip_${todayStr}`);
       if (cached) {
@@ -985,36 +984,39 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
           const parsed = JSON.parse(cached);
           if (parsed.date === todayStr && parsed.tip) {
             setAiTip(parsed.tip);
-            return; // Exit early and use cache!
+            return;
           }
-        } catch (e) {
-          // Fallback to fetch if cache parses wrong
-        }
+        } catch (e) {}
       }
-    }
-
-    // If it is forced, check and increment AI daily usage
-    if (forceRefresh && !checkAndIncrementAiRequests()) {
-      return;
     }
 
     setIsAnalyzingAi(true);
     try {
-      const res = await fetch('/api/assistant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'analyze', userData: { ...userMetrics, targetDate: todayStr }, customApiKey })
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: HeadersInit = { "Content-Type": "application/json" };
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+
+      const res = await fetch("/api/assistant", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          mode: "analyze",
+          userData: { ...userMetrics, targetDate: todayStr },
+        }),
       });
+
       const data = await res.json();
-      setAiTip(data.text);
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`sayeban_daily_ai_tip_${todayStr}`, JSON.stringify({ date: todayStr, tip: data.text }));
-        if (data.aiDailyLimit !== undefined) {
-          localStorage.setItem('sayeban_ai_daily_limit', String(data.aiDailyLimit));
+      if (data.text) {
+        setAiTip(data.text);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`sayeban_daily_ai_tip_${todayStr}`, JSON.stringify({ date: todayStr, tip: data.text }));
         }
       }
     } catch {
-      setAiTip("آفرین بر شما! مصرف آب مناسبی دارید و وظایف خود را پیگیری می‌کنید. خواب عالی امشب ضامن ارتقای بهره‌وری فردای شماست.");
+      setAiTip("مصرف آب و ساعات خواب خود را منظم نگه دارید تا بازدهی شناختی و تمرکز شما حفظ شود.");
     } finally {
       setIsAnalyzingAi(false);
     }
@@ -1154,36 +1156,42 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   };
 
   // Floating NLP Command Quick Add Action
+  // پردازش دستور فوری با هوش مصنوعی متصل به سرور
   const handleQuickAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickAddText.trim()) return;
-    
-    if (!checkAndIncrementAiRequests()) {
-      return;
-    }
 
-    setQuickAddResult("در حال تجزیه دستور به صورت آنی...");
-    
+    setQuickAddResult("در حال پردازش هوشمند دستور...");
+
     try {
-      const res = await fetch('/api/assistant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          mode: 'command', 
-          message: quickAddText, 
-          customApiKey,
-          userData: { 
-            targetDate: selectedDateISO,
-            clientToday: todayISO || getLocalISOString(new Date()) // 👈 ارسال تاریخ محلی سیستم
-          }
-        })
-      });
-      const data = await res.json();
-      
-      if (typeof window !== "undefined" && data.aiDailyLimit !== undefined) {
-        localStorage.setItem('sayeban_ai_daily_limit', String(data.aiDailyLimit));
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: HeadersInit = { "Content-Type": "application/json" };
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
       }
-      
+
+      const res = await fetch("/api/assistant", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          mode: "command",
+          message: quickAddText,
+          userData: {
+            targetDate: selectedDateISO,
+            clientToday: todayISO || getLocalISOString(new Date()),
+          },
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setQuickAddResult(data.text || "⚠️ محدودیت در پردازش درخواست هوش مصنوعی.");
+        showToast(data.text || "خطا در پردازش درخواست.", "error");
+        return;
+      }
+
       if (data.actionData?.action && data.actionData?.payload) {
         const { action, payload } = data.actionData;
         const targetDate = payload.targetDate || payload.date || payload.dueDate || selectedDateISO;
@@ -1195,7 +1203,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             desc: payload.content || "",
             priority: payload.priority || "MEDIUM",
             status: "todo",
-            dueDate: targetDate
+            dueDate: targetDate,
           };
           saveTasksToLocal([...lastSavedTasksRef.current, newTask]);
           setQuickAddResult(`✅ وظیفه "${newTask.title}" برای تاریخ ${targetDate} ثبت گردید.`);
@@ -1208,7 +1216,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             date: targetDate,
             time: payload.time || "12:00",
             category: payload.category || "work",
-            recurrence: "none"
+            recurrence: "none",
           };
           saveEventsToLocal([...lastSavedEventsRef.current, newEv]);
           setQuickAddResult(`📅 رویداد "${newEv.title}" برای تاریخ ${targetDate} ساعت ${newEv.time} ثبت شد.`);
@@ -1221,18 +1229,18 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             folder: "برنامه‌ها",
             tags: ["هوشمند"],
             isPinned: false,
-            updatedAt: targetDate
+            updatedAt: targetDate,
           };
           saveNotesToLocal([...lastSavedNotesRef.current, newNote]);
           setActiveNoteId(newNote.id);
-          setQuickAddResult(`📝 یادداشت "${newNote.title}" مکتوب شد.`);
+          setQuickAddResult(`📝 یادداشت "${newNote.title}" ثبت گردید.`);
           showToast("یادداشت ثبت شد!", "success");
         } else {
-          setQuickAddResult(`💬 ${data.text}`);
+          setQuickAddResult(data.text || "من برای ثبت سریع کارها، جلسات و یادداشت‌ها آماده‌ام.");
         }
       }
     } catch {
-      setQuickAddResult("خطایی در ارتباط با AI رخ داد.");
+      setQuickAddResult("خطایی در ارتباط با سرور هوش مصنوعی رخ داد.");
     }
   };
 
@@ -2539,7 +2547,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
               </div>
 
               {/* Smart Voice Chatbot Interface Card */}
-              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+              {/* <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
                 <h2 className="text-base font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-4 pb-3 border-b border-slate-50">
                   <Sparkles className="w-5 h-5 text-teal-600" />
                   <span>دستیار هوشمند و فهم فرمان‌های کورتکس </span>
@@ -2593,20 +2601,6 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-teal-500 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200 resize-none max-h-32 leading-relaxed"
                   />
 
-                  {/* Simulated Speech Button */}
-                  {/* <button 
-                  type="button"
-                  onClick={() => {
-                    const sampleCommand = "جلسه با مدیر ساعت ۱۵ فردا هماهنگ شه";
-                    setChatInput(sampleCommand);
-                    showToast(`دستور آزمایشی بارگذاری شد: "${sampleCommand}". روی ارسال کلیک نمایید.`, "info");
-                  }}
-                  className="px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl cursor-pointer"
-                  title="شبیه‌ساز ضبط صدا"
-                >
-                  <Mic className="w-4 h-4" />
-                </button> */}
-
                   <button
                     type="submit"
                     className="bg-teal-600 text-white text-xs font-bold px-5 py-3 rounded-xl hover:bg-teal-700 hover:scale-[1.01] transition-all cursor-pointer"
@@ -2614,7 +2608,8 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     ارسال پیام
                   </button>
                 </form>
-              </div>
+              </div> */}
+              
             </div>
           )}
 
@@ -4706,13 +4701,13 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                 ✕
               </button>
 
-              <h3 className="text-base font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <h3 className="text-base mx-2 font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-teal-600" />
-                <span>درج فوری کار / رویداد از طریق کورتکس (NLP AI)</span>
+                <span>درج فوری کار / رویداد  (NLP AI)</span>
               </h3>
 
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                جمله طبیعی خود را اعم از فارسی یا انگلیسی درج کنید تا دستیار شما
+                جمله طبیعی خود با زبان فارسی درج کنید تا دستیار شما
                 در لحظه تصمیم گرفته و اسلات تقویم، یادداشت یا بورد کایزن شما را
                 ارتقا ببخشاید.
               </p>
