@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { BrainProfile, logBrainActivity } from '@/lib/supabase/brainGym';
 import { pushWithLimit, calculateStroopScore, calculateAverage } from '@/lib/utils/brainMath';
+import { RotateCcw, XCircle } from 'lucide-react';
 
 type StroopMode = 'congruent' | 'incongruent' | 'neutral' | 'mixed';
 
@@ -23,6 +24,9 @@ interface StroopTestGameProps {
   earnXp: (amount: number, reason: string) => void;
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   playAudioFeedback?: (type: 'click' | 'done' | 'xp' | 'zen_finish') => void;
+  onGameStart?: () => void;
+  onGameEnd?: () => void;
+  isOtherGameActive?: boolean;
 }
 
 export default function StroopTestGame({
@@ -30,7 +34,10 @@ export default function StroopTestGame({
   saveProfile,
   earnXp,
   showToast,
-  playAudioFeedback
+  playAudioFeedback,
+  onGameStart,
+  onGameEnd,
+  isOtherGameActive = false
 }: StroopTestGameProps) {
   const [stroopMode, setStroopMode] = useState<StroopMode>('mixed');
   const [stroopScore, setStroopScore] = useState(0);
@@ -47,6 +54,16 @@ export default function StroopTestGame({
   const [stroopCongruentTimes, setStroopCongruentTimes] = useState<number[]>([]);
   const [stroopIncongruentTimes, setStroopIncongruentTimes] = useState<number[]>([]);
   const startTimeRef = useRef<number>(0);
+
+  const handleCancelGame = () => {
+    setStroopState('idle');
+    setStroopScore(0);
+    setStroopMistakes(0);
+    setStroopRound(0);
+    setStroopCurrentWord(null);
+    onGameEnd?.();
+    showToast('آزمون استروپ متوقف شد.', 'info');
+  };
 
   const nextStroopRound = () => {
     let modeToUse = stroopMode;
@@ -87,7 +104,9 @@ export default function StroopTestGame({
   };
 
   const startStroopGame = () => {
+    if (isOtherGameActive) return;
     playAudioFeedback?.('click');
+    onGameStart?.();
     setStroopScore(0);
     setStroopMistakes(0);
     setStroopRound(1);
@@ -125,9 +144,9 @@ export default function StroopTestGame({
 
     if (stroopRound >= 10) {
       setStroopState('finished');
+      onGameEnd?.();
       playAudioFeedback?.('xp');
 
-      // ۱. محاسبه علمی انعطاف شناختی با فیلتر ضربی و فیزیولوژیک
       const { normalizedScore, rawMetrics, isValid } = calculateStroopScore(
         updatedCongruent,
         updatedIncongruent,
@@ -135,14 +154,12 @@ export default function StroopTestGame({
         10
       );
 
-      // فیلتر آزمون غیرمعتبر
       if (!isValid || normalizedScore === null) {
-        logBrainActivity('stroop_test', rawMetrics, null); // 👈 ارسال null به جای 0
+        logBrainActivity('stroop_test', rawMetrics, null);
         showToast('⚠️ آزمون به دلیل کلیک‌های فوق‌سریع و نامعتبر ثبت نشد. لطفاً با تمرکز دوباره امتحان کنید.', 'error');
         return;
       }
 
-      // ۳. ثبت تلاش معتبر در لاگ سری زمانی
       logBrainActivity('stroop_test', {
         ...rawMetrics,
         mode: stroopMode,
@@ -150,7 +167,6 @@ export default function StroopTestGame({
         total_rounds: 10
       }, normalizedScore);
 
-      // ۴. آپدیت پروفایل کلی با عدد تضمین‌شده
       const allReactions = [...updatedCongruent, ...updatedIncongruent];
       const avgReaction = calculateAverage(allReactions) || reactionMs;
 
@@ -163,7 +179,7 @@ export default function StroopTestGame({
       });
 
       earnXp(Math.max(15, Math.round(normalizedScore / 3)), 'آزمون انعطاف‌پذیری شناختی استروپ');
-      showToast(`آزمون استروپ کامل شد! امتیاز انعطاف: ${normalizedScore} از ۱۰۰ (تداخل: ${rawMetrics.interference_ms}ms)`, 'success');
+      showToast(`آزمون استروپ کامل شد! امتیاز انعطاف: ${normalizedScore} از ۱۰۰`, 'success');
     } else {
       setStroopRound(prev => prev + 1);
       nextStroopRound();
@@ -177,7 +193,16 @@ export default function StroopTestGame({
           <span className="text-[10px] bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-2.5 py-0.5 rounded-full font-bold">
             انعطاف شناختی استروپ
           </span>
-          {stroopState === 'playing' && (
+          {stroopState === 'playing' ? (
+            <button
+              type="button"
+              onClick={handleCancelGame}
+              className="text-[11px] text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              <span>انصراف</span>
+            </button>
+          ) : (
             <span className="text-xs font-bold text-slate-400">دور {stroopRound} از ۱۰</span>
           )}
         </div>
@@ -189,8 +214,8 @@ export default function StroopTestGame({
           <select
             value={stroopMode}
             onChange={e => setStroopMode(e.target.value as StroopMode)}
-            disabled={stroopState === 'playing'}
-            className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold text-[11px]"
+            disabled={stroopState === 'playing' || isOtherGameActive}
+            className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold text-[11px] disabled:opacity-50"
           >
             <option value="mixed">ترکیبی (همخوان + ناهمخوان + خنثی)</option>
             <option value="congruent">همخوان (رنگ و متن یکسان)</option>
@@ -236,9 +261,12 @@ export default function StroopTestGame({
       ) : (
         <button
           onClick={startStroopGame}
-          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+          disabled={isOtherGameActive}
+          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
         >
-          {stroopState === 'finished' ? 'شروع مجدد آزمون' : 'شروع چالش استروپ'}
+          {isOtherGameActive 
+            ? 'یک بازی دیگر در جریان است' 
+            : (stroopState === 'finished' ? 'شروع مجدد آزمون' : 'شروع چالش استروپ')}
         </button>
       )}
     </div>

@@ -51,6 +51,9 @@ export default function BrainGymView({
   const [neuroArticles, setNeuroArticles] = useState<any[]>(DEFAULT_NEURO_ARTICLES);
   const [aggregatedMetrics, setAggregatedMetrics] = useState<AggregatedBrainMetrics | null>(null);
 
+  // رهگیری بازی فعال برای جلوگیری از شروع همزمان
+  const [activeGameId, setActiveGameId] = useState<'spatial' | 'stroop' | 'math' | null>(null);
+
   const reloadAggregatedMetrics = useCallback(async () => {
     const metrics = await getAggregatedBrainMetrics();
     setAggregatedMetrics(metrics);
@@ -82,7 +85,6 @@ export default function BrainGymView({
     setBrainProfile(updated);
     try {
       await saveBrainProfile(updated);
-      // بازخوانی فوری آمار تجمیعی پس از ذخیره نمرات جدید
       await reloadAggregatedMetrics();
     } catch (e: any) {
       showToast(e.message || 'خطا در ذخیره پروفایل', 'error');
@@ -154,7 +156,6 @@ export default function BrainGymView({
   };
 
   const completedMissionsCount = neuroHabits.filter(h => h.completed).length;
-  // شاخص پایدار مبتنی بر ۲۰ تلاش اخیر
   const displayOverallIndex = aggregatedMetrics?.overallIndex ?? calculateBrainIndex(brainProfile);
 
   return (
@@ -185,6 +186,9 @@ export default function BrainGymView({
             earnXp={earnXp}
             showToast={showToast}
             playAudioFeedback={playAudioFeedback}
+            onGameStart={() => setActiveGameId('spatial')}
+            onGameEnd={() => setActiveGameId(null)}
+            isOtherGameActive={activeGameId !== null && activeGameId !== 'spatial'}
           />
           <StroopTestGame
             brainProfile={brainProfile}
@@ -192,6 +196,9 @@ export default function BrainGymView({
             earnXp={earnXp}
             showToast={showToast}
             playAudioFeedback={playAudioFeedback}
+            onGameStart={() => setActiveGameId('stroop')}
+            onGameEnd={() => setActiveGameId(null)}
+            isOtherGameActive={activeGameId !== null && activeGameId !== 'stroop'}
           />
           <MathSpeedGame
             brainProfile={brainProfile}
@@ -199,6 +206,9 @@ export default function BrainGymView({
             earnXp={earnXp}
             showToast={showToast}
             playAudioFeedback={playAudioFeedback}
+            onGameStart={() => setActiveGameId('math')}
+            onGameEnd={() => setActiveGameId(null)}
+            isOtherGameActive={activeGameId !== null && activeGameId !== 'math'}
           />
         </div>
       )}

@@ -169,6 +169,67 @@ export async function POST(req: NextRequest) {
       });
     }
 
+   // ساخت گزارش تحلیلی و تفکیکی از باشگاه مغز برای دستیار
+    let brainContextReport = "اطلاعاتی از آزمون‌های شناختی ثبت نشده است.";
+    if (userData?.brainMetrics || userData?.brainProfile) {
+      const bm = userData.brainMetrics;
+      const bp = userData.brainProfile;
+
+      const spatialToday = bm?.spatialMemory?.todayAttempts > 0 
+        ? `${bm.spatialMemory.todayAttempts} تمرین (میانگین نمره: ${bm.spatialMemory.todayScore})` 
+        : "امروز آزمونی داده نشده";
+
+      const stroopToday = bm?.stroopFlexibility?.todayAttempts > 0 
+        ? `${bm.stroopFlexibility.todayAttempts} تمرین (میانگین نمره: ${bm.stroopFlexibility.todayScore})` 
+        : "امروز آزمونی داده نشده";
+
+      const mathToday = bm?.mathSpeed?.todayAttempts > 0 
+        ? `${bm.mathSpeed.todayAttempts} تمرین (میانگین نمره: ${bm.mathSpeed.todayScore})` 
+        : "امروز آزمونی داده نشده";
+
+      const totalAttemptsToday = (bm?.spatialMemory?.todayAttempts || 0) + 
+                                 (bm?.stroopFlexibility?.todayAttempts || 0) + 
+                                 (bm?.mathSpeed?.todayAttempts || 0);
+
+      const memBase = bm?.spatialMemory?.score !== null && !bm?.spatialMemory?.isCalibrating 
+        ? `${bm.spatialMemory.score} از ۱۰۰` 
+        : "در حال کالیبراسیون";
+
+      const strBase = bm?.stroopFlexibility?.score !== null && !bm?.stroopFlexibility?.isCalibrating 
+        ? `${bm.stroopFlexibility.score} از ۱۰۰` 
+        : "در حال کالیبراسیون";
+
+      const mathBase = bm?.mathSpeed?.score !== null && !bm?.mathSpeed?.isCalibrating 
+        ? `${bm.mathSpeed.score} از ۱۰۰` 
+        : "در حال کالیبراسیون";
+
+      const rxTime = bm?.avgReactionTimeMs 
+        ? `${bm.avgReactionTimeMs}ms` 
+        : (userData.brainReaction ? `${userData.brainReaction}ms` : "نامشخص");
+
+      const acc = bm?.accuracyRate !== null && bm?.accuracyRate !== undefined 
+        ? `${bm.accuracyRate}٪` 
+        : "نامشخص";
+
+      const overall = bm?.overallIndex ?? 
+        (bp?.memoryScore ? Math.round((bp.memoryScore + bp.flexibilityScore + bp.processingSpeed) / 3) : null);
+
+      brainContextReport = `  * شاخص کل توانمندی کورتکس: ${overall ? `${overall} از ۱۰۰` : "در حال کالیبراسیون"}
+  * حافظه کاری: خط مبنا (${memBase}) | وضعیت امروز: ${spatialToday}
+  * انعطاف‌پذیری استروپ: خط مبنا (${strBase}) | وضعیت امروز: ${stroopToday}
+  * سرعت محاسبات ذهنی: خط مبنا (${mathBase}) | وضعیت امروز: ${mathToday}
+  * میانگین سرعت واکنش عصبی: ${rxTime} | درصد دقت شناختی: ${acc}
+  * تلاش‌های شناختی امروز: ${totalAttemptsToday} آزمون (${totalAttemptsToday > 0 ? "قابل استناد و ربط‌دادن به خواب دیشب" : "هشدار: کاربر امروز آزمونی نداده، وضعیت خواب را به نمرات روزهای قبل ربط ندهید"})`;
+    }
+
+    const neuroHabitsText = userData?.neuroHabitsCompleted !== undefined 
+      ? `- عادات نورون‌سازی امروز: ${userData.neuroHabitsCompleted} از ${userData.neuroHabitsTotal || 5} ماموریت انجام شده` 
+      : "";
+
+    const cbtSummaryText = userData?.recentCbtDistortion 
+      ? `- آخرین بازسازی شناختی (CBT): کار بر روی تحریف «${userData.recentCbtDistortion}»` 
+      : "";
+
     const contextPrompt = `داده‌های وضعیت کاربر (${userData?.userName || "کاربر"}):
 - تاریخ امروز سیستم: ${clientToday}
 - فردا: ${clientTomorrow}
@@ -178,7 +239,10 @@ export async function POST(req: NextRequest) {
 - خلق‌وخو: ${userData?.moodScore ? `${userData.moodScore} از ۵` : "هنوز ثبت نشده"}
 - کارهای مانده امروز: ${userData?.pendingTasksToday || 0} مورد
 - رویدادهای تقویم امروز: ${userData?.eventsToday || 0} مورد
-- وضعیت باشگاه مغز: حافظه کاری (${userData?.brainMemory ?? 0} از ۱۰۰)، انعطاف استروپ (${userData?.brainFlexibility ?? 0} از ۱۰۰)، زمان واکنش (${userData?.brainReaction ? `${userData.brainReaction}ms` : "بدون آزمون"})`;
+${neuroHabitsText}
+${cbtSummaryText}
+- کارنامه شناختی باشگاه مغز:
+${brainContextReport}`;
 
     // ----------------------------------------------------
     // حالت ۱: تحلیل سلامت پیشخوان

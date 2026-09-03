@@ -531,46 +531,107 @@ export default function AssistantView({
             ))}
           </div>
 
-          {/* کانتکست زنده داده‌ها */}
+          {/* کانتکست زنده داده‌ها و باشگاه مغز */}
           <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 shadow-sm space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                 <Activity className="w-4 h-4 text-teal-600" />
                 <span>داده‌های دریافتی دستیار</span>
               </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             </div>
 
-            <div className="space-y-2 text-[11px] font-bold">
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>خواب دیشب:</span>
-                <span className="text-indigo-600 dark:text-indigo-400 font-mono">
-                  {userDataContext?.sleepHours
-                    ? `${userDataContext.sleepHours} ساعت`
-                    : "ثبت‌نشده"}
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>آب امروز:</span>
-                <span className="text-teal-600 dark:text-teal-400 font-mono">
-                  {userDataContext?.waterToday || 0} ml
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>حافظه کاری:</span>
-                <span className="text-purple-600 dark:text-purple-400 font-mono">
-                  {userDataContext?.brainMemory || 0} / ۱۰۰
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>زمان واکنش:</span>
-                <span className="text-amber-600 dark:text-amber-400 font-mono">
-                  {userDataContext?.brainReaction
-                    ? `${userDataContext.brainReaction}ms`
-                    : "بدون آزمون"}
-                </span>
-              </div>
-            </div>
+            {(() => {
+              const bm = userDataContext?.brainMetrics;
+
+              const memoryText = bm?.spatialMemory?.score !== null && !bm?.spatialMemory?.isCalibrating
+                ? `${bm.spatialMemory.score} از ۱۰۰`
+                : bm?.spatialMemory?.isCalibrating
+                  ? "کالیبراسیون"
+                  : (userDataContext?.brainMemory ? `${userDataContext.brainMemory} از ۱۰۰` : "ثبت‌نشده");
+
+              const stroopText = bm?.stroopFlexibility?.score !== null && !bm?.stroopFlexibility?.isCalibrating
+                ? `${bm.stroopFlexibility.score} از ۱۰۰`
+                : bm?.stroopFlexibility?.isCalibrating
+                  ? "کالیبراسیون"
+                  : (userDataContext?.brainFlexibility ? `${userDataContext.brainFlexibility} از ۱۰۰` : "ثبت‌نشده");
+
+              const mathText = bm?.mathSpeed?.score !== null && !bm?.mathSpeed?.isCalibrating
+                ? `${bm.mathSpeed.score} از ۱۰۰`
+                : bm?.mathSpeed?.isCalibrating
+                  ? "کالیبراسیون"
+                  : "ثبت‌نشده";
+
+              const reactionText = bm?.avgReactionTimeMs
+                ? `${bm.avgReactionTimeMs}ms`
+                : (userDataContext?.brainReaction ? `${userDataContext.brainReaction}ms` : "بدون آزمون");
+
+              const accuracyText = bm?.accuracyRate !== null && bm?.accuracyRate !== undefined
+                ? `${bm.accuracyRate}٪`
+                : "---";
+
+              return (
+                <div className="space-y-2 text-[11px] font-bold">
+                  {/* ردیف خواب */}
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>خواب دیشب:</span>
+                    <span className="text-indigo-600 dark:text-indigo-400 font-mono">
+                      {userDataContext?.sleepHours
+                        ? `${userDataContext.sleepHours} ساعت (${userDataContext.sleepQuality === 'excellent' ? 'عالی' : userDataContext.sleepQuality === 'good' ? 'خوب' : userDataContext.sleepQuality === 'fair' ? 'متوسط' : 'آشفته'})`
+                        : "ثبت‌نشده"}
+                    </span>
+                  </div>
+
+                  {/* ردیف آب */}
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>آب امروز:</span>
+                    <span className="text-teal-600 dark:text-teal-400 font-mono">
+                      {userDataContext?.waterToday || 0} از ۸ لیوان
+                    </span>
+                  </div>
+
+                  {/* ردیف حافظه کاری */}
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>حافظه کاری:</span>
+                    <span className="text-purple-600 dark:text-purple-400 font-mono">
+                      {memoryText}
+                    </span>
+                  </div>
+
+                  {/* ردیف انعطاف استروپ */}
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>انعطاف استروپ:</span>
+                    <span className="text-indigo-600 dark:text-indigo-400 font-mono">
+                      {stroopText}
+                    </span>
+                  </div>
+
+                  {/* ردیف سرعت محاسبات */}
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>سرعت محاسبات:</span>
+                    <span className="text-amber-600 dark:text-amber-400 font-mono">
+                      {mathText}
+                    </span>
+                  </div>
+
+                  {/* ردیف زمان واکنش عصبی */}
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>زمان واکنش عصبی:</span>
+                    <span className="text-rose-600 dark:text-rose-400 font-mono">
+                      {reactionText}
+                    </span>
+                  </div>
+
+                  {/* ردیف دقت شناختی */}
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>دقت شناختی:</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-mono">
+                      {accuracyText}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* ویجت میزان مصرف و سهمیه روزانه هوش مصنوعی */}
@@ -670,14 +731,15 @@ export default function AssistantView({
                       {msg.content}
                     </p>
                     {/* برچسب نمایش نام مدل در زمان توسعه */}
-                    {msg.sender === 'assistant' && msg.action_payload?.provider && (
-                      <div className="flex items-center gap-1.5 text-[9px] text-teal-700/70 dark:text-teal-400/70 font-mono mt-1.5 pt-1.5 border-t border-slate-200/50 dark:border-slate-700/40 select-none">
-                        <span>🤖 مدل فعال:</span>
-                        <span className="font-bold bg-teal-50 dark:bg-teal-950/60 px-1.5 py-0.5 rounded border border-teal-200/60 dark:border-teal-800/60">
-                          {msg.action_payload.provider}
-                        </span>
-                      </div>
-                    )}
+                    {msg.sender === "assistant" &&
+                      msg.action_payload?.provider && (
+                        <div className="flex items-center gap-1.5 text-[9px] text-teal-700/70 dark:text-teal-400/70 font-mono mt-1.5 pt-1.5 border-t border-slate-200/50 dark:border-slate-700/40 select-none">
+                          <span>🤖 مدل فعال:</span>
+                          <span className="font-bold bg-teal-50 dark:bg-teal-950/60 px-1.5 py-0.5 rounded border border-teal-200/60 dark:border-teal-800/60">
+                            {msg.action_payload.provider}
+                          </span>
+                        </div>
+                      )}
 
                     {/* کارت تایید اقدام پیشنهادی */}
                     {msg.action_payload &&
@@ -826,7 +888,13 @@ export default function AssistantView({
             </form>
             <div className="flex justify-between items-center text-[10px] text-slate-400 px-2 font-bold">
               {/* <span>Shift + Enter برای خط جدید</span> */}
-              <span className={inputMessage.length >= 900 ? 'text-amber-500 font-mono' : 'font-mono'}>
+              <span
+                className={
+                  inputMessage.length >= 900
+                    ? "text-amber-500 font-mono"
+                    : "font-mono"
+                }
+              >
                 {inputMessage.length} / ۱۰۰۰ کاراکتر
               </span>
             </div>

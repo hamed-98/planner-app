@@ -24,18 +24,39 @@ export default function BrainOverview({
 }: BrainOverviewProps) {
   const [selectedGuideTopic, setSelectedGuideTopic] = useState<GuideTopicKey | null>(null);
 
+  // کارت استاندارد نمایش وضعیت مهارت‌های شناختی با اسکلتون لودینگ
   const renderMetricCard = (
     title: string,
     topicKey: GuideTopicKey,
     metricStatus: any,
-    fallbackScore: number,
     icon: React.ReactNode,
     colorClass: { bg: string; text: string; ring: string }
   ) => {
-    // اولویت قطعی با لاگ‌های تجمیعی برای جلوگیری از پرش عدد
-    const isCalibrating = aggregatedMetrics ? (metricStatus?.isCalibrating ?? true) : (brainProfile.gamesPlayed < 3);
-    const score = metricStatus?.score ?? (isCalibrating ? null : fallbackScore);
-    const sampleSize = metricStatus?.sampleSize ?? (aggregatedMetrics ? 0 : brainProfile.gamesPlayed);
+    const isLoading = aggregatedMetrics === null;
+
+    if (isLoading) {
+      return (
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 space-y-4 shadow-sm animate-pulse">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-slate-100 dark:bg-slate-800" />
+              <div className="space-y-1.5">
+                <div className="w-24 h-3.5 bg-slate-200 dark:bg-slate-800 rounded-md" />
+                <div className="w-16 h-2.5 bg-slate-100 dark:bg-slate-800/60 rounded-md" />
+              </div>
+            </div>
+          </div>
+          <div className="space-y-2 pt-2">
+            <div className="w-16 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+            <div className="w-full h-3 bg-slate-100 dark:bg-slate-800/60 rounded-md" />
+          </div>
+        </div>
+      );
+    }
+
+    const isCalibrating = metricStatus?.isCalibrating ?? false;
+    const score = metricStatus?.score ?? null;
+    const sampleSize = metricStatus?.sampleSize ?? 0;
     const todayAttempts = metricStatus?.todayAttempts ?? 0;
     const todayScore = metricStatus?.todayScore ?? null;
 
@@ -76,7 +97,7 @@ export default function BrainOverview({
           ) : (
             <div className="flex items-baseline gap-1">
               <span className="text-3xl font-black font-mono text-slate-900 dark:text-white">
-                {score}
+                {score !== null ? score : '---'}
               </span>
               <span className="text-xs text-slate-400 font-bold">از ۱۰۰</span>
             </div>
@@ -98,18 +119,18 @@ export default function BrainOverview({
     );
   };
 
-  const reactionTimeVal = aggregatedMetrics?.avgReactionTimeMs || (brainProfile.reactionTimes?.[0] ?? null);
-  const accuracyRateVal = aggregatedMetrics?.accuracyRate || (brainProfile.totalAccuracies?.[0] ?? null);
+  const isLoading = aggregatedMetrics === null;
+  const reactionTimeVal = aggregatedMetrics?.avgReactionTimeMs ?? null;
+  const accuracyRateVal = aggregatedMetrics?.accuracyRate ?? null;
 
   return (
     <div className="space-y-6">
-      {/* ردیف اول: ۳ مهارت شناختی */}
+      {/* ردیف اول: ۳ مهارت شناختی اصلی */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {renderMetricCard(
           'قدرت حافظه کاری',
           'memory_score',
           aggregatedMetrics?.spatialMemory,
-          brainProfile.memoryScore,
           <Layers className="w-4 h-4" />,
           { bg: 'bg-purple-50 dark:bg-purple-950/40', text: 'text-purple-600 dark:text-purple-300', ring: 'border-purple-500' }
         )}
@@ -118,16 +139,14 @@ export default function BrainOverview({
           'انعطاف‌پذیری استروپ',
           'flexibility_score',
           aggregatedMetrics?.stroopFlexibility,
-          brainProfile.flexibilityScore,
           <Activity className="w-4 h-4" />,
           { bg: 'bg-indigo-50 dark:bg-indigo-950/40', text: 'text-indigo-600 dark:text-indigo-300', ring: 'border-indigo-500' }
         )}
 
         {renderMetricCard(
           'سرعت محاسبات ذهنی',
-          'reaction_time',
+          'math_speed', 
           aggregatedMetrics?.mathSpeed,
-          brainProfile.processingSpeed,
           <Zap className="w-4 h-4" />,
           { bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-600 dark:text-amber-300', ring: 'border-amber-500' }
         )}
@@ -150,9 +169,9 @@ export default function BrainOverview({
           <div className="flex items-center gap-2">
             <div className="text-left font-mono">
               <span className="text-2xl font-black text-slate-900 dark:text-white">
-                {reactionTimeVal ? reactionTimeVal : '---'}
+                {isLoading ? '...' : (reactionTimeVal ? reactionTimeVal : '---')}
               </span>
-              <span className="text-xs text-slate-400 font-bold ml-1">ms</span>
+              {!isLoading && reactionTimeVal && <span className="text-xs text-slate-400 font-bold ml-1">ms</span>}
             </div>
             <button
               type="button"
@@ -179,7 +198,7 @@ export default function BrainOverview({
           <div className="flex items-center gap-2">
             <div className="text-left font-mono">
               <span className="text-2xl font-black text-slate-900 dark:text-white">
-                {accuracyRateVal ? `${accuracyRateVal}٪` : '---'}
+                {isLoading ? '...' : (accuracyRateVal !== null ? `${accuracyRateVal}٪` : '---')}
               </span>
             </div>
             <button
@@ -216,7 +235,7 @@ export default function BrainOverview({
         </button>
       </div>
 
-      {/* مودال راهنمای شناختی */}
+      {/* مودال راهنما */}
       <CognitiveGuideModal
         topicKey={selectedGuideTopic}
         onClose={() => setSelectedGuideTopic(null)}

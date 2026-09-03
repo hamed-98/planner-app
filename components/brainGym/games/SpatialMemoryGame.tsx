@@ -14,6 +14,9 @@ interface SpatialMemoryGameProps {
   earnXp: (amount: number, reason: string) => void;
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   playAudioFeedback?: (type: 'click' | 'done' | 'xp' | 'zen_finish') => void;
+  onGameStart?: () => void;
+  onGameEnd?: () => void;
+  isOtherGameActive?: boolean;
 }
 
 export default function SpatialMemoryGame({
@@ -21,7 +24,10 @@ export default function SpatialMemoryGame({
   saveProfile,
   earnXp,
   showToast,
-  playAudioFeedback
+  playAudioFeedback,
+  onGameStart,
+  onGameEnd,
+  isOtherGameActive = false
 }: SpatialMemoryGameProps) {
   const [spatialDifficulty, setSpatialDifficulty] = useState<SpatialDifficulty>('easy');
   const [spatialMode, setSpatialMode] = useState<SpatialMode>('normal');
@@ -50,7 +56,8 @@ export default function SpatialMemoryGame({
     setSpatialUserSeq([]);
     setSpatialGameState('idle');
     setSpatialLevel(1);
-    showToast('چالش متوقف شد.', 'info');
+    onGameEnd?.();
+    showToast('چالش حافظه متوقف شد.', 'info');
   };
 
   const getGridConfig = (diff: SpatialDifficulty) => {
@@ -93,7 +100,9 @@ export default function SpatialMemoryGame({
   }, [spatialDifficulty, playAudioFeedback, clearAllTimeouts]);
 
   const startSpatialGame = () => {
+    if (isOtherGameActive) return;
     playAudioFeedback?.('click');
+    onGameStart?.();
     setSpatialLevel(1);
     setSpatialReactionTimes([]);
     generateSpatialSequence(1);
@@ -115,12 +124,12 @@ export default function SpatialMemoryGame({
 
     const config = getGridConfig(spatialDifficulty);
 
-    // ۱. شکست در تکرار الگو
+    // ۱. شکست
     if (nextUserSeq[currentStep] !== targetSeq[currentStep]) {
       setSpatialGameState('failed');
+      onGameEnd?.();
       showToast('الگو قطع شد!', 'error');
 
-      // محاسبه طول مؤثر زنجیره با موفقیت طی‌شده
       const completedLevels = Math.max(0, spatialLevel - 1);
       const spanReached = completedLevels > 0 
         ? config.length + (completedLevels - 1) + (spatialMode === 'reverse' ? 1 : 0)
@@ -129,7 +138,6 @@ export default function SpatialMemoryGame({
       const { normalizedScore, rawMetrics } = calculateSpatialScore(spanReached, 1);
       const avgReaction = calculateAverage(spatialReactionTimes) || 500;
 
-      // ثبت تلاش در لاگ دیتابیس
       logBrainActivity('spatial_memory', {
         ...rawMetrics,
         difficulty: spatialDifficulty,
@@ -138,7 +146,6 @@ export default function SpatialMemoryGame({
         avg_reaction_ms: avgReaction
       }, normalizedScore);
 
-      // آپدیت پروفایل کلی
       saveProfile({
         ...brainProfile,
         memoryScore: normalizedScore,
@@ -157,13 +164,13 @@ export default function SpatialMemoryGame({
     if (nextUserSeq.length === targetSeq.length) {
       if (spatialLevel >= 4) {
         setSpatialGameState('success');
+        onGameEnd?.();
         playAudioFeedback?.('xp');
 
         const spanReached = config.length + 3 + (spatialMode === 'reverse' ? 1 : 0);
         const { normalizedScore, rawMetrics } = calculateSpatialScore(spanReached, 0);
         const avgReaction = calculateAverage(spatialReactionTimes) || 450;
 
-        // ثبت موفقیت در دیتابیس سری زمانی
         logBrainActivity('spatial_memory', {
           ...rawMetrics,
           difficulty: spatialDifficulty,
@@ -225,7 +232,7 @@ export default function SpatialMemoryGame({
             <select
               value={spatialDifficulty}
               onChange={e => setSpatialDifficulty(e.target.value as SpatialDifficulty)}
-              disabled={isPlayingActive}
+              disabled={isPlayingActive || isOtherGameActive}
               className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold disabled:opacity-50"
             >
               <option value="easy">آسان (۳×۳)</option>
@@ -240,7 +247,7 @@ export default function SpatialMemoryGame({
             <select
               value={spatialMode}
               onChange={e => setSpatialMode(e.target.value as SpatialMode)}
-              disabled={isPlayingActive}
+              disabled={isPlayingActive || isOtherGameActive}
               className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold disabled:opacity-50"
             >
               <option value="normal">مستقیم</option>
@@ -274,9 +281,10 @@ export default function SpatialMemoryGame({
         {spatialGameState === 'idle' && (
           <button
             onClick={startSpatialGame}
-            className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+            disabled={isOtherGameActive}
+            className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
           >
-            شروع چالش حافظه
+            {isOtherGameActive ? 'یک بازی دیگر در جریان است' : 'شروع چالش حافظه'}
           </button>
         )}
         {spatialGameState === 'showing' && (
@@ -298,11 +306,14 @@ export default function SpatialMemoryGame({
               تلاش مجدد
             </button>
             <button
-              onClick={() => setSpatialGameState('idle')}
+              onClick={() => {
+                setSpatialGameState('idle');
+                onGameEnd?.();
+              }}
               className="py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-1 transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>تغییر تنظیمات</span>
+              <span>تنظیمات</span>
             </button>
           </div>
         )}

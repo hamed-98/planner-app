@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { BrainProfile, logBrainActivity } from '@/lib/supabase/brainGym';
 import { pushWithLimit, calculateMathSpeedScore, calculateAverage } from '@/lib/utils/brainMath';
+import { RotateCcw, XCircle } from 'lucide-react';
 
 type MathTimeMode = 'sprint_30' | 'endurance_60' | 'survival_3';
 type MathDiffMode = 'basic' | 'advanced' | 'operator_reverse';
@@ -14,6 +15,9 @@ interface MathSpeedGameProps {
   earnXp: (amount: number, reason: string) => void;
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   playAudioFeedback?: (type: 'click' | 'done' | 'xp' | 'zen_finish') => void;
+  onGameStart?: () => void;
+  onGameEnd?: () => void;
+  isOtherGameActive?: boolean;
 }
 
 export default function MathSpeedGame({
@@ -21,7 +25,10 @@ export default function MathSpeedGame({
   saveProfile,
   earnXp,
   showToast,
-  playAudioFeedback
+  playAudioFeedback,
+  onGameStart,
+  onGameEnd,
+  isOtherGameActive = false
 }: MathSpeedGameProps) {
   const [mathTimeMode, setMathTimeMode] = useState<MathTimeMode>('sprint_30');
   const [mathDiffMode, setMathDiffMode] = useState<MathDiffMode>('basic');
@@ -44,8 +51,19 @@ export default function MathSpeedGame({
   const stateRef = useRef({ mathScore, mathMistakes, reactionTimes, brainProfile });
   stateRef.current = { mathScore, mathMistakes, reactionTimes, brainProfile };
 
+  const handleCancelGame = () => {
+    setMathState('idle');
+    setMathScore(0);
+    setMathMistakes(0);
+    setReactionTimes([]);
+    setMathProblem(null);
+    onGameEnd?.();
+    showToast('چالش محاسبات متوقف شد.', 'info');
+  };
+
   const finishGame = useCallback((correctCount: number, mistakeCount: number, reactions: number[]) => {
     setMathState('finished');
+    onGameEnd?.();
     playAudioFeedback?.('xp');
 
     const avgReaction = calculateAverage(reactions) || 1500;
@@ -53,9 +71,9 @@ export default function MathSpeedGame({
     // ۱. محاسبه علمی سرعت پردازش مغز (ضربی)
     const { normalizedScore, rawMetrics, isValid } = calculateMathSpeedScore(correctCount, mistakeCount, avgReaction);
 
-    // فیلتر آزمون غیرمعتبر
+    // ۲. فیلتر آزمون غیرمعتبر
     if (!isValid || normalizedScore === null) {
-      logBrainActivity('math_speed', rawMetrics, null); // 👈 ارسال null به جای 0
+      logBrainActivity('math_speed', rawMetrics, null);
       showToast('⚠️ آزمون به دلیل عدم پاسخ‌دهی کافی یا کلیک غیرواقعی ثبت نشد.', 'error');
       return;
     }
@@ -68,7 +86,7 @@ export default function MathSpeedGame({
       total_questions: correctCount + mistakeCount
     }, normalizedScore);
 
-    // ۴. آپدیت پروفایل کلی با مقدار number تضمین‌شده
+    // ۴. آپدیت پروفایل کلی
     saveProfile({
       ...stateRef.current.brainProfile,
       processingSpeed: normalizedScore,
@@ -79,24 +97,25 @@ export default function MathSpeedGame({
 
     earnXp(Math.max(15, Math.round(normalizedScore / 3)), 'تست سرعت پردازش و محاسبات ذهنی');
     showToast(`پایان تست! امتیاز سرعت پردازش: ${normalizedScore} از ۱۰۰`, 'info');
-  }, [earnXp, showToast, saveProfile, playAudioFeedback, mathTimeMode, mathDiffMode]);
+  }, [earnXp, showToast, saveProfile, playAudioFeedback, mathTimeMode, mathDiffMode, onGameEnd]);
 
+  // ۱. کنترل تایمر صرفاً برای کاهش عدد (بدون فراخوانی finishGame داخل updater)
   useEffect(() => {
     if (mathState !== 'playing' || mathTimeMode === 'survival_3') return;
 
     const timer = setInterval(() => {
-      setMathTimer(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          finishGame(stateRef.current.mathScore, stateRef.current.mathMistakes, stateRef.current.reactionTimes);
-          return 0;
-        }
-        return prev - 1;
-      });
+      setMathTimer(prev => Math.max(0, prev - 1));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [mathState, mathTimeMode, finishGame]);
+  }, [mathState, mathTimeMode]);
+
+  // ۲. مدیریت اتمام زمان به صورت استاندارد در یک useEffect مجزا (رفع ارور کنسول ری‌اکت)
+  useEffect(() => {
+    if (mathState === 'playing' && mathTimeMode !== 'survival_3' && mathTimer === 0) {
+      finishGame(stateRef.current.mathScore, stateRef.current.mathMistakes, stateRef.current.reactionTimes);
+    }
+  }, [mathTimer, mathState, mathTimeMode, finishGame]);
 
   const generateMathProblem = useCallback(() => {
     startTimeRef.current = Date.now();
@@ -196,7 +215,9 @@ export default function MathSpeedGame({
   }, [mathDiffMode]);
 
   const startMathGame = () => {
+    if (isOtherGameActive) return;
     playAudioFeedback?.('click');
+    onGameStart?.();
     setMathScore(0);
     setMathMistakes(0);
     setReactionTimes([]);
@@ -243,11 +264,19 @@ export default function MathSpeedGame({
           <span className="text-[10px] bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 px-2.5 py-0.5 rounded-full font-bold">
             سرعت پردازش
           </span>
-          {mathState === 'playing' && mathTimeMode !== 'survival_3' && (
-            <span className="text-xs font-bold text-amber-600 font-mono">⏱️ {mathTimer}s</span>
-          )}
-          {mathState === 'playing' && mathTimeMode === 'survival_3' && (
-            <span className="text-xs font-bold text-rose-500">❤️ {mathLives} جان</span>
+          {mathState === 'playing' ? (
+            <button
+              type="button"
+              onClick={handleCancelGame}
+              className="text-[11px] text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              <span>انصراف</span>
+            </button>
+          ) : (
+            <span className="text-xs font-bold text-slate-400">
+              {mathTimeMode === 'survival_3' ? `❤️ ۳ جان` : `⏱️ ${mathTimeMode === 'sprint_30' ? '۳۰s' : '۶۰s'}`}
+            </span>
           )}
         </div>
 
@@ -259,8 +288,8 @@ export default function MathSpeedGame({
             <select
               value={mathTimeMode}
               onChange={e => setMathTimeMode(e.target.value as MathTimeMode)}
-              disabled={mathState === 'playing'}
-              className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold"
+              disabled={mathState === 'playing' || isOtherGameActive}
+              className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold disabled:opacity-50"
             >
               <option value="sprint_30">۳۰ ثانیه سریع</option>
               <option value="endurance_60">۶۰ ثانیه پایدار</option>
@@ -273,8 +302,8 @@ export default function MathSpeedGame({
             <select
               value={mathDiffMode}
               onChange={e => setMathDiffMode(e.target.value as MathDiffMode)}
-              disabled={mathState === 'playing'}
-              className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold"
+              disabled={mathState === 'playing' || isOtherGameActive}
+              className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold disabled:opacity-50"
             >
               <option value="basic">جمع و تفریق</option>
               <option value="advanced">ضرب و تقسیم پیشرفته</option>
@@ -286,9 +315,14 @@ export default function MathSpeedGame({
 
       <div className="my-4 text-center h-28 flex items-center justify-center bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
         {mathState === 'playing' && mathProblem ? (
-          <motion.div key={mathRound} initial={{ y: -5, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 font-mono">
-            {mathProblem.displayStr}
-          </motion.div>
+          <div className="space-y-1">
+            <motion.div key={mathRound} initial={{ y: -5, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 font-mono">
+              {mathProblem.displayStr}
+            </motion.div>
+            <div className="text-[10px] text-amber-500 font-mono font-bold">
+              {mathTimeMode !== 'survival_3' ? `⏱️ ${mathTimer} ثانیه باقی‌مانده` : `❤️ ${mathLives} جان باقی‌مانده`}
+            </div>
+          </div>
         ) : mathState === 'finished' ? (
           <div className="space-y-1">
             <div className="text-lg font-black text-amber-600 dark:text-amber-400">پاسخ‌های صحیح: {mathScore}</div>
@@ -314,9 +348,12 @@ export default function MathSpeedGame({
       ) : (
         <button
           onClick={startMathGame}
-          className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+          disabled={isOtherGameActive}
+          className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
         >
-          {mathState === 'finished' ? 'تلاش مجدد' : 'شروع تست سرعت'}
+          {isOtherGameActive 
+            ? 'یک بازی دیگر در جریان است' 
+            : (mathState === 'finished' ? 'تلاش مجدد' : 'شروع تست سرعت')}
         </button>
       )}
     </div>

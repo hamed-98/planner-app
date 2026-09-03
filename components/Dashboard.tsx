@@ -72,7 +72,7 @@ import {
 import { calculateAverage, calculateLevelData } from '@/lib/utils/brainMath';
 import { useTheme } from 'next-themes';
 import AssistantView from './AssistantView';
-import { BrainProfile, getBrainProfile, ZERO_BRAIN_PROFILE } from '@/lib/supabase/brainGym';
+import { AggregatedBrainMetrics, BrainProfile, getAggregatedBrainMetrics, getBrainProfile, ZERO_BRAIN_PROFILE } from '@/lib/supabase/brainGym';
 
 // Interfaces for our applet state
 export interface CalendarEvent {
@@ -185,6 +185,11 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
+  // Today's Date representation
+  const [todayISO, setTodayISO] = useState("");
+  const [selectedDateISO, setSelectedDateISO] = useState("");
+  const [todayGregorian, setTodayGregorian] = useState("");
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -261,10 +266,12 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
 
 
   const [brainProfile, setBrainProfile] = useState<BrainProfile>(ZERO_BRAIN_PROFILE);
+  const [brainMetrics, setBrainMetrics] = useState<AggregatedBrainMetrics | null>(null);
 
   useEffect(() => {
     getBrainProfile().then(p => { if (p) setBrainProfile(p); });
-  }, []);
+    getAggregatedBrainMetrics(selectedDateISO || todayISO).then(m => { if (m) setBrainMetrics(m); });
+  }, [selectedDateISO, todayISO]);
 
 
 
@@ -571,10 +578,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
     saveHealthLog(dateISO, data).catch(console.error);
   };
 
-  // Today's Date representation
-  const [todayISO, setTodayISO] = useState("");
-  const [selectedDateISO, setSelectedDateISO] = useState("");
-  const [todayGregorian, setTodayGregorian] = useState("");
+ 
   useEffect(() => {
     const date = new Date();
     const iso = getLocalISOString(date);
@@ -1058,6 +1062,8 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
       completedMedicinesToday: medicines.filter(m => isMedicineCompleted(m)).length,
       totalHabitsToday: habits.length,
       completedHabitsToday: habits.filter(h => isHabitCompleted(h)).length,
+      brainMetrics: brainMetrics, // 👈 داده‌های تجمیعی جدید باشگاه مغز
+      brainProfile: brainProfile,
       targetDate: selectedDateISO
     };
 
@@ -4600,6 +4606,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             />
           )}
 
+          
           {/* Tab 10: Assistant */}
           {activeTab === "assistant" && (
             <AssistantView
@@ -4612,12 +4619,9 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                 pendingTasksToday: tasks.filter(
                   (t) => t.dueDate === selectedDateISO && t.status !== "done",
                 ).length,
-                eventsToday: events.filter((e) => e.date === selectedDateISO)
-                  .length,
-                brainMemory: brainProfile.memoryScore, // 👈 دیتای واقعی حافظه
-                brainFlexibility: brainProfile.flexibilityScore, // 👈 دیتای واقعی استروپ
-                brainReaction: calculateAverage(brainProfile.reactionTimes), // 👈 میانگین متحرک واقعی
-                brainAccuracy: calculateAverage(brainProfile.totalAccuracies),
+                eventsToday: events.filter((e) => e.date === selectedDateISO).length,
+                brainMetrics: brainMetrics, // 👈 داده‌های تجمیعی ۲۰ تلاش اخیر و امروز
+                brainProfile: brainProfile, // 👈 پروفایل کلی
                 targetDate: selectedDateISO,
                 clientToday: todayISO || getLocalISOString(new Date()),
               }}
@@ -4644,7 +4648,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                     id: crypto.randomUUID(),
                     title: e.title || "رویداد جدید",
                     desc: e.content || "",
-                    date: targetDate, // 👈 اکنون تاریخ دقیق پس‌فردا ست می‌شود
+                    date: targetDate,
                     time: e.time || "12:00",
                     category: (e.category as any) || "work",
                     recurrence: "none",
