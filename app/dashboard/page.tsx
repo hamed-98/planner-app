@@ -1,61 +1,42 @@
 'use client';
-/* eslint-disable react-hooks/set-state-in-effect */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import Dashboard from '../../components/Dashboard';
-import { createClient } from '../../lib/supabase/client';
+import { useSession, signOut } from '../../lib/auth-client';
 import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [userName, setUserName] = useState<string>("");
-  const [isMounted, setIsMounted] = useState(false);
-  const supabase = createClient();
+  const { data: session, isPending } = useSession();
   const router = useRouter();
 
   useEffect(() => {
-    setIsMounted(true);
-    
-    // Check Supabase Auth
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setIsLoggedIn(true);
-        setUserName(session.user.user_metadata?.name || session.user.email || "کاربر گرامی");
-      } else {
-        router.push('/auth');
-      }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session?.user) {
-          setIsLoggedIn(true);
-          setUserName(session.user.user_metadata?.name || session.user.email || "کاربر گرامی");
-        } else {
-          router.push('/auth');
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, [supabase, router]);
+    if (!isPending && !session) {
+      router.push('/login');
+    }
+  }, [session, isPending, router]);
 
   const handleLogout = async () => {
+    // پاکسازی کش‌های لوکال
     for (const key of Object.keys(localStorage)) {
       if (key.startsWith('sayeban_')) {
         localStorage.removeItem(key);
       }
     }
-    await supabase.auth.signOut();
-    router.push('/');
+    await signOut();
+    window.location.href = '/login';
   };
 
-  if (!isMounted || !isLoggedIn) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div></div>;
+  if (isPending || !session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFCFC] dark:bg-slate-950">
+        <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
+  const displayName = session.user.name || session.user.email?.split('@')[0] || 'کاربر گرامی';
+
   return (
-    <Dashboard userName={userName} onLogout={handleLogout} />
+    <Dashboard userName={displayName} onLogout={handleLogout} />
   );
 }

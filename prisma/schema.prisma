@@ -1,0 +1,401 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ----------------------------------------------------
+// مدل‌های پایه Better Auth (احراز هویت و نشست‌ها)
+// ----------------------------------------------------
+model User {
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions      Session[]
+  accounts      Account[]
+
+  // ارتباط با داده‌های برنامه
+  profile           Profile?
+  tasks             Task[]
+  notes             Note[]
+  events            Event[]
+  healthLogs        HealthLog[]
+  habits            Habit[]
+  habitLogs         HabitLog[]
+  medicines         Medicine[]
+  tickets           Ticket[]
+  ticketMessages    TicketMessage[]
+  brainProfile      BrainProfile?
+  cbtRecords        CbtRecord[]
+  neuroHabits       NeuroHabit[]
+  aiUsage           UserAiUsage[]
+  aiConversations   AiConversation[]
+  brainActivityLogs BrainActivityLog[]
+  adminLogs         AdminLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(uuid())
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  password              String?
+  issuer                String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(uuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verifications")
+}
+
+// ----------------------------------------------------
+// مدل‌های اصلی برنامه سایبان
+// ----------------------------------------------------
+
+model Profile {
+  id           String   @id
+  role         String   @default("user") // "user" | "superadmin"
+  plan         String   @default("free") // "free" | "pro" | "team"
+  avatarUrl    String?
+  theme        String   @default("system")
+  language     String   @default("fa")
+  calendarType String   @default("jalali")
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Task {
+  id               String    @id @default(uuid())
+  userId           String
+  title            String
+  description      String?
+  priority         String    @default("medium") // "low" | "medium" | "high"
+  status           String    @default("todo")   // "todo" | "doing" | "done"
+  dueDate          String?   // به صورت YYYY-MM-DD برای هماهنگی با کلاینت
+  subtasks         Json?     // ذخیره آرایه‌ای زیروظایف
+  estimatedMinutes Int?
+  actualMinutes    Int?
+  tags             String[]  @default([])
+  createdAt        DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([id, userId])
+  @@map("tasks")
+}
+
+model Note {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String?  @default("")
+  content   String?  @default("")
+  folder    String?  @default("personal")
+  tags      String[] @default([])
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([id, userId])
+  @@map("notes")
+}
+
+model Event {
+  id             String   @id @default(uuid())
+  userId         String
+  title          String
+  description    String?
+  startTime      DateTime
+  endTime        DateTime
+  color          String?  @default("personal")
+  isRecurring    Boolean  @default(false)
+  recurrenceRule String?  @default("none")
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([id, userId])
+  @@map("events")
+}
+
+model HealthLog {
+  id           String   @id @default(uuid())
+  userId       String
+  logDate      String   // ساختار YYYY-MM-DD
+  waterMl      Int?     @default(0)
+  sleepHours   Decimal? @default(0) @db.Decimal(3, 1)
+  sleepQuality Int?     @default(3) // 1: poor, 2: fair, 3: good, 4: excellent
+  mood         Int?     @default(3)
+  weightKg     Decimal? @default(70) @db.Decimal(4, 1)
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, logDate])
+  @@unique([id, userId])
+  @@map("health_logs")
+}
+
+model Habit {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  color     String?
+  createdAt DateTime @default(now())
+
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs HabitLog[]
+
+  @@unique([id, userId])
+  @@map("habits")
+}
+
+model HabitLog {
+  id        String   @id @default(uuid())
+  userId    String
+  habitId   String
+  logDate   String   // ساختار YYYY-MM-DD
+  completed Boolean  @default(false)
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([habitId, logDate])
+  @@unique([id, userId])
+  @@map("habit_logs")
+}
+
+model Medicine {
+  id             String   @id @default(uuid())
+  userId         String
+  name           String
+  dosage         String?
+  reminderTimes  String[] @default([])
+  completedDates String[] @default([])
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([id, userId])
+  @@map("medicines")
+}
+
+model GlobalSetting {
+  id        String   @id
+  value     Json
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("global_settings")
+}
+
+model AdminLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("admin_logs")
+}
+
+model Ticket {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  description String
+  category    String   // "bug" | "suggestion" | "question" | "other"
+  status      String   @default("open") // "open" | "in_progress" | "resolved" | "closed"
+  priority    String   @default("medium") // "low" | "medium" | "high"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages TicketMessage[]
+
+  @@unique([id, userId])
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id        String   @id @default(uuid())
+  ticketId  String
+  senderId  String
+  message   String
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_messages")
+}
+
+// ----------------------------------------------------
+// مدل‌های باشگاه شناخت و مغز (Brain Gym & CBT)
+// ----------------------------------------------------
+
+model BrainProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  memoryScore      Int      @default(0)
+  flexibilityScore Int      @default(0)
+  processingSpeed  Int      @default(0)
+  focusEnergy      Int      @default(0)
+  gamesPlayed      Int      @default(0)
+  avgReactionMs    Int      @default(400)
+  totalAccuracies  Json     @default("[]")
+  reactionTimes    Json     @default("[]")
+  unlockedBadges   Json     @default("[]")
+  lastPlayedDate   String   @default("")
+  streakDays       Int      @default(0)
+  updatedAt        DateTime @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("brain_profiles")
+}
+
+model CbtRecord {
+  id                String   @id @default(uuid())
+  userId            String
+  situation         String
+  automaticThought  String
+  initialBelief     Int      @default(50)
+  emotion           String
+  emotionIntensity  Int      @default(50)
+  distortion        String
+  evidenceFor       String?  @default("")
+  evidenceAgainst   String?  @default("")
+  reframedThought   String
+  newBelief         Int      @default(50)
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([id, userId])
+  @@map("cbt_records")
+}
+
+model NeuroHabit {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  completed Boolean  @default(false)
+  xp        Int      @default(15)
+  isCustom  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([id, userId])
+  @@map("neuro_habits")
+}
+
+model BrainActivityLog {
+  id              String   @id @default(uuid())
+  userId          String
+  gameType        String   // "spatial_memory" | "stroop_test" | "math_speed"
+  playedAt        DateTime @default(now())
+  rawMetrics      Json     @default("{}")
+  normalizedScore Decimal? @db.Decimal(5, 2)
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, gameType, playedAt(sort: Desc)])
+  @@map("brain_activity_logs")
+}
+
+// ----------------------------------------------------
+// مدل‌های دستیار هوش مصنوعی
+// ----------------------------------------------------
+
+model UserAiUsage {
+  id           String   @id @default(uuid())
+  userId       String
+  usageDate    String   // ساختار YYYY-MM-DD
+  requestCount Int      @default(1)
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, usageDate])
+  @@map("user_ai_usage")
+}
+
+model AiConversation {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String   @default("گفتگوی جدید")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AiMessage[]
+
+  @@unique([id, userId])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  sender         String   // "user" | "assistant"
+  content        String
+  actionPayload  Json?
+  createdAt      DateTime @default(now())
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("ai_messages")
+}

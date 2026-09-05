@@ -1,63 +1,52 @@
+// app/page.tsx
 'use client';
-/* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { useState, useEffect } from 'react';
 import LandingPage from '../components/LandingPage';
-import { createClient } from '../lib/supabase/client';
+import { useSession } from '../lib/auth-client';
 import { useRouter } from 'next/navigation';
 
 export default function Page() {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isMounted, setIsMounted] = useState(false);
   const [landingConfig, setLandingConfig] = useState<any>(null);
-  const supabase = createClient();
+  const { data: session, isPending } = useSession();
   const router = useRouter();
+
+  const isLoggedIn = !!session?.user;
 
   useEffect(() => {
     setIsMounted(true);
-    
-    // Check Supabase Auth
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setIsLoggedIn(true);
-      } else {
-        setIsLoggedIn(false);
-      }
-    });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session?.user) {
-          setIsLoggedIn(true);
-        } else {
-          setIsLoggedIn(false);
-        }
-      }
-    );
-
-    // Fetch Global Settings
-    (supabase.from('global_settings').select('value').eq('id', 'landing_page').single() as any).then(({ data }: any) => {
-      if (data && data.value) {
-        setLandingConfig(data.value);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [supabase]);
+    // دریافت تنظیمات لندینگ‌پیج از API داخلی
+    fetch('/api/settings?id=landing_page')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data) setLandingConfig(data);
+      })
+      .catch((err) => console.error('Error fetching landing settings:', err));
+  }, []);
 
   const handleEnterApp = () => {
     if (!isLoggedIn) {
-      router.push('/auth');
+      router.push('/login');
     } else {
       router.push('/dashboard');
     }
   };
 
-  if (!isMounted) {
-    return null;
+  if (!isMounted || isPending) {
+    return (
+      <div className="min-h-screen bg-[#FAFCFC] dark:bg-slate-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   return (
-    <LandingPage onEnterApp={handleEnterApp} isLoggedIn={isLoggedIn} landingConfig={landingConfig} />
+    <LandingPage
+      onEnterApp={handleEnterApp}
+      isLoggedIn={isLoggedIn}
+      landingConfig={landingConfig}
+    />
   );
 }

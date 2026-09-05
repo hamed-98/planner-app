@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { getTasks, addTask as dbAddTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask } from '../lib/supabase/tasks';
+// import { getTasks, addTask as dbAddTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask } from '../lib/supabase/tasks';
+import { getTasks, addTask as dbAddTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask } from '../lib/api/tasks';
 import { getNotes, addNote as dbAddNote, updateNote as dbUpdateNote, deleteNote as dbDeleteNote } from '../lib/supabase/notes';
 import { getEvents, addEvent as dbAddEvent, deleteEvent as dbDeleteEvent } from '../lib/supabase/events';
 import { getHabits, addHabit as dbAddHabit, deleteHabit as dbDeleteHabit, toggleHabitLog } from '../lib/supabase/habits';
