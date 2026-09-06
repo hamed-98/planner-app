@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { createClient } from '../../../lib/supabase/client';
+// import { createClient } from '../../../lib/supabase/client';
 import { Save, Image as ImageIcon, Type, BellRing, Upload, Music, Plus, Trash2, FolderPlus, BookOpen, Edit, PlusCircle, Tag, Calendar, Clock, HelpCircle, FileText, ChevronDown, X, Search, Filter, Folder, Check, Loader2, Volume2, File } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -174,7 +174,7 @@ export default function ContentManagement() {
   const logoFileInputRef = useRef<HTMLInputElement>(null);
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
-  const supabase = createClient();
+  // const supabase = createClient();
 
   // Media Gallery Modal states
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
@@ -190,67 +190,7 @@ export default function ContentManagement() {
   const [selectedMediaFile, setSelectedMediaFile] = useState<MediaFile | null>(null);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
-  const fetchMediaLibrary = async () => {
-    setMediaLoading(true);
-    try {
-      const folders = [
-        { name: 'uploads', path: 'uploads' },
-        { name: 'audio', path: 'uploads/audio' },
-        { name: 'encyclopedia', path: 'uploads/encyclopedia' }
-      ] as const;
-
-      let allFiles: MediaFile[] = [];
-
-      for (const folder of folders) {
-        const { data, error } = await supabase.storage.from('public').list(folder.path, {
-          limit: 100,
-          sortBy: { column: 'created_at', order: 'desc' }
-        });
-
-        if (error) {
-          console.error(`Error listing storage folder ${folder.path}:`, error);
-          continue;
-        }
-
-        if (data) {
-          // Filter out folders and placeholder empty files
-          const filesOnly = data.filter(item => item.name !== '.emptyFolderPlaceholder' && item.metadata);
-          
-          const mapped = filesOnly.map(file => {
-            const filePath = folder.path === 'uploads' ? `uploads/${file.name}` : `${folder.path}/${file.name}`;
-            const { data: urlData } = supabase.storage.from('public').getPublicUrl(filePath);
-            
-            const ext = file.name.split('.').pop()?.toLowerCase() || '';
-            let type: 'image' | 'audio' | 'other' = 'other';
-            if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
-              type = 'image';
-            } else if (['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(ext)) {
-              type = 'audio';
-            }
-
-            return {
-              id: file.id || `${folder.name}_${file.name}`,
-              name: file.name,
-              updated_at: file.updated_at || file.created_at || new Date().toISOString(),
-              created_at: file.created_at || new Date().toISOString(),
-              url: urlData.publicUrl,
-              type,
-              folder: folder.name,
-              size: file.metadata?.size || 0
-            };
-          });
-
-          allFiles = [...allFiles, ...mapped];
-        }
-      }
-
-      setMediaFiles(allFiles);
-    } catch (err) {
-      console.error('Failed to load media library:', err);
-    } finally {
-      setMediaLoading(false);
-    }
-  };
+ 
 
   useEffect(() => {
     if (isMediaModalOpen) {
@@ -271,28 +211,7 @@ export default function ContentManagement() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   };
 
-  const handleDeleteMediaFile = async (file: MediaFile) => {
-    try {
-      const filePath = file.folder === 'uploads' ? `uploads/${file.name}` : `uploads/${file.folder}/${file.name}`;
-      const { error } = await supabase.storage.from('public').remove([filePath]);
-      if (error) {
-        setMessage(`خطا در حذف فایل: ${error.message}`);
-        setTimeout(() => setMessage(''), 3000);
-      } else {
-        setMediaFiles(prev => prev.filter(f => f.id !== file.id));
-        if (selectedMediaFile?.id === file.id) {
-          setSelectedMediaFile(null);
-        }
-        setDeletingFileId(null);
-        setMessage('فایل با موفقیت از حافظه حذف شد.');
-        setTimeout(() => setMessage(''), 3000);
-      }
-    } catch (err: any) {
-      console.error('Error deleting file:', err);
-      setMessage(`خطا در حذف فایل: ${err.message || err}`);
-      setTimeout(() => setMessage(''), 3000);
-    }
-  };
+  
 
   const openMediaForHeroBg = () => {
     setMediaAllowedType('image');
@@ -346,159 +265,267 @@ export default function ContentManagement() {
     setIsMediaModalOpen(true);
   };
 
+  // دریافت محتوای صفحه لندینگ و اعلان‌ها با حفظ کامل پیش‌فرض‌ها
   async function fetchContent() {
     setLoading(true);
-    const { data: landingData } = await supabase.from('global_settings').select('value').eq('id', 'landing_page').single() as any;
-    if (landingData?.value) {
-      let categories = landingData.value.zen_categories;
-      if (!categories) {
-        // Fallback or migrate from old zen_tracks structure
-        const oldTracks = landingData.value.zen_tracks || {};
-        categories = [
-          {
-            id: 'deep_work',
-            name: 'کار عمیق (Deep Work)',
-            tracks: oldTracks.deep_work?.url ? [{ id: 'tr_1', name: oldTracks.deep_work.name || 'آهنگ کار عمیق', url: oldTracks.deep_work.url }] : []
-          },
-          {
-            id: 'creativity',
-            name: 'خلاقیت (Creativity)',
-            tracks: oldTracks.creativity?.url ? [{ id: 'tr_2', name: oldTracks.creativity.name || 'آهنگ خلاقیت', url: oldTracks.creativity.url }] : []
-          },
-          {
-            id: 'learning',
-            name: 'یادگیری (Learning)',
-            tracks: oldTracks.learning?.url ? [{ id: 'tr_3', name: oldTracks.learning.name || 'آهنگ یادگیری', url: oldTracks.learning.url }] : []
-          },
-          {
-            id: 'chill',
-            name: 'آرامش (Chill)',
-            tracks: oldTracks.chill?.url ? [{ id: 'tr_4', name: oldTracks.chill.name || 'آهنگ آرامش', url: oldTracks.chill.url }] : []
-          }
-        ];
-      }
-      setLandingConfig({
-        hero_bg: landingData.value.hero_bg || '',
-        logo: landingData.value.logo || '',
-        zen_categories: categories,
-        encyclopedia_posts: landingData.value.encyclopedia_posts || defaultBlogs
-      });
-    } else {
-      setLandingConfig({
-        hero_bg: '',
-        logo: '',
-        zen_categories: [
-          { id: 'deep_work', name: 'کار عمیق (Deep Work)', tracks: [] },
-          { id: 'creativity', name: 'خلاقیت (Creativity)', tracks: [] },
-          { id: 'learning', name: 'یادگیری (Learning)', tracks: [] },
-          { id: 'chill', name: 'آرامش (Chill)', tracks: [] }
-        ],
-        encyclopedia_posts: defaultBlogs
-      });
-    }
+    try {
+      const res = await fetch("/api/admin", { cache: "no-store" });
+      if (res.ok) {
+        const settings = await res.json();
 
-    const { data: annData } = await supabase.from('global_settings').select('value').eq('id', 'announcements').single() as any;
-    if (annData?.value) setAnnouncements(annData.value);
-    
-    setLoading(false);
+        // تعریف ۴ دسته‌بندی پایه موزیک تمرکز در صورت خالی بودن دیتابیس
+        const defaultCategories = [
+          { id: "deep_work", name: "کار عمیق (Deep Work)", tracks: [] },
+          { id: "creativity", name: "خلاقیت (Creativity)", tracks: [] },
+          { id: "learning", name: "یادگیری (Learning)", tracks: [] },
+          { id: "chill", name: "آرامش (Chill)", tracks: [] },
+        ];
+
+        if (settings?.landing_page) {
+          // اگر ساختار قدیمی zen_tracks در دیتابیس مانده باشد، آن را تبدیل می‌کند
+          let categories = settings.landing_page.zen_categories;
+          if (!categories && settings.landing_page.zen_tracks) {
+            const oldTracks = settings.landing_page.zen_tracks || {};
+            categories = [
+              {
+                id: "deep_work",
+                name: "کار عمیق (Deep Work)",
+                tracks: oldTracks.deep_work?.url
+                  ? [
+                      {
+                        id: "tr_1",
+                        name: oldTracks.deep_work.name || "آهنگ کار عمیق",
+                        url: oldTracks.deep_work.url,
+                      },
+                    ]
+                  : [],
+              },
+              {
+                id: "creativity",
+                name: "خلاقیت (Creativity)",
+                tracks: oldTracks.creativity?.url
+                  ? [
+                      {
+                        id: "tr_2",
+                        name: oldTracks.creativity.name || "آهنگ خلاقیت",
+                        url: oldTracks.creativity.url,
+                      },
+                    ]
+                  : [],
+              },
+              {
+                id: "learning",
+                name: "یادگیری (Learning)",
+                tracks: oldTracks.learning?.url
+                  ? [
+                      {
+                        id: "tr_3",
+                        name: oldTracks.learning.name || "آهنگ یادگیری",
+                        url: oldTracks.learning.url,
+                      },
+                    ]
+                  : [],
+              },
+              {
+                id: "chill",
+                name: "آرامش (Chill)",
+                tracks: oldTracks.chill?.url
+                  ? [
+                      {
+                        id: "tr_4",
+                        name: oldTracks.chill.name || "آهنگ آرامش",
+                        url: oldTracks.chill.url,
+                      },
+                    ]
+                  : [],
+              },
+            ];
+          }
+
+          setLandingConfig({
+            hero_bg: settings.landing_page.hero_bg || "",
+            logo: settings.landing_page.logo || "",
+            zen_categories: categories || defaultCategories,
+            encyclopedia_posts:
+              settings.landing_page.encyclopedia_posts || defaultBlogs,
+          });
+        } else {
+          // در صورت خالی بودن دیتابیس لوکال، مقادیر پیش‌فرض ست می‌شوند تا صفحه کرش نکند
+          setLandingConfig({
+            hero_bg: "",
+            logo: "",
+            zen_categories: defaultCategories,
+            encyclopedia_posts: defaultBlogs,
+          });
+        }
+
+        if (settings?.announcements) {
+          setAnnouncements(settings.announcements);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching content:", err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
     fetchContent();
   }, []);
 
+
+  // واکشی گالری رسانه‌ها از اندپوینت محلی
+  const fetchMediaLibrary = async () => {
+    setMediaLoading(true);
+    try {
+      const res = await fetch('/api/admin/media', { cache: 'no-store' });
+      if (res.ok) {
+        const files = await res.json();
+        setMediaFiles(files);
+      }
+    } catch (err) {
+      console.error('Failed to load media library:', err);
+    } finally {
+      setMediaLoading(false);
+    }
+  };
+
+  // حذف فایل از حافظه لوکال
+  const handleDeleteMediaFile = async (file: MediaFile) => {
+    try {
+      const res = await fetch(`/api/admin/media?url=${encodeURIComponent(file.url)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('خطا در حذف');
+
+      setMediaFiles((prev) => prev.filter((f) => f.id !== file.id));
+      if (selectedMediaFile?.id === file.id) setSelectedMediaFile(null);
+      setDeletingFileId(null);
+      setMessage('فایل با موفقیت از دیسک حذف شد.');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err: any) {
+      setMessage(`خطا در حذف فایل: ${err.message || err}`);
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  // آپلود تصاویر لندینگ
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'hero_bg' | 'logo') => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setMessage('در حال آپلود...');
     setSaving(true);
-    
-    const fileExt = file.name.split('.').pop() || '';
-    const fileName = getUniqueFileName(fileExt);
-    const filePath = `uploads/${fileName}`;
 
-    const { error } = await supabase.storage.from('public').upload(filePath, file);
-    
-    if (error) {
-      setMessage(`خطا در آپلود: ${error.message}`);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', 'uploads');
+
+    try {
+      const res = await fetch('/api/admin/media', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('خطا در آپلود');
+      const data = await res.json();
+      setLandingConfig((prev: any) => ({ ...prev, [type]: data.url }));
+      setMessage('آپلود با موفقیت انجام شد. برای ذخیره روی دکمه به‌روزرسانی کلیک کنید.');
+    } catch (err: any) {
+      setMessage(`خطا در آپلود: ${err.message}`);
+    } finally {
       setSaving(false);
-      return;
     }
-
-    const { data: publicUrlData } = supabase.storage.from('public').getPublicUrl(filePath);
-    
-    setLandingConfig((prev: any) => ({
-      ...prev,
-      [type]: publicUrlData.publicUrl
-    }));
-    
-    setMessage('آپلود با موفقیت انجام شد. برای ذخیره روی دکمه به‌روزرسانی کلیک کنید.');
-    setSaving(false);
   };
 
+  // آپلود موزیک‌های تمرکز
   const handleTrackUpload = async (event: React.ChangeEvent<HTMLInputElement>, catId: string, trackId: string) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setMessage('در حال آپلود فایل صوتی...');
     setSaving(true);
-    
-    const fileExt = file.name.split('.').pop() || '';
-    const fileName = getAudioFileName(catId, trackId, fileExt);
-    const filePath = `uploads/audio/${fileName}`;
 
-    const { error } = await supabase.storage.from('public').upload(filePath, file);
-    
-    if (error) {
-      setMessage(`خطا در آپلود فایل صوتی: ${error.message}`);
-      setSaving(false);
-      return;
-    }
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', 'audio');
 
-    const { data: publicUrlData } = supabase.storage.from('public').getPublicUrl(filePath);
-    
-    setLandingConfig((prev: any) => {
-      const updatedCategories = prev.zen_categories.map((cat: any) => {
-        if (cat.id === catId) {
-          return {
-            ...cat,
-            tracks: cat.tracks.map((t: any) => {
-              if (t.id === trackId) {
-                return { ...t, url: publicUrlData.publicUrl, name: t.name || file.name.replace(/\.[^/.]+$/, "") };
-              }
-              return t;
-            })
-          };
-        }
-        return cat;
+    try {
+      const res = await fetch('/api/admin/media', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('خطا در آپلود صوتی');
+      const data = await res.json();
+
+      setLandingConfig((prev: any) => {
+        const updatedCategories = prev.zen_categories.map((cat: any) => {
+          if (cat.id === catId) {
+            return {
+              ...cat,
+              tracks: cat.tracks.map((t: any) => {
+                if (t.id === trackId) {
+                  return { ...t, url: data.url, name: t.name || file.name.replace(/\.[^/.]+$/, '') };
+                }
+                return t;
+              }),
+            };
+          }
+          return cat;
+        });
+        return { ...prev, zen_categories: updatedCategories };
       });
-      return {
-        ...prev,
-        zen_categories: updatedCategories
-      };
-    });
-    
-    setMessage('آپلود صوتی با موفقیت انجام شد. برای ذخیره نهایی دکمه به‌روزرسانی را بزنید.');
-    setSaving(false);
+
+      setMessage('آپلود صوتی انجام شد. برای ذخیره نهایی دکمه به‌روزرسانی را بزنید.');
+    } catch (err: any) {
+      setMessage(`خطا در آپلود: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
+  // آپلود تصویر مقاله دانشنامه
+  // در بخش onClick دکمه آپلود کاور دانشنامه نیز دقیقاً این متد فراخوانی می‌شود:
+  const handleEncyclopediaCoverUpload = async (file: File) => {
+    setMessage('در حال آپلود تصویر مقاله...');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', 'encyclopedia');
+
+    try {
+      const res = await fetch('/api/admin/media', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('خطا در آپلود');
+      const data = await res.json();
+      setPostForm((prev) => ({ ...prev, imageUrl: data.url }));
+      setMessage('تصویر مقاله با موفقیت آپلود شد.');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err: any) {
+      setMessage(`خطا در آپلود: ${err.message}`);
+    }
+  };
+
+  // ذخیره تنظیمات لندینگ و اعلان‌ها
   const handleSave = async () => {
     setSaving(true);
     setMessage('');
-    
-    const { error: err1 } = await (supabase.from('global_settings') as any).upsert({ id: 'landing_page', value: landingConfig });
-    const { error: err2 } = await (supabase.from('global_settings') as any).upsert({ id: 'announcements', value: announcements });
-    
-    if (err1 || err2) {
+
+    try {
+      await Promise.all([
+        fetch('/api/admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ settingId: 'landing_page', value: landingConfig }),
+        }),
+        fetch('/api/admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ settingId: 'announcements', value: announcements }),
+        }),
+      ]);
+
+      setMessage('محتوا با موفقیت به‌روز شد.');
+    } catch {
       setMessage('خطا در ذخیره محتوا');
-    } else {
-      setMessage('محتوا با موفقیت به‌روز شد');
+    } finally {
+      setSaving(false);
+      setTimeout(() => setMessage(''), 3000);
     }
-    setSaving(false);
-    
-    setTimeout(() => setMessage(''), 3000);
   };
+
 
   return (
     <div className="space-y-8">
@@ -1081,22 +1108,9 @@ export default function ContentManagement() {
                       type="file"
                       accept="image/*"
                       ref={postCoverInputRef}
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (!file) return;
-                        setMessage('در حال آپلود تصویر مقاله...');
-                        const fileExt = file.name.split('.').pop() || '';
-                        const fileName = getUniqueFileName(fileExt);
-                        const filePath = `uploads/encyclopedia/${fileName}`;
-                        const { error } = await supabase.storage.from('public').upload(filePath, file);
-                        if (error) {
-                          setMessage(`خطا در آپلود: ${error.message}`);
-                          return;
-                        }
-                        const { data: publicUrlData } = supabase.storage.from('public').getPublicUrl(filePath);
-                        setPostForm(prev => ({ ...prev, imageUrl: publicUrlData.publicUrl }));
-                        setMessage('تصویر مقاله با موفقیت آپلود شد.');
-                        setTimeout(() => setMessage(''), 3000);
+                        if (file) handleEncyclopediaCoverUpload(file);
                       }}
                       className="hidden"
                     />

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CbtRecord } from '@/lib/supabase/brainGym';
+// import { CbtRecord } from '@/lib/supabase/brainGym';
+import { CbtRecord } from '@/lib/api/brainGym';
 import CrisisAlertModal, { CRISIS_KEYWORDS } from './CrisisAlertModal';
 
 export const COGNITIVE_DISTORTIONS = [

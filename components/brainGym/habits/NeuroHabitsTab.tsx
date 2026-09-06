@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { Flame, Check, Plus } from 'lucide-react';
-import { NeuroHabit } from '@/lib/supabase/brainGym';
+// import { NeuroHabit } from '@/lib/supabase/brainGym';
+import { NeuroHabit } from '@/lib/api/brainGym';
 
 interface NeuroHabitsTabProps {
   habits: NeuroHabit[];

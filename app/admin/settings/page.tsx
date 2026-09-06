@@ -1,7 +1,7 @@
+// app/admin/settings/page.tsx
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { createClient } from '../../../lib/supabase/client';
 import { Save, AlertCircle, Sparkles, Shield, Wrench, Zap } from 'lucide-react';
 import AiProvidersManager from '@/components/admin/AiProvidersManager';
 
@@ -14,26 +14,23 @@ export default function SettingsManagement() {
     enable_ai_assistant: true,
     enable_gemini_fallback: true,
     free_tier_daily_limit: 15,
-    maintenance_mode: false
+    maintenance_mode: false,
   });
-
-  const supabase = createClient();
 
   async function fetchSettings() {
     setLoading(true);
     try {
-      const { data: flagsData, error } = await (supabase.from('global_settings') as any)
-        .select('value')
-        .eq('id', 'feature_flags')
-        .maybeSingle();
-
-      if (flagsData?.value) {
-        setFeatureFlags({
-          enable_ai_assistant: flagsData.value.enable_ai_assistant ?? true,
-          enable_gemini_fallback: flagsData.value.enable_gemini_fallback ?? true,
-          free_tier_daily_limit: flagsData.value.free_tier_daily_limit ?? 15,
-          maintenance_mode: flagsData.value.maintenance_mode ?? false
-        });
+      const res = await fetch('/api/admin', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.feature_flags) {
+          setFeatureFlags({
+            enable_ai_assistant: data.feature_flags.enable_ai_assistant ?? true,
+            enable_gemini_fallback: data.feature_flags.enable_gemini_fallback ?? true,
+            free_tier_daily_limit: data.feature_flags.free_tier_daily_limit ?? 15,
+            maintenance_mode: data.feature_flags.maintenance_mode ?? false,
+          });
+        }
       }
     } catch (err: any) {
       console.error('Error loading settings:', err);
@@ -52,16 +49,16 @@ export default function SettingsManagement() {
     setToastMsg(null);
 
     try {
-      const { error } = await (supabase.from('global_settings') as any).upsert(
-        {
-          id: 'feature_flags',
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settingId: 'feature_flags',
           value: featureFlags,
-          updated_at: new Date().toISOString()
-        },
-        { onConflict: 'id' }
-      );
+        }),
+      });
 
-      if (error) throw error;
+      if (!res.ok) throw new Error('پاسخ ناموفق از سرور');
       setToastMsg({ text: 'تنظیمات و سهمیه‌های سیستم با موفقیت ذخیره و اعمال شدند.', type: 'success' });
     } catch (err: any) {
       setToastMsg({ text: `خطا در ذخیره‌سازی: ${err.message}`, type: 'error' });
@@ -78,10 +75,8 @@ export default function SettingsManagement() {
         <p className="text-xs text-slate-400 mt-1">مدیریت زنجیره هوش مصنوعی، سهمیه‌ها و کلیدهای کنترل سراسری اپلیکیشن</p>
       </header>
 
-      {/* ۱. ماژول مدیریت ارائه‌دهندگان هوش مصنوعی */}
       <AiProvidersManager />
 
-      {/* ۲. ماژول قابلیت‌های سیستم و سهمیه‌ها */}
       <form onSubmit={handleSave} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-6 text-right">
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
           <div className="flex items-center gap-3">
@@ -96,7 +91,13 @@ export default function SettingsManagement() {
         </div>
 
         {toastMsg && (
-          <div className={`p-3.5 rounded-xl text-xs font-bold text-center ${toastMsg.type === 'success' ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800' : 'bg-rose-950/80 text-rose-300 border border-rose-800'}`}>
+          <div
+            className={`p-3.5 rounded-xl text-xs font-bold text-center ${
+              toastMsg.type === 'success'
+                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
+                : 'bg-rose-950/80 text-rose-300 border border-rose-800'
+            }`}
+          >
             {toastMsg.text}
           </div>
         )}
@@ -105,8 +106,6 @@ export default function SettingsManagement() {
           <div className="text-xs text-slate-400 font-bold py-6 text-center animate-pulse">در حال فراخوانی تنظیمات...</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            
-            {/* سوییچ هوش مصنوعی */}
             <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
               <div className="space-y-1">
                 <span className="text-xs font-black text-white flex items-center gap-2">
@@ -123,7 +122,6 @@ export default function SettingsManagement() {
               />
             </label>
 
-            {/* سوییچ سپر نجات جمینای */}
             <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
               <div className="space-y-1">
                 <span className="text-xs font-black text-white flex items-center gap-2">
@@ -140,7 +138,6 @@ export default function SettingsManagement() {
               />
             </label>
 
-            {/* سقف سهمیه کاربران رایگان */}
             <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between">
               <div className="space-y-1">
                 <span className="text-xs font-black text-white flex items-center gap-2">
@@ -155,14 +152,18 @@ export default function SettingsManagement() {
                   min="1"
                   max="200"
                   value={featureFlags.free_tier_daily_limit}
-                  onChange={(e) => setFeatureFlags({ ...featureFlags, free_tier_daily_limit: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                  onChange={(e) =>
+                    setFeatureFlags({
+                      ...featureFlags,
+                      free_tier_daily_limit: Math.max(1, parseInt(e.target.value, 10) || 1),
+                    })
+                  }
                   className="w-16 px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-center text-white text-xs font-bold focus:outline-none focus:border-teal-500"
                 />
                 <span className="text-[10px] text-slate-400">پیام</span>
               </div>
             </div>
 
-            {/* حالت تعمیر و نگهداری */}
             <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
               <div className="space-y-1">
                 <span className="text-xs font-black text-white flex items-center gap-2">
@@ -178,11 +179,9 @@ export default function SettingsManagement() {
                 className="w-5 h-5 text-rose-600 rounded-lg accent-rose-500 cursor-pointer"
               />
             </label>
-
           </div>
         )}
 
-        {/* دکمه ذخیره کلیدهای کنترلی */}
         <div className="flex items-center gap-4 pt-4 border-t border-slate-800">
           <button
             type="submit"

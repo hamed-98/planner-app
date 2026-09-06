@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { BookOpen, Feather, Trash2 } from 'lucide-react';
-import { CbtRecord } from '@/lib/supabase/brainGym';
+// import { CbtRecord } from '@/lib/supabase/brainGym';
+import { CbtRecord } from '@/lib/api/brainGym';
 import { COGNITIVE_DISTORTIONS } from './CbtWizard';
 
 interface CbtHistoryProps {

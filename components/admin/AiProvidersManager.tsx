@@ -1,3 +1,4 @@
+// components/admin/AiProvidersManager.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -16,7 +17,6 @@ import {
   Clock,
   Globe
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { AiProviderConfig } from '@/lib/ai/gateway';
 
 const PROVIDER_PRESETS = [
@@ -32,13 +32,6 @@ const PROVIDER_PRESETS = [
     providerType: 'openai_compatible' as const,
     baseUrl: 'https://openrouter.ai/api/v1',
     model: 'z-ai/glm-5.2:free',
-    timeoutMs: 15000
-  },
-  {
-    name: 'ZenMux (GLM-4.7 Flash Free)',
-    providerType: 'openai_compatible' as const,
-    baseUrl: 'https://api.zenmux.ai/v1',
-    model: 'z-ai/glm-4.7-flash-free',
     timeoutMs: 15000
   },
   {
@@ -86,20 +79,20 @@ export default function AiProvidersManager() {
   useEffect(() => {
     async function loadProviders() {
       setIsLoading(true);
-      const supabase = createClient();
       try {
-        const { data } = await (supabase.from('global_settings') as any)
-          .select('value')
-          .eq('id', 'ai_providers')
-          .maybeSingle();
-
-        if (data?.value && Array.isArray(data.value)) {
-          setProviders(data.value.sort((a: any, b: any) => a.priority - b.priority));
+        const res = await fetch('/api/admin', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.ai_providers && Array.isArray(data.ai_providers)) {
+            setProviders(data.ai_providers.sort((a: any, b: any) => a.priority - b.priority));
+          } else {
+            setProviders([]);
+          }
         } else {
-          setProviders([]);
+          showToast('خطا در دریافت لیست پرووایدرها', 'error');
         }
       } catch (err) {
-        showToast('خطا در دریافت لیست پرووایدرها', 'error');
+        showToast('خطا در برقراری ارتباط با سرور', 'error');
       } finally {
         setIsLoading(false);
       }
@@ -109,18 +102,18 @@ export default function AiProvidersManager() {
 
   const saveProvidersToDb = async (updatedList: AiProviderConfig[]) => {
     setIsSaving(true);
-    const supabase = createClient();
     try {
-      const { error } = await (supabase.from('global_settings') as any).upsert(
-        {
-          id: 'ai_providers',
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settingId: 'ai_providers',
           value: updatedList,
-          updated_at: new Date().toISOString()
-        },
-        { onConflict: 'id' }
-      );
+        }),
+      });
 
-      if (error) throw error;
+      if (!res.ok) throw new Error('پاسخ ناموفق از سرور');
+
       setProviders(updatedList);
       showToast('پیکربندی هوش مصنوعی ذخیره و فوراً فعال شد.', 'success');
     } catch (err: any) {
@@ -139,7 +132,7 @@ export default function AiProvidersManager() {
       baseUrl: 'https://openrouter.ai/api/v1',
       apiKey: '',
       model: '',
-      priority: 1, // 👈 به عنوان اولویت ۱ ثبت می‌شود
+      priority: 1,
       isActive: true,
       timeoutMs: 15000
     });
@@ -174,14 +167,12 @@ export default function AiProvidersManager() {
     if (editingId) {
       updated = providers.map(p => p.id === editingId ? { ...p, ...formData } as AiProviderConfig : p);
     } else {
-      // افزودن به ابتدای صف (اولویت ۱) و شیفت بقیه موارد به پایین
       const newProvider = { ...formData, id: formData.id || `provider-${Date.now()}`, priority: 1 } as AiProviderConfig;
       const shifted = providers.map(p => ({ ...p, priority: p.priority + 1 }));
       updated = [newProvider, ...shifted];
     }
 
     updated.sort((a, b) => a.priority - b.priority);
-    // بازآرایی مرتب شماره اولویت‌ها
     const cleanIndexed = updated.map((item, idx) => ({ ...item, priority: idx + 1 }));
 
     saveProvidersToDb(cleanIndexed);
@@ -250,7 +241,7 @@ export default function AiProvidersManager() {
         </div>
       )}
 
-      {/* لیست پرووایدرهای ثبت‌شده با اسکرولبار اختصاصی */}
+      {/* لیست پرووایدرها */}
       {isLoading ? (
         <div className="py-12 text-center text-xs text-slate-400 font-bold animate-pulse">
           در حال بازخوانی دروازه هوش مصنوعی...
@@ -314,7 +305,7 @@ export default function AiProvidersManager() {
                 </div>
               </div>
 
-              {/* اکشن‌های کنترل اولویت */}
+              {/* دکمه‌های کنترل */}
               <div className="flex items-center gap-2 self-end md:self-center">
                 <div className="flex bg-slate-900 border border-slate-800 p-1 rounded-xl gap-0.5">
                   <button
@@ -377,7 +368,6 @@ export default function AiProvidersManager() {
               </button>
             </div>
 
-            {/* الگوهای آماده */}
             <div>
               <span className="text-[11px] font-bold text-slate-400 block mb-2">تکمیل سریع با الگوهای آماده:</span>
               <div className="grid grid-cols-2 gap-2">
@@ -483,12 +473,10 @@ export default function AiProvidersManager() {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-teal-400 transition-colors"
                   >
                     {showApiKey ? (
-                      // چشم بسته
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                       </svg>
                     ) : (
-                      // چشم باز
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />

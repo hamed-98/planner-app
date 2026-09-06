@@ -1,25 +1,27 @@
+// app/admin/logs/page.tsx
 'use client';
-/* eslint-disable react-hooks/set-state-in-effect, react-hooks/immutability */
 
 import React, { useEffect, useState } from 'react';
-import { createClient } from '../../../lib/supabase/client';
 import { ShieldAlert, Activity, AlertTriangle, Info } from 'lucide-react';
 
 export default function LogsManagement() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [filter, setFilter] = useState<'all' | 'error' | 'suspicious'>('all');
 
   const fetchLogs = async () => {
     setLoading(true);
-    // In a real app we'd fetch from admin_logs table
-    // Since we just defined it in SQL and might not have data yet, we mock some logs + fetch
-    const { data } = await supabase.from('admin_logs').select('*, profiles(name, email)').order('created_at', { ascending: false }).limit(50) as any;
-    
-    if (data) {
-      setLogs(data);
+    try {
+      const res = await fetch('/api/admin/logs', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setLogs(data);
+      }
+    } catch (err) {
+      console.error('Failed to load logs:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -27,26 +29,45 @@ export default function LogsManagement() {
   }, []);
 
   const getLogIcon = (action: string) => {
-    switch (action) {
-      case 'error': return <AlertTriangle className="w-5 h-5 text-rose-500" />;
-      case 'suspicious': return <ShieldAlert className="w-5 h-5 text-amber-500" />;
-      case 'login': return <Activity className="w-5 h-5 text-teal-500" />;
-      default: return <Info className="w-5 h-5 text-blue-500" />;
-    }
+    if (action.includes('ERROR')) return <AlertTriangle className="w-5 h-5 text-rose-500" />;
+    if (action.includes('SUSPICIOUS')) return <ShieldAlert className="w-5 h-5 text-amber-500" />;
+    if (action.includes('LOGIN')) return <Activity className="w-5 h-5 text-teal-500" />;
+    return <Info className="w-5 h-5 text-blue-500" />;
   };
 
+  const filteredLogs = logs.filter((log) => {
+    if (filter === 'error') return log.action.includes('ERROR');
+    if (filter === 'suspicious') return log.action.includes('SUSPICIOUS');
+    return true;
+  });
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
       <header className="mb-8">
         <h1 className="text-2xl font-black text-white">امنیت و لاگ‌ها</h1>
-        <p className="text-sm text-slate-400 mt-1">مشاهده فعالیت‌های سیستم و خطاهای احتمالی</p>
+        <p className="text-sm text-slate-400 mt-1">مشاهده رویدادهای سیستمی، خطاها و تغییرات امنیتی</p>
       </header>
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
         <div className="p-4 border-b border-slate-800 bg-slate-950 flex gap-2">
-          <button className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold">همه لاگ‌ها</button>
-          <button className="px-4 py-2 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg text-sm transition-colors">خطاها</button>
-          <button className="px-4 py-2 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg text-sm transition-colors">فعالیت مشکوک</button>
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer ${filter === 'all' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800/60'}`}
+          >
+            همه لاگ‌ها
+          </button>
+          <button
+            onClick={() => setFilter('error')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer ${filter === 'error' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800/60'}`}
+          >
+            خطاها
+          </button>
+          <button
+            onClick={() => setFilter('suspicious')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer ${filter === 'suspicious' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800/60'}`}
+          >
+            فعالیت مشکوک
+          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm text-slate-300">
@@ -61,14 +82,14 @@ export default function LogsManagement() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-slate-500">در حال بارگذاری...</td>
+                  <td colSpan={4} className="px-6 py-8 text-center text-slate-500">در حال بارگذاری لاگ‌ها...</td>
                 </tr>
-              ) : logs.length === 0 ? (
+              ) : filteredLogs.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-8 text-center text-slate-500">لاگی یافت نشد.</td>
                 </tr>
               ) : (
-                logs.map((log) => (
+                filteredLogs.map((log) => (
                   <tr key={log.id} className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center">
@@ -79,7 +100,7 @@ export default function LogsManagement() {
                       {log.profiles?.email || 'سیستم'}
                     </td>
                     <td className="px-6 py-4">
-                      <span className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 text-xs font-mono block w-fit max-w-md truncate">
+                      <span className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 text-xs font-mono block w-fit max-w-md truncate" dir="ltr">
                         {JSON.stringify(log.details)}
                       </span>
                     </td>

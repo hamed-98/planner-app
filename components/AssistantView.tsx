@@ -23,7 +23,7 @@ import {
   Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { createClient } from '../lib/supabase/client';
+// import { createClient } from '../lib/supabase/client';
 import { 
   Conversation, 
   ChatMessage, 
@@ -130,15 +130,21 @@ export default function AssistantView({
       showToast(`یادداشت "${payload.title}" ذخیره شد.`, 'success');
     }
 
-    // به‌روزرسانی وضعیت در دیتابیس و کش محلی
+    // به‌روزرسانی وضعیت در استیت و حافظه مرورگر
     const updatedPayload = { ...msg.action_payload, status: 'confirmed' };
     setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, action_payload: updatedPayload } : m));
     localStorage.setItem(`sayeban_action_status_${msg.id}`, 'confirmed');
 
-    const supabase = createClient();
-    await (supabase.from('ai_messages') as any)
-      .update({ action_payload: updatedPayload })
-      .eq('id', msg.id);
+    // ذخیره در دیتابیس لوکال از طریق API
+    await fetch('/api/assistant/conversations', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'UPDATE_ACTION_PAYLOAD',
+        messageId: msg.id,
+        actionPayload: updatedPayload,
+      }),
+    });
 
     playAudioFeedback?.('done');
   };
@@ -149,29 +155,35 @@ export default function AssistantView({
     setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, action_payload: updatedPayload } : m));
     localStorage.setItem(`sayeban_action_status_${msg.id}`, 'rejected');
 
-    const supabase = createClient();
-    await (supabase.from('ai_messages') as any)
-      .update({ action_payload: updatedPayload })
-      .eq('id', msg.id);
+    // ذخیره رد اکشن در دیتابیس لوکال از طریق API
+    await fetch('/api/assistant/conversations', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'UPDATE_ACTION_PAYLOAD',
+        messageId: msg.id,
+        actionPayload: updatedPayload,
+      }),
+    });
 
     showToast('پیشنهاد ثبت لغو شد.', 'info');
   };
 
   const handleNewConversation = async () => {
-    playAudioFeedback?.('click');
+    playAudioFeedback?.("click");
     // لغو درخواست در حال اجرای چت قبلی و خاموش کردن لودینگ
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     setIsAiResponding(false);
 
-    const fresh = await createConversation('گفتگوی جدید');
+    const fresh = await createConversation("گفتگوی جدید");
     if (fresh) {
-      setConversations(prev => [fresh, ...prev]);
+      setConversations((prev) => [fresh, ...prev]);
       setActiveConvId(fresh.id);
       setMessages([]);
       setIsMobileSidebarOpen(false);
-      showToast('گفتگوی جدید ایجاد شد.', 'info');
+      showToast("گفتگوی جدید ایجاد شد.", "info");
     }
   };
 
@@ -180,13 +192,29 @@ export default function AssistantView({
       setEditingConvId(null);
       return;
     }
-    const supabase = createClient();
-    await (supabase as any).from('ai_conversations').update({ title: editTitleText.trim() }).eq('id', id);
-    setConversations(prev => prev.map(c => c.id === id ? { ...c, title: editTitleText.trim() } : c));
-    setEditingConvId(null);
-    showToast('عنوان گفتگو به‌روزرسانی شد.', 'success');
-  };
 
+    try {
+      await fetch("/api/assistant/conversations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "RENAME_CONVERSATION",
+          conversationId: id,
+          title: editTitleText.trim(),
+        }),
+      });
+
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === id ? { ...c, title: editTitleText.trim() } : c,
+        ),
+      );
+      setEditingConvId(null);
+      showToast("عنوان گفتگو به‌روزرسانی شد.", "success");
+    } catch {
+      showToast("خطا در به‌روزرسانی عنوان گفتگو", "error");
+    }
+  };
   const handleConfirmDelete = async () => {
     if (!convToDelete) return;
     await deleteConversation(convToDelete);
@@ -258,8 +286,17 @@ export default function AssistantView({
     const isFirstMsg = messages.length === 0;
     if (isFirstMsg) {
       const autoTitle = textToSend.slice(0, 26) + (textToSend.length > 26 ? '...' : '');
-      const supabase = createClient();
-      await (supabase.from('ai_conversations') as any).update({ title: autoTitle }).eq('id', activeConvId);
+      // تغییر عنوان از طریق API داخلی به جای سوپابیس
+      fetch('/api/assistant/conversations', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'RENAME_CONVERSATION',
+          conversationId: activeConvId,
+          title: autoTitle,
+        }),
+      }).catch(console.error);
+
       setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, title: autoTitle } : c));
     }
 
@@ -271,17 +308,10 @@ export default function AssistantView({
     setIsAiResponding(true);
 
     try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-      }
-
+      // ارسال امن؛ کوکی نشست Better Auth به صورت خودکار توسط مرورگر فرستاده می‌شود
       const res = await fetch('/api/assistant', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         signal: abortControllerRef.current.signal,
         body: JSON.stringify({
           mode: 'workspace_chat',
@@ -293,17 +323,15 @@ export default function AssistantView({
 
       const data = await res.json();
 
-      // ۱. اگر خطای HTTP رخ داده است (سهمیه ۴۲۹ یا خطای سرور ۵۰۰)
       if (!res.ok) {
         if (data.currentUsage !== undefined && data.dailyLimit) {
           setAiUsage(prev => ({ ...prev, count: data.currentUsage, limit: data.dailyLimit }));
         }
-        showToast(data.text || 'خطا در ارتباط با سرور هوش مصنوعی.', 'error');
+        showToast(data.text || 'خطا در دریافت پاسخ.', 'error');
         setIsAiResponding(false);
-        return; // جلوگیری از ذخیره پیام خطا در دیتابیس چت
+        return;
       }
 
-      // ۲. آپدیت سهمیه مصرف پس از پاسخ موفق
       if (data.currentUsage !== undefined && data.dailyLimit) {
         setAiUsage(prev => ({ ...prev, count: data.currentUsage, limit: data.dailyLimit }));
       }
@@ -313,7 +341,6 @@ export default function AssistantView({
         provider: data.providerUsed || data.actionData?.provider
       };
 
-      // ۳. ثبت پاسخ دستیار در دیتابیس همراه با نام مدل
       const aiMsg = await saveChatMessage(
         activeConvId,
         'assistant',
@@ -326,14 +353,12 @@ export default function AssistantView({
         playAudioFeedback?.('done');
       }
     } catch (err: any) {
-      if (err.name === 'AbortError') {
-        return;
-      }
+      if (err.name === 'AbortError') return;
       console.error(err);
-      showToast('برقراری ارتباط با هوش مصنوعی مقدور نشد.', 'error');
+      showToast('ارتباط با سرور برقرار نشد.', 'error');
     } finally {
       setIsAiResponding(false);
-    } 
+    }
   };
 
   const copyToClipboard = (text: string, id: string) => {

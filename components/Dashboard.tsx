@@ -15,14 +15,16 @@ import { getMedicines, addMedicine as dbAddMedicine, deleteMedicine as dbDeleteM
 // import { getHealthLogs, saveHealthLog } from '../lib/supabase/health';
 import { getHealthLogs, saveHealthLog } from '../lib/api/health';
 
-import { getProfile, updateProfile } from '../lib/supabase/profiles';
+// import { getProfile, updateProfile } from '../lib/supabase/profiles';
+import { getProfile, updateProfile } from '../lib/api/profiles';
+
 // import { getTickets } from '../lib/supabase/tickets';
 import { getTickets } from '../lib/api/tickets';
 import SupportTabView from './SupportTabView';
 import MonthlyCalendarView from './MonthlyCalendarView';
 import BrainGymView from './BrainGymView';
 import { motion, AnimatePresence } from 'motion/react';
-import { createClient } from '../lib/supabase/client';
+// import { createClient } from '../lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { format as formatJalali } from 'date-fns-jalali';
 import DatePicker from "react-multi-date-picker";
@@ -522,53 +524,64 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
 
   useEffect(() => {
     const fetchGlobalSettings = async () => {
-      const { createClient } = await import('../lib/supabase/client');
-      const supabase = createClient();
-      
-      const { data: annData } = await supabase.from('global_settings').select('value').eq('id', 'announcements').single() as any;
-      if (annData?.value && annData.value.show) {
-        setAnnouncement(annData.value);
-      }
+      try {
+        const [annRes, landingRes] = await Promise.all([
+          fetch('/api/settings?id=announcements', { cache: 'no-store' }),
+          fetch('/api/settings?id=landing_page', { cache: 'no-store' }),
+        ]);
 
-      const { data: landingData } = await supabase.from('global_settings').select('value').eq('id', 'landing_page').single() as any;
-      if (landingData?.value) {
-        let categories = landingData.value.zen_categories;
-        if (!categories && landingData.value.zen_tracks) {
-          const oldTracks = landingData.value.zen_tracks || {};
-          categories = [
-            {
-              id: 'deep_work',
-              name: 'کار عمیق (Deep Work)',
-              tracks: oldTracks.deep_work?.url ? [{ id: 'tr_1', name: oldTracks.deep_work.name || 'آهنگ کار عمیق', url: oldTracks.deep_work.url }] : []
-            },
-            {
-              id: 'creativity',
-              name: 'خلاقیت (Creativity)',
-              tracks: oldTracks.creativity?.url ? [{ id: 'tr_2', name: oldTracks.creativity.name || 'آهنگ خلاقیت', url: oldTracks.creativity.url }] : []
-            },
-            {
-              id: 'learning',
-              name: 'یادگیری (Learning)',
-              tracks: oldTracks.learning?.url ? [{ id: 'tr_3', name: oldTracks.learning.name || 'آهنگ یادگیری', url: oldTracks.learning.url }] : []
-            },
-            {
-              id: 'chill',
-              name: 'آرامش (Chill)',
-              tracks: oldTracks.chill?.url ? [{ id: 'tr_4', name: oldTracks.chill.name || 'آهنگ آرامش', url: oldTracks.chill.url }] : []
-            }
-          ];
-        }
-        if (categories && categories.length > 0) {
-          setZenCategories(categories);
-          const firstNonEmpty = categories.find((c: any) => c.tracks && c.tracks.length > 0);
-          if (firstNonEmpty) {
-            setZenActiveCatId(firstNonEmpty.id);
-          } else {
-            setZenActiveCatId(categories[0].id);
+        if (annRes.ok) {
+          const annData = await annRes.json();
+          if (annData && annData.show) {
+            setAnnouncement(annData);
           }
         }
+
+        if (landingRes.ok) {
+          const landingData = await landingRes.json();
+          if (landingData) {
+            let categories = landingData.zen_categories;
+            if (!categories && landingData.zen_tracks) {
+              const oldTracks = landingData.zen_tracks || {};
+              categories = [
+                {
+                  id: 'deep_work',
+                  name: 'کار عمیق (Deep Work)',
+                  tracks: oldTracks.deep_work?.url ? [{ id: 'tr_1', name: oldTracks.deep_work.name || 'آهنگ کار عمیق', url: oldTracks.deep_work.url }] : []
+                },
+                {
+                  id: 'creativity',
+                  name: 'خلاقیت (Creativity)',
+                  tracks: oldTracks.creativity?.url ? [{ id: 'tr_2', name: oldTracks.creativity.name || 'آهنگ خلاقیت', url: oldTracks.creativity.url }] : []
+                },
+                {
+                  id: 'learning',
+                  name: 'یادگیری (Learning)',
+                  tracks: oldTracks.learning?.url ? [{ id: 'tr_3', name: oldTracks.learning.name || 'آهنگ یادگیری', url: oldTracks.learning.url }] : []
+                },
+                {
+                  id: 'chill',
+                  name: 'آرامش (Chill)',
+                  tracks: oldTracks.chill?.url ? [{ id: 'tr_4', name: oldTracks.chill.name || 'آهنگ آرامش', url: oldTracks.chill.url }] : []
+                }
+              ];
+            }
+            if (categories && categories.length > 0) {
+              setZenCategories(categories);
+              const firstNonEmpty = categories.find((c: any) => c.tracks && c.tracks.length > 0);
+              if (firstNonEmpty) {
+                setZenActiveCatId(firstNonEmpty.id);
+              } else {
+                setZenActiveCatId(categories[0].id);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching global settings:', err);
       }
     };
+
     fetchGlobalSettings();
   }, []);
 
@@ -1007,19 +1020,12 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
 
     setIsAnalyzingAi(true);
     try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers: HeadersInit = { "Content-Type": "application/json" };
-      if (session?.access_token) {
-        headers["Authorization"] = `Bearer ${session.access_token}`;
-      }
-
       const res = await fetch("/api/assistant", {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "analyze",
-          userData: { ...userMetrics, targetDate: todayStr },
+          userData: userMetrics,
         }),
       });
 
@@ -1181,19 +1187,12 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
     setQuickAddResult("در حال پردازش هوشمند دستور...");
 
     try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers: HeadersInit = { "Content-Type": "application/json" };
-      if (session?.access_token) {
-        headers["Authorization"] = `Bearer ${session.access_token}`;
-      }
-
       const res = await fetch("/api/assistant", {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "command",
-          message: quickAddText,
+          message: quickAddText.trim(),
           userData: {
             targetDate: selectedDateISO,
             clientToday: todayISO || getLocalISOString(new Date()),
@@ -2626,7 +2625,6 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                   </button>
                 </form>
               </div> */}
-              
             </div>
           )}
 
@@ -2645,7 +2643,14 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                 </div>
 
                 <button
-                  onClick={() => setUseJalaliCalendar(!useJalaliCalendar)}
+                  // onClick={() => setUseJalaliCalendar(!useJalaliCalendar)}
+                  onClick={() => {
+                    const nextVal = !useJalaliCalendar;
+                    setUseJalaliCalendar(nextVal);
+                    updateProfile({
+                      calendar_type: nextVal ? "jalali" : "gregorian",
+                    });
+                  }}
                   className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:bg-slate-950 cursor-pointer"
                 >
                   نمایش تقویم:{" "}
@@ -4534,7 +4539,14 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                       </span>
                       <button
                         type="button"
-                        onClick={() => setUseJalaliCalendar(!useJalaliCalendar)}
+                        // onClick={() => setUseJalaliCalendar(!useJalaliCalendar)}
+                        onClick={() => {
+                          const nextVal = !useJalaliCalendar;
+                          setUseJalaliCalendar(nextVal);
+                          updateProfile({
+                            calendar_type: nextVal ? "jalali" : "gregorian",
+                          });
+                        }}
                         className="px-4 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-bold text-teal-700 dark:text-teal-300 border border-slate-200/60 dark:border-slate-700 cursor-pointer"
                       >
                         {useJalaliCalendar
@@ -4617,7 +4629,6 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
             />
           )}
 
-          
           {/* Tab 10: Assistant */}
           {activeTab === "assistant" && (
             <AssistantView
@@ -4630,7 +4641,8 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                 pendingTasksToday: tasks.filter(
                   (t) => t.dueDate === selectedDateISO && t.status !== "done",
                 ).length,
-                eventsToday: events.filter((e) => e.date === selectedDateISO).length,
+                eventsToday: events.filter((e) => e.date === selectedDateISO)
+                  .length,
                 brainMetrics: brainMetrics, // 👈 داده‌های تجمیعی ۲۰ تلاش اخیر و امروز
                 brainProfile: brainProfile, // 👈 پروفایل کلی
                 targetDate: selectedDateISO,
@@ -4718,13 +4730,13 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
 
               <h3 className="text-base mx-2 font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-teal-600" />
-                <span>درج فوری کار / رویداد  (NLP AI)</span>
+                <span>درج فوری کار / رویداد (NLP AI)</span>
               </h3>
 
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                جمله طبیعی خود با زبان فارسی درج کنید تا دستیار شما
-                در لحظه تصمیم گرفته و اسلات تقویم، یادداشت یا بورد کایزن شما را
-                ارتقا ببخشاید.
+                جمله طبیعی خود با زبان فارسی درج کنید تا دستیار شما در لحظه
+                تصمیم گرفته و اسلات تقویم، یادداشت یا بورد کایزن شما را ارتقا
+                ببخشاید.
               </p>
 
               <form onSubmit={handleQuickAdd} className="space-y-3">
@@ -4974,9 +4986,9 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
                   <span>خروج از تمرکز</span>
                 </button>
                 <div>
-                  <span className="text-[10px] font-black text-teal-400 tracking-wider block uppercase">
+                  {/* <span className="text-[10px] font-black text-teal-400 tracking-wider block uppercase">
                     کورتکس تفکر بدون مرز
-                  </span>
+                  </span> */}
                   <h2 className="text-sm font-extrabold">
                     محیط تمرکز مطلق (Zen & Pomodoro)
                   </h2>
@@ -4984,7 +4996,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
               </div>
 
               <div className="text-xs font-bold text-slate-400">
-                با موسیقی پویا و بدون مصرف توکن‌های هوش مصنوعی، تمرکز کایزن خود
+                با موسیقی پویا  تمرکز کایزن خود
                 را کالیبره کنید.
               </div>
             </div>

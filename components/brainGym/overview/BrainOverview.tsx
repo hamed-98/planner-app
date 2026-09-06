@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { BrainProfile, CbtRecord, NeuroHabit, AggregatedBrainMetrics } from '@/lib/supabase/brainGym';
+// import { BrainProfile, CbtRecord, NeuroHabit, AggregatedBrainMetrics } from '@/lib/supabase/brainGym';
+import { BrainProfile, CbtRecord, NeuroHabit, AggregatedBrainMetrics } from '@/lib/api/brainGym';
 import { Layers, Activity, Zap, Play, Sparkles, CheckCircle2, HelpCircle, Target } from 'lucide-react';
 import CognitiveGuideModal, { GuideTopicKey } from '../common/CognitiveGuideModal';
 

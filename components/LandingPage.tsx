@@ -278,16 +278,18 @@ export default function LandingPage({ onEnterApp, isLoggedIn, landingConfig }: L
       {/* Hero Section */}
       <section id="hero-section" className="relative pt-16 pb-24 overflow-hidden">
         {/* Full-Bleed Background Image */}
-        <div className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden select-none z-0">
-          <img 
-            src={landingConfig?.hero_bg } 
-            className="w-full h-full object-cover opacity-[0.88] dark:opacity-[0.95] scale-105 transition-all duration-[20s]" 
-            alt="Hero Background Map" 
-          />
-          {/* Gradients to blend/mask the image with the theme background */}
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/50 to-white dark:via-slate-950/40 dark:to-slate-950" />
-          <div className="absolute inset-0 bg-gradient-to-r from-white/40 via-transparent to-white/40 dark:from-slate-950/40 dark:via-transparent dark:to-slate-950/40" />
-        </div>
+        {landingConfig?.hero_bg && (
+          <div className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden select-none z-0">
+            <img 
+              src={landingConfig.hero_bg} 
+              className="w-full h-full object-cover opacity-[0.88] dark:opacity-[0.95] scale-105 transition-all duration-[20s]" 
+              alt="Hero Background Map" 
+            />
+            {/* Gradients to blend/mask the image with the theme background */}
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/50 to-white dark:via-slate-950/40 dark:to-slate-950" />
+            <div className="absolute inset-0 bg-gradient-to-r from-white/40 via-transparent to-white/40 dark:from-slate-950/40 dark:via-transparent dark:to-slate-950/40" />
+          </div>
+        )}
 
         {/* Background Gradients */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-teal-400/10 dark:bg-teal-500/5 rounded-full blur-3xl pointer-events-none z-0" />

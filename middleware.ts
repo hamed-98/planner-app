@@ -1,19 +1,19 @@
+// middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // Protect /admin routes
   if (path.startsWith('/admin')) {
-    // Note: Since the app uses localStorage for Supabase Auth,
-    // we cannot fully verify the session here without cookie-based auth.
-    // The main authorization check is performed in the AdminLayout component.
-    // However, if we do have cookie based auth in the future, it goes here.
-    
-    // We let it pass to the client component for the actual role check, 
-    // or we could block if a specific cookie is missing.
-    return NextResponse.next();
+    // Better Auth توکن سشن را در کوکی better-auth.session_token ذخیره می‌کند
+    const sessionCookie =
+      request.cookies.get('better-auth.session_token') ||
+      request.cookies.get('__Secure-better-auth.session_token');
+
+    if (!sessionCookie) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
   }
 
   return NextResponse.next();

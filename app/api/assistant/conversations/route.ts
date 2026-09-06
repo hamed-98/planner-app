@@ -143,12 +143,24 @@ export async function PATCH(req: Request) {
     }
 
     if (type === 'UPDATE_ACTION_PAYLOAD' && messageId && actionPayload) {
-      const msg = await db.aiMessage.update({
-        where: { id: messageId },
-        data: { actionPayload },
-      });
-      return NextResponse.json(msg);
+   // ۱. بررسی قطعی مالکیت پیام از طریق گفتگوی متصل به کاربر
+    const existingMsg = await db.aiMessage.findFirst({
+      where: {
+        id: messageId,
+        conversation: { userId: user.id },
+      },
+    });
+
+    if (!existingMsg) {
+      return NextResponse.json({ error: 'پیام یافت نشد یا دسترسی غیرمجاز است' }, { status: 404 });
     }
+
+    const msg = await db.aiMessage.update({
+      where: { id: messageId },
+      data: { actionPayload },
+    });
+    return NextResponse.json(msg);
+  }
 
     return NextResponse.json({ error: 'پارامترها نامعتبر است' }, { status: 400 });
   } catch (error: any) {
