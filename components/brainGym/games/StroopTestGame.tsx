@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
-import { BrainProfile, logBrainActivity } from '@/lib/supabase/brainGym';
+import { BrainProfile, logBrainActivity } from '@/lib/api/brainGym';
 import { pushWithLimit, calculateStroopScore, calculateAverage } from '@/lib/utils/brainMath';
 import { RotateCcw, XCircle } from 'lucide-react';
 

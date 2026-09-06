@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { BrainProfile, logBrainActivity } from '@/lib/supabase/brainGym';
 import { pushWithLimit, calculateMathSpeedScore, calculateAverage } from '@/lib/utils/brainMath';
 import { RotateCcw, XCircle } from 'lucide-react';
+// import { BrainProfile, logBrainActivity } from '@/lib/supabase/brainGym';
+import { BrainProfile, logBrainActivity } from '@/lib/api/brainGym';
 
 type MathTimeMode = 'sprint_30' | 'endurance_60' | 'survival_3';
 type MathDiffMode = 'basic' | 'advanced' | 'operator_reverse';

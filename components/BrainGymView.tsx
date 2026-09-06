@@ -1,6 +1,25 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+// import {
+//   getBrainProfile,
+//   saveBrainProfile,
+//   getCbtRecords,
+//   addCbtRecord,
+//   deleteCbtRecord,
+//   getNeuroHabits,
+//   saveNeuroHabit,
+//   getNeuroArticlesGlobal,
+//   DEFAULT_NEURO_ARTICLES,
+//   DEFAULT_NEURO_HABITS,
+//   ZERO_BRAIN_PROFILE,
+//   BrainProfile,
+//   CbtRecord,
+//   NeuroHabit,
+//   AggregatedBrainMetrics,
+//   getAggregatedBrainMetrics
+// } from '../lib/supabase/brainGym';
+
 import {
   getBrainProfile,
   saveBrainProfile,
@@ -18,7 +37,8 @@ import {
   NeuroHabit,
   AggregatedBrainMetrics,
   getAggregatedBrainMetrics
-} from '../lib/supabase/brainGym';
+} from '../lib/api/brainGym';
+
 import { calculateBrainIndex } from '../lib/utils/brainMath';
 
 // کامپوننت‌های تفکیک‌شده

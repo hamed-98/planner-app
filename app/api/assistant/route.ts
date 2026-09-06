@@ -1,5 +1,7 @@
+// app/api/assistant/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getCurrentUser } from "@/lib/session";
+import { prisma } from "@/lib/db/prisma";
 import { executeAiGateway, AiProviderConfig } from "@/lib/ai/gateway";
 
 // تابع تبدیل خطاهای خام به پیام‌های شفاف فارسی
@@ -24,6 +26,17 @@ function formatFriendlyErrorMessage(error: any): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        {
+          text: "⚠️ لطفاً ابتدا وارد حساب کاربری خود شوید.",
+          actionData: { action: "NONE", payload: {} }
+        },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const { message, mode, userData, history = [] } = body;
 
@@ -38,11 +51,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // ۲. خواندن تنظیمات سراسری سیستم (Feature Flags) از دیتابیس
+    // ۲. خواندن تنظیمات سراسری سیستم (Feature Flags) از دیتابیس پریزما
     let featureFlags: any = {
       enable_ai_assistant: true,
       free_tier_daily_limit: 15,
@@ -50,14 +59,11 @@ export async function POST(req: NextRequest) {
     };
 
     try {
-      const { data: flagRecord } = await supabase
-        .from("global_settings")
-        .select("value")
-        .eq("id", "feature_flags")
-        .maybeSingle();
-
-      if (flagRecord?.value) {
-        featureFlags = { ...featureFlags, ...flagRecord.value };
+      const flagRecord = await prisma.globalSetting.findUnique({
+        where: { id: "feature_flags" }
+      });
+      if (flagRecord?.value && typeof flagRecord.value === "object") {
+        featureFlags = { ...featureFlags, ...(flagRecord.value as Record<string, any>) };
       }
     } catch {}
 
@@ -72,25 +78,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ۴. بررسی هویت و محاسبه سهمیه روزانه کاربر
-    const authHeader = req.headers.get("Authorization");
-    let userId: string | null = null;
-    let userPlan: "free" | "pro" | "team" = "free";
-    let token = "";
-
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      token = authHeader.replace("Bearer ", "");
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) {
-        userId = user.id;
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("plan")
-          .eq("id", user.id)
-          .maybeSingle();
-        if (profile?.plan) userPlan = profile.plan;
-      }
-    }
+    // ۴. بررسی پروفایل و محاسبه سهمیه روزانه
+    const profile = await prisma.profile.findUnique({
+      where: { id: user.id }
+    });
+    const userPlan = profile?.plan || "free";
 
     const clientToday = userData?.clientToday || new Date().toISOString().split("T")[0];
     const targetDateStr = userData?.targetDate || clientToday;
@@ -101,54 +93,51 @@ export async function POST(req: NextRequest) {
 
     const freeDailyLimit = Number(featureFlags.free_tier_daily_limit) || 15;
     const dailyLimit = userPlan === "pro" ? 100 : userPlan === "team" ? 250 : freeDailyLimit;
-    let currentUsage = 0;
 
-    const authenticatedSupabase = token
-      ? createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "", {
-          global: { headers: { Authorization: `Bearer ${token}` } }
-        })
-      : supabase;
-
-    if (userId) {
-      const { data: usageRecord } = await authenticatedSupabase
-        .from("user_ai_usage")
-        .select("request_count")
-        .eq("user_id", userId)
-        .eq("usage_date", clientToday)
-        .maybeSingle();
-
-      currentUsage = usageRecord?.request_count || 0;
-
-      if (currentUsage >= dailyLimit) {
-        return NextResponse.json(
-          {
-            text: `⚠️ سقف مجاز روزانه شما برای هوش مصنوعی (${dailyLimit} پیام در پلن ${userPlan === "free" ? "رایگان" : "پرو"}) به پایان رسیده است.`,
-            actionData: { action: "NONE", payload: {} },
-            isLimitReached: true,
-            currentUsage,
-            dailyLimit
-          },
-          { status: 429 }
-        );
+    const usageRecord = await prisma.userAiUsage.findUnique({
+      where: {
+        userId_usageDate: {
+          userId: user.id,
+          usageDate: clientToday,
+        }
       }
+    });
+
+    let currentUsage = usageRecord?.requestCount || 0;
+
+    if (currentUsage >= dailyLimit) {
+      return NextResponse.json(
+        {
+          text: `⚠️ سقف مجاز روزانه شما برای هوش مصنوعی (${dailyLimit} پیام در پلن ${userPlan === "free" ? "رایگان" : "پرو"}) به پایان رسیده است.`,
+          actionData: { action: "NONE", payload: {} },
+          isLimitReached: true,
+          currentUsage,
+          dailyLimit
+        },
+        { status: 429 }
+      );
     }
 
-    // ۵. واکشی لیست ارائه‌دهندگان از دیتابیس
+    // ۵. واکشی ارائه‌دهندگان از پنل ادمین (اولویت اول)
     let providers: AiProviderConfig[] = [];
     try {
-      const { data: dbSettings } = await supabase
-        .from("global_settings")
-        .select("value")
-        .eq("id", "ai_providers")
-        .maybeSingle();
-
-      if (dbSettings?.value && Array.isArray(dbSettings.value) && dbSettings.value.length > 0) {
-        providers = dbSettings.value;
+      const dbSettings = await prisma.globalSetting.findUnique({
+        where: { id: "ai_providers" }
+      });
+      if (dbSettings?.value && Array.isArray(dbSettings.value)) {
+        // فقط مدل‌های فعال پنل ادمین دریافت می‌شوند
+        providers = (dbSettings.value as unknown as AiProviderConfig[])
+          .filter(p => p.isActive !== false);
       }
-    } catch {}
+    } catch (e) {
+      console.error("Failed to load admin AI providers:", e);
+    }
 
-    // ۶. افزودن کلیدهای جمینای محیطی به انتهای صف (در صورت فعال بودن سوئیچ در پنل ادمین)
-    if (featureFlags.enable_gemini_fallback !== false) {
+    // ۶. بررسی سوئیچ فال‌بک جمینای از پنل ادمین
+    // اگر در پنل ادمین سوئیچ خاموش شده باشد (false)، جمینای به هیچ عنوان لود نمی‌شود
+    const isGeminiFallbackAllowed = featureFlags.enable_gemini_fallback === true;
+
+    if (isGeminiFallbackAllowed) {
       const geminiKeys = (process.env.GEMINI_API_KEY || "")
         .split(",")
         .map(k => k.trim())
@@ -162,14 +151,24 @@ export async function POST(req: NextRequest) {
             providerType: "gemini_native",
             apiKey: k,
             model: "gemini-3.7-flash",
-            priority: 999 + idx,
+            priority: 9000 + idx, // انتهای صف؛ بعد از تمام مدل‌های پنل ادمین
             isActive: true
           });
         }
       });
     }
 
-   // ساخت گزارش تحلیلی و تفکیکی از باشگاه مغز برای دستیار
+    // ۷. مرتب‌سازی قطعی صف بر اساس Priority (اولویت ۱ زودتر از همه اجرا می‌شود)
+    providers.sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
+
+    if (providers.length === 0) {
+      return NextResponse.json({
+        text: "⚠️ هیچ ارائه‌دهنده فعالی برای هوش مصنوعی یافت نشد. لطفاً از پنل مدیریت یک مدل تعریف فرمایید.",
+        actionData: { action: "NONE", payload: {} }
+      });
+    }
+
+    // ساخت گزارش تحلیلی و تفکیکی از باشگاه مغز برای پرامپت سیستم
     let brainContextReport = "اطلاعاتی از آزمون‌های شناختی ثبت نشده است.";
     if (userData?.brainMetrics || userData?.brainProfile) {
       const bm = userData.brainMetrics;
@@ -244,8 +243,30 @@ ${cbtSummaryText}
 - کارنامه شناختی باشگاه مغز:
 ${brainContextReport}`;
 
+    // تابع کمکی برای افزایش مصرف در پریزما
+    const incrementDailyUsage = async () => {
+      const updated = await prisma.userAiUsage.upsert({
+        where: {
+          userId_usageDate: {
+            userId: user.id,
+            usageDate: clientToday,
+          },
+        },
+        create: {
+          id: crypto.randomUUID(),
+          userId: user.id,
+          usageDate: clientToday,
+          requestCount: 1,
+        },
+        update: {
+          requestCount: { increment: 1 },
+        },
+      });
+      return updated.requestCount;
+    };
+
     // ----------------------------------------------------
-    // حالت ۱: تحلیل سلامت پیشخوان
+    // حالت ۱: تحلیل سلامت پیشخوان (analyze)
     // ----------------------------------------------------
     if (mode === "analyze") {
       let analysisText = "";
@@ -290,14 +311,7 @@ ${brainContextReport}`;
         analysisText = parts.join(" ");
       }
 
-      // ثبت مصرف فقط در صورت موفقیت
-      if (userId) {
-        currentUsage += 1;
-        await authenticatedSupabase.from("user_ai_usage").upsert(
-          { user_id: userId, usage_date: clientToday, request_count: currentUsage, created_at: new Date().toISOString() },
-          { onConflict: "user_id,usage_date" }
-        );
-      }
+      currentUsage = await incrementDailyUsage();
 
       return NextResponse.json({
         text: analysisText,
@@ -327,20 +341,19 @@ ${brainContextReport}`;
      (مثلاً: «فشارها و دغدغه‌های روزمره واقعاً سنگین هستند، اما تمرکز من در سایبان بر حفظ آرامش، نظم ذهنی و برنامه‌های فردی شماست. چطور می‌توانم در مدیریت کارهای امروز یا کاهش استرس به شما کمک کنم؟»).
 ۲. احساسات و درددل‌های فردی (خستگی کار، تنش‌های شخصی، افت انگیزه):
    - کاملاً همدل، صمیمی، گوش‌شنوا و بدون قضاوت باش.
-   -متن کامل، پخته به زبان فارسی
-۱. برای احوال‌پرسی، چت خودمانی یا سوالات غیرتحلیلی (مثل "خوبی؟"، "خودت چطوری؟"، "مرسی"):
+۳. برای احوال‌پرسی، چت خودمانی یا سوالات غیرتحلیلی:
    - پاسخی گرم، طبیعی و دوستانه بده و نیازی نیست حتماً بحث را به آمار خواب و آب وصل کنی.
-۲. برای سوالات تحلیلی و وضعیت روز:
+۴. برای سوالات تحلیلی و وضعیت روز:
    - داده‌های سلامت (خواب، آب، باشگاه مغز) را مشفقانه و علمی تحلیل کن.
    - در مورد آب فقط از واحد «لیوان آب» (از هدف ۸ لیوان) صحبت کن.
    - متن درون فیلد "text" هرگز نباید رباتیک، خشک یا تک‌خطی باشد.
-۳. ${isOngoing ? "این گفتگوی ادامه‌دار است؛ نیازی به سلام و معرفی مجدد خودت نیست." : "در پیام اول یک سلام کوتاه بده و سپس به اصل مطلب بپرداز."}
-۴. تاریخ‌ها را به صورت نسبی (امروز، فردا، پس‌فردا) یا شمسی بیان کن (نام ماه‌های میلادی نگو).
-۵. ساخت اکشن:
+۵. ${isOngoing ? "این گفتگوی ادامه‌دار است؛ نیازی به سلام و معرفی مجدد خودت نیست." : "در پیام اول یک سلام کوتاه بده و سپس به اصل مطلب بپرداز."}
+۶. تاریخ‌ها را به صورت نسبی (امروز، فردا، پس‌فردا) یا شمسی بیان کن (نام ماه‌های میلادی نگو).
+۷. ساخت اکشن:
    - رویداد، قرار، جلسه یا ورزش با ساعت معین => action: "ADD_EVENT"
    - وظیفه و کارهای مشخص => action: "ADD_TASK"
    - گفتگوهای عمومی، سوالات، مشاوره‌ها و توصیه‌ها => action: "NONE"
-۶. فیلد targetDate در payload باید تاریخ دقیق میلادی باشد:
+۸. فیلد targetDate در payload باید تاریخ دقیق میلادی باشد:
    - امروز: ${clientToday}
    - فردا: ${clientTomorrow}
    - پس‌فردا: ${clientDayAfter}
@@ -369,7 +382,7 @@ ${brainContextReport}`;
 
       if (parsed.action && parsed.action !== "NONE") {
         if (!parsed.payload) parsed.payload = {};
-        const lowerMsg = message.toLowerCase();
+        const lowerMsg = (message || "").toLowerCase();
         if (lowerMsg.includes("پس‌فردا") || lowerMsg.includes("پسفردا") || lowerMsg.includes("۲ روز بعد")) {
           parsed.payload.targetDate = clientDayAfter;
         } else if (lowerMsg.includes("فردا")) {
@@ -379,14 +392,7 @@ ${brainContextReport}`;
         }
       }
 
-      // ثبت مصرف موفق
-      if (userId) {
-        currentUsage += 1;
-        await authenticatedSupabase.from("user_ai_usage").upsert(
-          { user_id: userId, usage_date: clientToday, request_count: currentUsage, created_at: new Date().toISOString() },
-          { onConflict: "user_id,usage_date" }
-        );
-      }
+      currentUsage = await incrementDailyUsage();
 
       return NextResponse.json({
         text: parsed.text || result.text || "درخواست شما بررسی شد.",
@@ -401,10 +407,10 @@ ${brainContextReport}`;
     }
 
     // ----------------------------------------------------
-    // حالت ۳: فرامین مستقیم
+    // حالت ۳: فرامین مستقیم (command)
     // ----------------------------------------------------
     if (mode === "command") {
-const systemInstruction = `تو موتور پردازش فرامین سریع «سایبان» هستی.
+      const systemInstruction = `تو موتور پردازش فرامین سریع «سایبان» هستی.
 وظیفه: تبدیل دستورات متنی کاربر به عملیات ساخت کار (ADD_TASK)، ساخت رویداد تقویم (ADD_EVENT) یا یادداشت (ADD_NOTE).
 
 قوانین پردازش:
@@ -414,9 +420,8 @@ const systemInstruction = `تو موتور پردازش فرامین سریع «
    - فیلد text: یک تاییدیه کوتاه و روان فارسی (مثلاً: «رویداد با موفقیت در تقویم ثبت شد.»).
 ۲. اگر ورودی یک دستور عملیاتی نیست (مثلاً چت معمولی، درددل، شوخی، سلام یا متن نامرتبط):
    - مقدار action را "NONE" بگذار.
-   - فیلد text: بنویس: «من برای ثبت سریع کارها، رویدادها و یادداشت‌ها طراحی شده‌ام. برای مثال بنویسید: «فردا ساعت ۱۸ جلسه کاری اضافه کن» یا «وظیفه خرید کتاب»».
+   - فیلد text: بنویس: «من برای ثبت سریع کارها، رویدادها و یادداشت‌ها طراحی شده‌ام. برای مثال بنویسید: «فردا ساعت ۱۸ جلسه کاری اضافه کن» یا «وظیفه خرید کتاب»».`;
 
-`;
       const result = await executeAiGateway(providers, {
         systemInstruction,
         messages: [{ role: "user", content: message }],
@@ -427,7 +432,7 @@ const systemInstruction = `تو موتور پردازش فرامین سریع «
       const parsed = result.actionData || { action: "NONE" };
       if (parsed.action && parsed.action !== "NONE") {
         if (!parsed.payload) parsed.payload = {};
-        const lowerMsg = message.toLowerCase();
+        const lowerMsg = (message || "").toLowerCase();
         if (lowerMsg.includes("پس‌فردا") || lowerMsg.includes("پسفردا")) {
           parsed.payload.targetDate = clientDayAfter;
         } else if (lowerMsg.includes("فردا")) {
@@ -437,13 +442,7 @@ const systemInstruction = `تو موتور پردازش فرامین سریع «
         }
       }
 
-      if (userId) {
-        currentUsage += 1;
-        await authenticatedSupabase.from("user_ai_usage").upsert(
-          { user_id: userId, usage_date: clientToday, request_count: currentUsage, created_at: new Date().toISOString() },
-          { onConflict: "user_id,usage_date" }
-        );
-      }
+      currentUsage = await incrementDailyUsage();
 
       return NextResponse.json({
         text: parsed.text || result.text || "ثبت گردید.",

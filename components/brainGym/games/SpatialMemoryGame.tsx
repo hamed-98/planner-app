@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { BrainProfile, logBrainActivity } from '@/lib/supabase/brainGym';
+import { BrainProfile, logBrainActivity } from '@/lib/api/brainGym';
 import { pushWithLimit, calculateSpatialScore, calculateAverage } from '@/lib/utils/brainMath';
 import { RotateCcw, XCircle } from 'lucide-react';
 

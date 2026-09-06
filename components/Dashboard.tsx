@@ -1,15 +1,23 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+
 // import { getTasks, addTask as dbAddTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask } from '../lib/supabase/tasks';
 import { getTasks, addTask as dbAddTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask } from '../lib/api/tasks';
-import { getNotes, addNote as dbAddNote, updateNote as dbUpdateNote, deleteNote as dbDeleteNote } from '../lib/supabase/notes';
-import { getEvents, addEvent as dbAddEvent, deleteEvent as dbDeleteEvent } from '../lib/supabase/events';
-import { getHabits, addHabit as dbAddHabit, deleteHabit as dbDeleteHabit, toggleHabitLog } from '../lib/supabase/habits';
-import { getMedicines, addMedicine as dbAddMedicine, deleteMedicine as dbDeleteMedicine, updateMedicineLog } from '../lib/supabase/medicines';
-import { getHealthLogs, saveHealthLog } from '../lib/supabase/health';
+// import { getNotes, addNote as dbAddNote, updateNote as dbUpdateNote, deleteNote as dbDeleteNote } from '../lib/supabase/notes';
+import { getNotes, addNote as dbAddNote, updateNote as dbUpdateNote, deleteNote as dbDeleteNote } from '../lib/api/notes';
+// import { getEvents, addEvent as dbAddEvent, deleteEvent as dbDeleteEvent } from '../lib/supabase/events';
+import { getEvents, addEvent as dbAddEvent, deleteEvent as dbDeleteEvent } from '../lib/api/events';
+// import { getHabits, addHabit as dbAddHabit, deleteHabit as dbDeleteHabit, toggleHabitLog } from '../lib/supabase/habits';
+import { getHabits, addHabit as dbAddHabit, deleteHabit as dbDeleteHabit, toggleHabitLog } from '../lib/api/habits';
+// import { getMedicines, addMedicine as dbAddMedicine, deleteMedicine as dbDeleteMedicine, updateMedicineLog } from '../lib/supabase/medicines';
+import { getMedicines, addMedicine as dbAddMedicine, deleteMedicine as dbDeleteMedicine, updateMedicineLog } from '../lib/api/medicines';
+// import { getHealthLogs, saveHealthLog } from '../lib/supabase/health';
+import { getHealthLogs, saveHealthLog } from '../lib/api/health';
+
 import { getProfile, updateProfile } from '../lib/supabase/profiles';
-import { getTickets } from '../lib/supabase/tickets';
+// import { getTickets } from '../lib/supabase/tickets';
+import { getTickets } from '../lib/api/tickets';
 import SupportTabView from './SupportTabView';
 import MonthlyCalendarView from './MonthlyCalendarView';
 import BrainGymView from './BrainGymView';
@@ -73,7 +81,9 @@ import {
 import { calculateAverage, calculateLevelData } from '@/lib/utils/brainMath';
 import { useTheme } from 'next-themes';
 import AssistantView from './AssistantView';
-import { AggregatedBrainMetrics, BrainProfile, getAggregatedBrainMetrics, getBrainProfile, ZERO_BRAIN_PROFILE } from '@/lib/supabase/brainGym';
+
+// import { AggregatedBrainMetrics, BrainProfile, getAggregatedBrainMetrics, getBrainProfile, ZERO_BRAIN_PROFILE } from '@/lib/supabase/brainGym';
+import { AggregatedBrainMetrics, BrainProfile, getAggregatedBrainMetrics, getBrainProfile, ZERO_BRAIN_PROFILE } from '@/lib/api/brainGym';
 
 // Interfaces for our applet state
 export interface CalendarEvent {

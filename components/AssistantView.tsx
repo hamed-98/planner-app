@@ -33,7 +33,8 @@ import {
   getConversationMessages, 
   saveChatMessage, 
   getAiUsageToday
-} from '../lib/supabase/assistant';
+} from '../lib/api/assistant';
+// } from '../lib/supabase/assistant';
 import { Task, CalendarEvent, Note } from './Dashboard';
 
 interface AssistantViewProps {
