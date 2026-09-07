@@ -51,6 +51,7 @@ import CbtWizard from './brainGym/cbt/CbtWizard';
 import CbtHistory from './brainGym/cbt/CbtHistory';
 import NeuroHabitsTab from './brainGym/habits/NeuroHabitsTab';
 import NeuroArticlesTab from './brainGym/articles/NeuroArticlesTab';
+import CognitiveBadges from './brainGym/overview/CognitiveBadges';
 
 interface BrainGymViewProps {
   useJalaliCalendar: boolean;
@@ -64,7 +65,7 @@ export default function BrainGymView({
   showToast,
   playAudioFeedback
 }: BrainGymViewProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'games' | 'cbt' | 'articles' | 'habits'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'games' | 'cbt' | 'articles' | 'habits' | 'badges'>('overview');
   const [brainProfile, setBrainProfile] = useState<BrainProfile>(ZERO_BRAIN_PROFILE);
   const [cbtRecords, setCbtRecords] = useState<CbtRecord[]>([]);
   const [neuroHabits, setNeuroHabits] = useState<NeuroHabit[]>(DEFAULT_NEURO_HABITS);
@@ -258,6 +259,15 @@ export default function BrainGymView({
       {activeTab === 'articles' && (
         <NeuroArticlesTab articles={neuroArticles} />
       )}
+
+      {activeTab === 'badges' && (
+        <CognitiveBadges
+          brainProfile={brainProfile}
+          cbtRecords={cbtRecords}
+          neuroHabits={neuroHabits}
+        />
+      )}
+
     </div>
   );
 }

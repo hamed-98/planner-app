@@ -1,5 +1,7 @@
 // lib/utils/brainMath.ts
-import { BrainProfile } from "../supabase/brainGym";
+
+import { BrainProfile } from "../api/brainGym";
+
 
 export const MAX_HISTORY_LENGTH = 20;
 

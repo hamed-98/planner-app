@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { Brain, Dna, BarChart2, Zap, Feather, Target, BookOpen } from 'lucide-react';
+import { Brain, Dna, BarChart2, Zap, Feather, Target, BookOpen, Award } from 'lucide-react';
 
 interface BrainHeaderProps {
-  activeTab: 'overview' | 'games' | 'cbt' | 'articles' | 'habits';
-  setActiveTab: (tab: 'overview' | 'games' | 'cbt' | 'articles' | 'habits') => void;
+  activeTab: 'overview' | 'games' | 'cbt' | 'articles' | 'habits' | 'badges';
+  setActiveTab: (tab: 'overview' | 'games' | 'cbt' | 'articles' | 'habits' | 'badges') => void;
   overallIndex: number;
   completedMissionsCount: number;
 }
@@ -97,6 +97,18 @@ export default function BrainHeader({
           <BookOpen className="w-4 h-4 text-emerald-500" />
           <span>دانشنامه نوروساینس</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('badges')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === 'badges' ? 'bg-white text-slate-900 shadow-md scale-105' : 'bg-white/10 text-purple-100 hover:bg-white/20'
+          }`}
+        >
+          <Award className="w-4 h-4 text-amber-400" />
+          <span>مدال‌ها و افتخارات</span>
+        </button>
+
+
       </div>
     </div>
   );

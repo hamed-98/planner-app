@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { getTickets, createTicket, getTicketMessages, sendTicketMessage, updateTicketStatus, Ticket, TicketMessage } from '../lib/supabase/tickets';
+import { getTickets, createTicket, getTicketMessages, sendTicketMessage, updateTicketStatus, Ticket, TicketMessage } from '../lib/api/tickets';
 import { 
   MessageSquare, 
   Plus, 

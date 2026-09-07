@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Award, Lock, Sparkles, CheckCircle } from 'lucide-react';
-import { BrainProfile, CbtRecord, NeuroHabit } from '@/lib/supabase/brainGym';
+import { BrainProfile, CbtRecord, NeuroHabit } from '@/lib/api/brainGym';
 import { calculateAverage } from '@/lib/utils/brainMath';
 
 interface CognitiveBadgesProps {
