@@ -190,15 +190,15 @@ export async function POST(req: NextRequest) {
                                  (bm?.stroopFlexibility?.todayAttempts || 0) + 
                                  (bm?.mathSpeed?.todayAttempts || 0);
 
-      const memBase = bm?.spatialMemory?.score !== null && !bm?.spatialMemory?.isCalibrating 
+      const memBase = typeof bm?.spatialMemory?.score === 'number' && !bm?.spatialMemory?.isCalibrating 
         ? `${bm.spatialMemory.score} از ۱۰۰` 
         : "در حال کالیبراسیون";
 
-      const strBase = bm?.stroopFlexibility?.score !== null && !bm?.stroopFlexibility?.isCalibrating 
+      const strBase = typeof bm?.stroopFlexibility?.score === 'number' && !bm?.stroopFlexibility?.isCalibrating 
         ? `${bm.stroopFlexibility.score} از ۱۰۰` 
         : "در حال کالیبراسیون";
 
-      const mathBase = bm?.mathSpeed?.score !== null && !bm?.mathSpeed?.isCalibrating 
+      const mathBase = typeof bm?.mathSpeed?.score === 'number' && !bm?.mathSpeed?.isCalibrating 
         ? `${bm.mathSpeed.score} از ۱۰۰` 
         : "در حال کالیبراسیون";
 

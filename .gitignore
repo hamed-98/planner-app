@@ -10,3 +10,5 @@ coverage/
 /public/uploads/**
 !/public/uploads/**/
 !/public/uploads/**/.gitkeep
+
+*.tsbuildinfo
