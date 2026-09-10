@@ -21,7 +21,7 @@ export async function GET() {
       prisma.note.count(),
     ]);
 
-    // محاسبه کاربران ثبت‌نامی در ۷ روز اخیر
+    // محاسبه کاربران جدید ۷ روز اخیر
     const lastWeek = new Date();
     lastWeek.setDate(lastWeek.getDate() - 7);
 
@@ -51,7 +51,7 @@ export async function GET() {
       users: signupsMap[day],
     }));
 
-    // واکشی ۵ لاگ سیستمی اخیر
+    // ۵ لاگ سیستمی اخیر
     const recentLogs = await prisma.adminLog.findMany({
       include: {
         user: { select: { name: true, email: true } },

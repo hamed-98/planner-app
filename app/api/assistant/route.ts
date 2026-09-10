@@ -462,7 +462,7 @@ ${brainContextReport}`;
         text: friendlyError,
         actionData: { action: "NONE", payload: {} }
       },
-      { status: 500 }
+      { status: 200 }
     );
   }
 }

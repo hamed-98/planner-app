@@ -570,19 +570,19 @@ export default function AssistantView({
             {(() => {
               const bm = userDataContext?.brainMetrics;
 
-              const memoryText = bm?.spatialMemory?.score !== null && !bm?.spatialMemory?.isCalibrating
+              const memoryText = typeof bm?.spatialMemory?.score === 'number' && !bm?.spatialMemory?.isCalibrating
                 ? `${bm.spatialMemory.score} از ۱۰۰`
                 : bm?.spatialMemory?.isCalibrating
                   ? "کالیبراسیون"
                   : (userDataContext?.brainMemory ? `${userDataContext.brainMemory} از ۱۰۰` : "ثبت‌نشده");
 
-              const stroopText = bm?.stroopFlexibility?.score !== null && !bm?.stroopFlexibility?.isCalibrating
+              const stroopText = typeof bm?.stroopFlexibility?.score === 'number' && !bm?.stroopFlexibility?.isCalibrating
                 ? `${bm.stroopFlexibility.score} از ۱۰۰`
                 : bm?.stroopFlexibility?.isCalibrating
                   ? "کالیبراسیون"
                   : (userDataContext?.brainFlexibility ? `${userDataContext.brainFlexibility} از ۱۰۰` : "ثبت‌نشده");
 
-              const mathText = bm?.mathSpeed?.score !== null && !bm?.mathSpeed?.isCalibrating
+              const mathText = typeof bm?.mathSpeed?.score === 'number' && !bm?.mathSpeed?.isCalibrating
                 ? `${bm.mathSpeed.score} از ۱۰۰`
                 : bm?.mathSpeed?.isCalibrating
                   ? "کالیبراسیون"
@@ -592,7 +592,7 @@ export default function AssistantView({
                 ? `${bm.avgReactionTimeMs}ms`
                 : (userDataContext?.brainReaction ? `${userDataContext.brainReaction}ms` : "بدون آزمون");
 
-              const accuracyText = bm?.accuracyRate !== null && bm?.accuracyRate !== undefined
+              const accuracyText = typeof bm?.accuracyRate === 'number'
                 ? `${bm.accuracyRate}٪`
                 : "---";
 

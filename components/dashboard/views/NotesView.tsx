@@ -1,7 +1,7 @@
 // components/dashboard/views/NotesView.tsx
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   Plus,
   Share2,
@@ -10,6 +10,8 @@ import {
   Pin,
   Trash2,
   Upload,
+  Link2,
+  Tag,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Note } from '@/types/dashboard';
@@ -21,6 +23,16 @@ interface NotesViewProps {
   onSaveNotes: (notes: Note[]) => void;
   playAudioFeedback: (type: string) => void;
   showToast: (msg: string, type?: 'success' | 'info' | 'error') => void;
+}
+
+// نرمال‌سازی متن فارسی برای تطابق دقیق‌تر
+function normalizeFa(str: string): string {
+  return str
+    .replace(/ي/g, 'ی')
+    .replace(/ك/g, 'ک')
+    .replace(/[\u200c\s]+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 export default function NotesView({
@@ -36,7 +48,10 @@ export default function NotesView({
   const [selectedFolder, setSelectedFolder] = useState<string>('همه');
   const [isDragOver, setIsDragOver] = useState(false);
   const [noteAttachments, setNoteAttachments] = useState<string[]>([]);
+  const [showLinkSelector, setShowLinkSelector] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const activeNote = notes.find((n) => n.id === activeNoteId);
 
   const createBlankNote = () => {
     const fresh: Note = {
@@ -44,7 +59,7 @@ export default function NotesView({
       title: 'یادداشت جدید بی‌نام',
       content: '# یادداشت جدید\n\nمتن یادداشت خود را در اینجا بنویسید...',
       folder: 'یادداشت‌ها',
-      tags: ['کار'],
+      tags: ['ایده'],
       isPinned: false,
       updatedAt: new Date().toLocaleDateString('fa-IR'),
     };
@@ -53,7 +68,18 @@ export default function NotesView({
     showToast('یادداشت جدید ایجاد گردید.', 'success');
   };
 
-  const activeNote = notes.find((n) => n.id === activeNoteId);
+  // درج آسان لینک یادداشت داخل ادیتور
+  const insertLinkToNote = (targetNoteTitle: string) => {
+    if (!activeNote) return;
+    const linkSyntax = `[[${targetNoteTitle}]]`;
+    const updatedContent = activeNote.content + `\n\n🔗 پیوند: ${linkSyntax}`;
+    const updated = notes.map((n) =>
+      n.id === activeNote.id ? { ...n, content: updatedContent } : n
+    );
+    onSaveNotes(updated);
+    setShowLinkSelector(false);
+    showToast(`پیوند "${targetNoteTitle}" افزوده شد.`, 'success');
+  };
 
   const filteredNotes = notes.filter((n) => {
     const searchMatch =
@@ -63,48 +89,155 @@ export default function NotesView({
     return searchMatch && folderMatch;
   });
 
-  // هندلرهای درگ‌اند‌دراپ فایل
+  // محاسبه هوشمند گره‌ها و یال‌های گراف
+  const graphData = useMemo(() => {
+    const cx = 200;
+    const cy = 200;
+    const radius = 125;
+    const count = notes.length || 1;
+
+    // ۱. استخراج یال‌ها بر مبنای ارجاع متنی صریح و تگ‌های مشترک
+    const edges: {
+      fromId: string;
+      toId: string;
+      type: 'direct' | 'tag';
+    }[] = [];
+
+    const connectionsCountMap = new Map<string, number>();
+    notes.forEach((n) => connectionsCountMap.set(n.id, 0));
+
+    for (let i = 0; i < notes.length; i++) {
+      for (let j = i + 1; j < notes.length; j++) {
+        const a = notes[i];
+        const b = notes[j];
+
+        const normATitle = normalizeFa(a.title);
+        const normBTitle = normalizeFa(b.title);
+        const normAContent = normalizeFa(a.content);
+        const normBContent = normalizeFa(b.content);
+
+        // شرط ۱: ارجاع مستقیم متن با عنوان یا براکت
+        const directLink =
+          (normBTitle.length > 2 &&
+            (normAContent.includes(`[[${normBTitle}]]`) || normAContent.includes(normBTitle))) ||
+          (normATitle.length > 2 &&
+            (normBContent.includes(`[[${normATitle}]]`) || normBContent.includes(normATitle)));
+
+        // شرط ۲: برچسب‌های مشترک
+        const sharedTags = (a.tags || []).filter(
+          (tag) => tag && (b.tags || []).includes(tag)
+        );
+
+        if (directLink) {
+          edges.push({ fromId: a.id, toId: b.id, type: 'direct' });
+          connectionsCountMap.set(a.id, (connectionsCountMap.get(a.id) || 0) + 1);
+          connectionsCountMap.set(b.id, (connectionsCountMap.get(b.id) || 0) + 1);
+        } else if (sharedTags.length > 0) {
+          edges.push({ fromId: a.id, toId: b.id, type: 'tag' });
+          connectionsCountMap.set(a.id, (connectionsCountMap.get(a.id) || 0) + 0.5);
+          connectionsCountMap.set(b.id, (connectionsCountMap.get(b.id) || 0) + 0.5);
+        }
+      }
+    }
+
+    // ۲. نگاشت گره‌ها با شعاع متغیر بر اساس میزان اتصال
+    const nodes = notes.map((note, index) => {
+      const angle = (index / count) * 2 * Math.PI - Math.PI / 2;
+      const connections = connectionsCountMap.get(note.id) || 0;
+      const nodeRadius = Math.min(14, Math.max(6, 6 + connections * 2));
+
+      return {
+        id: note.id,
+        title: note.title,
+        folder: note.folder,
+        x: cx + radius * Math.cos(angle),
+        y: cy + radius * Math.sin(angle),
+        r: nodeRadius,
+        connections: Math.round(connections),
+      };
+    });
+
+    const nodePositionMap = new Map(nodes.map((n) => [n.id, n]));
+
+    const mappedEdges = edges
+      .map((e) => {
+        const from = nodePositionMap.get(e.fromId);
+        const to = nodePositionMap.get(e.toId);
+        if (!from || !to) return null;
+        return { from, to, type: e.type };
+      })
+      .filter(Boolean) as {
+      from: { x: number; y: number };
+      to: { x: number; y: number };
+      type: 'direct' | 'tag';
+    }[];
+
+    return { nodes, edges: mappedEdges };
+  }, [notes]);
+
+  // کنترل درگ‌اند‌دراپ فایل
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(true);
   };
-
-  const handleDragLeave = () => {
-    setIsDragOver(false);
-  };
-
+  const handleDragLeave = () => setIsDragOver(false);
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer.files?.length) {
       const fileNames: string[] = [];
       for (let i = 0; i < e.dataTransfer.files.length; i++) {
         fileNames.push(e.dataTransfer.files[i].name);
       }
       setNoteAttachments([...noteAttachments, ...fileNames]);
-      showToast(`${fileNames.length} فایل ضمیمه گردید.`, 'info');
+      showToast(`${fileNames.length} فایل پیوست گردید.`, 'info');
     }
   };
 
   const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
+    if (e.target.files?.length) {
       const fileNames: string[] = [];
       for (let i = 0; i < e.target.files.length; i++) {
         fileNames.push(e.target.files[i].name);
       }
       setNoteAttachments([...noteAttachments, ...fileNames]);
-      showToast(`${fileNames.length} فایل ضمیمه شد.`, 'info');
+      showToast(`${fileNames.length} فایل پیوست شد.`, 'info');
     }
+  };
+
+  // حذف خودکار پیوند از داخل متن یادداشت
+  const removeLinkToNote = (targetTitle: string) => {
+    if (!activeNote) return;
+    const escaped = targetTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // پاک کردن تگ براکت یا سطر ارجاعی پیوند
+    const linkRegex = new RegExp(`(\\n*🔗 پیوند:\\s*)?\\[\\[${escaped}\\]\\]`, 'g');
+    const newContent = activeNote.content.replace(linkRegex, '').trim();
+
+    const updated = notes.map((n) =>
+      n.id === activeNote.id ? { ...n, content: newContent } : n
+    );
+    onSaveNotes(updated);
+    playAudioFeedback('click');
+    showToast(`پیوند به "${targetTitle}" حذف گردید.`, 'info');
+  };
+
+  // رنگ پوشه‌بندی در گراف
+  const getNodeColor = (folder: string, isActive: boolean) => {
+    if (isActive) return '#2DD4BF'; // Teal روشن
+    if (folder === 'برنامه‌ها') return '#818CF8'; // Indigo
+    if (folder === 'هوشمند') return '#C084FC'; // Purple
+    return '#64748B'; // Slate
   };
 
   return (
     <div className="space-y-6">
-      {/* هدر بخش یادداشت‌ها */}
+      {/* هدر ماژول */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">دفترچه یادداشت‌های من</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            ایده‌ها، صورتجلسات و برنامه‌های بلندمدت خود را با ساختار پوشه‌بندی و پیوندهای متقابل ثبت کنید.
+            ایده‌ها و برنامه‌ها را با ساختار پوشه‌بندی و شبکه ارتباطی بصری ثبت کنید.
           </p>
         </div>
 
@@ -120,7 +253,7 @@ export default function NotesView({
                 ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
                 : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
             }`}
-            title="نمایش نمایه ارتباطات هوشمند بین یادداشت‌ها"
+            title="نمایش شبکه ارتباطات یادداشت‌ها"
           >
             <Share2 className="w-3.5 h-3.5" />
             <span>نمای گراف روابط Obsidian</span>
@@ -139,120 +272,99 @@ export default function NotesView({
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {showNotesGraph ? (
-          /* نمای گراف روابط شبیه به Obsidian */
+          /* نمای گراف روابط معنادار */
           <div className="md:col-span-2 space-y-4 animate-fadeIn">
-            {(() => {
-              const radius = 100;
-              const cx = 180;
-              const cy = 180;
-              const mappedNodes = notes.map((note, index) => {
-                const angle = (index / (notes.length || 1)) * 2 * Math.PI;
-                return {
-                  id: note.id,
-                  title: note.title,
-                  isPinned: note.isPinned,
-                  x: cx + radius * Math.cos(angle),
-                  y: cy + radius * Math.sin(angle),
-                };
-              });
-
-              const edges: {
-                from: { x: number; y: number; id: string };
-                to: { x: number; y: number; id: string };
-              }[] = [];
-
-              for (let i = 0; i < mappedNodes.length; i++) {
-                for (let j = i + 1; j < mappedNodes.length; j++) {
-                  const nodeA = notes[i];
-                  const nodeB = notes[j];
-                  const posA = mappedNodes[i];
-                  const posB = mappedNodes[j];
-
-                  const linkAtoB =
-                    nodeA.content.includes(`[[${nodeB.title}]]`) || nodeA.content.includes(nodeB.title);
-                  const linkBtoA =
-                    nodeB.content.includes(`[[${nodeA.title}]]`) || nodeB.content.includes(nodeA.title);
-                  const overlapping =
-                    nodeA.title && nodeB.title && nodeA.title.slice(0, 3) === nodeB.title.slice(0, 3);
-
-                  if (linkAtoB || linkBtoA || overlapping) {
-                    edges.push({ from: posA, to: posB });
-                  }
-                }
-              }
-
-              return (
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 text-center shadow-inner min-h-[460px] flex flex-col justify-between overflow-hidden relative">
-                  <div className="flex justify-between items-center z-10">
-                    <div className="text-right">
-                      <span className="text-[10px] font-bold text-cyan-400 block tracking-widest uppercase">
-                        روابط هوشمند یادداشت‌ها
-                      </span>
-                      <h4 className="text-xs font-black text-white">شبکه روابط کورتکس</h4>
-                    </div>
-                    <span className="text-[9px] bg-slate-800 border border-slate-700 text-teal-400 py-0.5 px-2 rounded-full font-mono">
-                      پیوندها: {edges.length} | نوشته‌ها: {notes.length}
-                    </span>
-                  </div>
-
-                  <div className="relative w-full flex-1 flex items-center justify-center min-h-[290px]">
-                    <svg viewBox="0 0 360 360" className="w-full h-full max-w-[340px] max-h-[300px]">
-                      {edges.map((e, idx) => (
-                        <line
-                          key={`link-${idx}`}
-                          x1={e.from.x}
-                          y1={e.from.y}
-                          x2={e.to.x}
-                          y2={e.to.y}
-                          stroke="#14B8A6"
-                          strokeWidth="1.2"
-                          strokeOpacity="0.45"
-                          strokeDasharray="3 3"
-                        />
-                      ))}
-
-                      {mappedNodes.map((n) => {
-                        const isActive = n.id === activeNoteId;
-                        return (
-                          <g
-                            key={n.id}
-                            className="cursor-pointer group"
-                            onClick={() => {
-                              setActiveNoteId(n.id);
-                              playAudioFeedback('click');
-                              showToast(`تمرکز یادداشت روی: "${n.title}"`, 'info');
-                            }}
-                          >
-                            <circle
-                              cx={n.x}
-                              cy={n.y}
-                              r={isActive ? '9' : '6'}
-                              fill={isActive ? '#14B8A6' : '#475569'}
-                              stroke={isActive ? '#CCFBF1' : '#1E293B'}
-                              strokeWidth="1.5"
-                              className="transition-all duration-300 hover:fill-teal-400"
-                            />
-                            <text
-                              x={n.x}
-                              y={n.y - 11}
-                              textAnchor="middle"
-                              fill={isActive ? '#2DD4BF' : '#94A3B8'}
-                              className="text-[8px] font-black pointer-events-none select-none font-sans"
-                            >
-                              {n.title.slice(0, 16)}
-                            </text>
-                          </g>
-                        );
-                      })}
-                    </svg>
-                  </div>
-
-                  <p className="text-[9.5px] text-slate-400 text-center leading-normal">
-                    💡 گره‌ها را لمس کنید تا یادداشت فعال تغییر کند.
-                  </p>
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 text-center shadow-inner min-h-[480px] flex flex-col justify-between overflow-hidden relative">
+              <div className="flex justify-between items-center z-10" dir="rtl">
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-teal-400 block tracking-widest uppercase">
+                    شبکه شناختی ایده‌ها
+                  </span>
+                  <h4 className="text-xs font-black text-white">اتصالات معنایی و ساختار پوشه‌ها</h4>
                 </div>
-              );
-            })()}
+                <div className="flex items-center gap-2 text-[9px] text-slate-400 font-mono">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-0.5 bg-teal-400 inline-block" /> پیوند متنی
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-0.5 bg-indigo-400 border-b border-dashed inline-block" /> برچسب مشترک
+                  </span>
+                </div>
+              </div>
+
+              {/* بستر مقیاس‌پذیر SVG */}
+              <div className="relative w-full flex-1 flex items-center justify-center min-h-[320px]">
+                <svg viewBox="0 0 400 400" className="w-full h-full max-w-[380px] max-h-[380px]">
+                  {/* رندر یال‌ها */}
+                  {graphData.edges.map((e, idx) => (
+                    <line
+                      key={`edge-${idx}`}
+                      x1={e.from.x}
+                      y1={e.from.y}
+                      x2={e.to.x}
+                      y2={e.to.y}
+                      stroke={e.type === 'direct' ? '#14B8A6' : '#818CF8'}
+                      strokeWidth={e.type === 'direct' ? '1.5' : '1'}
+                      strokeOpacity={e.type === 'direct' ? '0.75' : '0.35'}
+                      strokeDasharray={e.type === 'tag' ? '4 3' : undefined}
+                    />
+                  ))}
+
+                  
+                  {/* رندر گره‌ها */}
+                  {graphData.nodes.map((n) => {
+                    const isActive = n.id === activeNoteId;
+                    const fill = getNodeColor(n.folder, isActive);
+
+                    return (
+                      <g
+                        key={n.id}
+                        className="cursor-pointer group"
+                        onClick={() => {
+                          setActiveNoteId(n.id);
+                          playAudioFeedback('click');
+                          showToast(`تمرکز روی: "${n.title}" (${n.connections} ارتباط)`, 'info');
+                        }}
+                      >
+                        {/* ۱. هیت‌باکس نامرئی برای ثبات موس و جلوگیری ۱۰۰٪ از پرش */}
+                        <circle
+                          cx={n.x}
+                          cy={n.y}
+                          r={n.r + 12}
+                          fill="transparent"
+                          className="pointer-events-auto"
+                        />
+
+                        {/* ۲. دایره اصلی با مبدا انیمیشن مهارشده */}
+                        <circle
+                          cx={n.x}
+                          cy={n.y}
+                          r={n.r}
+                          fill={fill}
+                          stroke={isActive ? '#CCFBF1' : '#1E293B'}
+                          strokeWidth={isActive ? '3' : '1.5'}
+                          className="transition-all duration-200 group-hover:stroke-teal-300 group-hover:stroke-[3.5px] [transform-box:fill-box] origin-center group-hover:scale-115 pointer-events-none"
+                        />
+
+                        <text
+                          x={n.x}
+                          y={n.y - n.r - 5}
+                          textAnchor="middle"
+                          fill={isActive ? '#2DD4BF' : '#94A3B8'}
+                          className="text-[9px] font-bold pointer-events-none select-none font-sans group-hover:fill-teal-300 transition-colors"
+                        >
+                          {n.title.slice(0, 15)}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+
+              <p className="text-[10px] text-slate-400 text-center leading-normal" dir="rtl">
+                💡 گره‌های بزرگ‌تر نشان‌دهنده اسناد پرپیوندتر هستند. با لمس هر گره، سند آن باز می‌شود.
+              </p>
+            </div>
           </div>
         ) : (
           /* ستون جستجو، پوشه‌ها و لیست یادداشت‌ها */
@@ -350,7 +462,40 @@ export default function NotesView({
                   className="font-black text-base text-slate-900 dark:text-slate-100 focus:outline-none bg-transparent flex-1"
                 />
 
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
+                  {/* ابزار درج لینک به یادداشت دیگر */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowLinkSelector(!showLinkSelector)}
+                      className="p-2 rounded-xl text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 cursor-pointer flex items-center gap-1 text-xs font-bold"
+                      title="پیوند به یادداشت دیگر"
+                    >
+                      <Link2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">پیوند</span>
+                    </button>
+
+                    {showLinkSelector && (
+                      <div className="absolute left-0 mt-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl p-2 z-30 max-h-48 overflow-y-auto">
+                        <span className="text-[9px] font-bold text-slate-400 block px-2 mb-1">
+                          انتخاب سند برای پیوند:
+                        </span>
+                        {notes
+                          .filter((n) => n.id !== activeNote.id)
+                          .map((n) => (
+                            <button
+                              key={n.id}
+                              type="button"
+                              onClick={() => insertLinkToNote(n.title)}
+                              className="w-full text-right p-1.5 text-xs rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 truncate block cursor-pointer"
+                            >
+                              {n.title}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -436,21 +581,61 @@ export default function NotesView({
                 ))}
               </div>
 
-              {/* ردیاب پیوندهای معکوس (Backlinks) */}
+              {/* لیست پیوندهای خروجی همین یادداشت با امکان حذف سریع */}
               {(() => {
-                const backlinks = activeNote.title.trim()
+                const outgoingLinks = notes.filter(
+                  (n) =>
+                    n.id !== activeNote.id &&
+                    n.title.trim() &&
+                    activeNote.content.includes(`[[${n.title}]]`)
+                );
+
+                if (outgoingLinks.length > 0) {
+                  return (
+                    <div className="bg-teal-50/40 dark:bg-teal-950/20 p-2.5 rounded-2xl border border-teal-100 dark:border-teal-900/50 mt-2" dir="rtl">
+                      <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400 block mb-1.5">
+                        🔗 پیوندهای ثبت‌شده در این یادداشت :
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {outgoingLinks.map((target) => (
+                          <span
+                            key={target.id}
+                            className="text-[9px] bg-white dark:bg-slate-900 border border-teal-200 dark:border-teal-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-bold shadow-xs"
+                          >
+                            <span>{target.title}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeLinkToNote(target.title)}
+                              className="text-slate-400 hover:text-rose-500 cursor-pointer text-[10px] hover:scale-125 transition-transform"
+                              title="حذف پیوند"
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* ردیاب پیوندهای معکوس (با گارد عنوان معتبر) */}
+              {(() => {
+                const titleQuery = activeNote.title.trim();
+                const backlinks = titleQuery
                   ? notes.filter(
                       (n) =>
                         n.id !== activeNote.id &&
-                        (n.content.includes(activeNote.title) ||
-                          n.content.includes(`[[${activeNote.title}]]`)),
+                        (n.content.includes(titleQuery) || n.content.includes(`[[${titleQuery}]]`))
                     )
                   : [];
+
                 if (backlinks.length > 0) {
                   return (
                     <div className="bg-slate-50 dark:bg-slate-950/50 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800 mt-2">
                       <span className="text-[10px] font-bold text-slate-400 block mb-1.5 font-sans">
-                        🔗 نوشته‌های ارجاع‌دهنده به این سند (Backlinks):
+                        🔗 یادداشت‌های ارجاع‌دهنده به این سند (Backlinks):
                       </span>
                       <div className="flex flex-wrap gap-1.5">
                         {backlinks.map((bl) => (
@@ -459,7 +644,7 @@ export default function NotesView({
                             type="button"
                             onClick={() => {
                               setActiveNoteId(bl.id);
-                              playAudioFeedback("click");
+                              playAudioFeedback('click');
                             }}
                             className="text-[9px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-teal-400 text-slate-600 dark:text-slate-300 hover:text-teal-600 px-2 py-0.5 rounded-lg transition-all cursor-pointer"
                           >
@@ -473,7 +658,7 @@ export default function NotesView({
                 return null;
               })()}
 
-              {/* ناحیه پیوست و درگ‌اند‌دراپ اسناد */}
+              {/* پیوست اسناد */}
               <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
                   پیوست فایل و تصاویر (Drag & Drop)

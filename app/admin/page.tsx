@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Users, Activity, Target, ShieldAlert, FileText } from 'lucide-react';
+import { Users, Activity, Target, FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function AdminDashboard() {
@@ -17,8 +17,13 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin/stats')
-      .then((res) => res.json())
+    fetch('/api/admin/stats', { cache: 'no-store' })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`خطای سرور: کد وضعیت ${res.status}`);
+        }
+        return res.json();
+      })
       .then((data) => {
         if (data.stats) setStats(data.stats);
         if (data.signupsData) setSignupsData(data.signupsData);
