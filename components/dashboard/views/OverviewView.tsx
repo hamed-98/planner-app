@@ -376,42 +376,52 @@ export default function OverviewView({
         </div>
 
         {/* ۴. وزن و BMI */}
+        {/* ویجت شاخص BMI در OverviewView.tsx */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <div className="flex justify-between items-center mb-4">
-            <span className="text-xs text-slate-400 font-bold">وزن و شاخص BMI</span>
+            <span className="text-xs text-slate-400 font-bold">شاخص BMI</span>
             <Heart className="w-5 h-5 text-rose-500" />
           </div>
-          <div className="text-center py-2">
-            <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">
-              {userWeight} <span className="text-xs font-normal text-slate-400">کیلوگرم</span>
-            </h4>
-            {(() => {
-              const hM = userHeight / 100;
-              const bmi = Number((userWeight / (hM * hM)).toFixed(1)) || 0;
-              let state = 'نرمال';
-              if (bmi < 18.5) state = 'کمبود وزن';
-              else if (bmi >= 25 && bmi < 30) state = 'اضافه‌وزن';
-              else if (bmi >= 30) state = 'چاق';
-              return <p className="text-[10px] text-rose-600 font-bold mt-1">شاخص: {bmi} ({state})</p>;
-            })()}
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <button
-              onClick={() => onSaveUserWeight(Number((userWeight - 0.5).toFixed(1)))}
-              className="text-xs font-bold p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded cursor-pointer"
-            >
-              -0.5
-            </button>
-            <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-              <div className="h-full bg-rose-500" style={{ width: '65%' }} />
+          {userWeight > 0 && userHeight > 0 ? (
+            <>
+              <div className="text-center py-2">
+                <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+                  {userWeight} <span className="text-xs font-normal text-slate-400">کیلوگرم</span>
+                </h4>
+                {(() => {
+                  const hM = userHeight / 100;
+                  const bmi = Number((userWeight / (hM * hM)).toFixed(1)) || 0;
+                  let state = 'نرمال';
+                  if (bmi < 18.5) state = 'کمبود وزن';
+                  else if (bmi >= 25 && bmi < 30) state = 'اضافه‌وزن';
+                  else if (bmi >= 30) state = 'چاق';
+                  return <p className="text-[10px] text-rose-600 font-bold mt-1">شاخص: {bmi} ({state})</p>;
+                })()}
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  onClick={() => onSaveUserWeight(Number((userWeight - 0.5).toFixed(1)))}
+                  className="text-xs font-bold p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded cursor-pointer"
+                >
+                  -0.5
+                </button>
+                <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-rose-500" style={{ width: '65%' }} />
+                </div>
+                <button
+                  onClick={() => onSaveUserWeight(Number((userWeight + 0.5).toFixed(1)))}
+                  className="text-xs font-bold p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded cursor-pointer"
+                >
+                  +0.5
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-5">
+              <h4 className="text-xs font-bold text-slate-400">ثبت نشده</h4>
+              <p className="text-[10px] text-teal-600 font-medium mt-1">قد و وزن را در تب سلامت ثبت کنید</p>
             </div>
-            <button
-              onClick={() => onSaveUserWeight(Number((userWeight + 0.5).toFixed(1)))}
-              className="text-xs font-bold p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded cursor-pointer"
-            >
-              +0.5
-            </button>
-          </div>
+          )}
         </div>
       </div>
 

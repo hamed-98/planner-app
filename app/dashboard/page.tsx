@@ -16,15 +16,23 @@ export default function DashboardPage() {
   }, [session, isPending, router]);
 
   const handleLogout = async () => {
-    // پاکسازی کش‌های لوکال
-    for (const key of Object.keys(localStorage)) {
-      if (key.startsWith('sayeban_')) {
+  // پاکسازی کامل کش‌های لوکال برای جلوگیری از نشت داده به اکانت بعدی
+  if (typeof window !== 'undefined') {
+    Object.keys(localStorage).forEach((key) => {
+      if (
+        key.startsWith('sayeban_') ||
+        key.startsWith('water_xp_') ||
+        key.startsWith('mood_xp_')
+      ) {
         localStorage.removeItem(key);
       }
-    }
-    await signOut();
-    window.location.href = '/login';
-  };
+    });
+    sessionStorage.removeItem('sayeban_active_tab');
+  }
+
+  await signOut();
+  window.location.href = '/login';
+};
 
   if (isPending || !session) {
     return (

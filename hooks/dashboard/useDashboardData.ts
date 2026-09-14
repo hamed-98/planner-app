@@ -140,29 +140,24 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
       const saved = localStorage.getItem('sayeban_mood_logs');
       if (saved) return JSON.parse(saved);
     }
-    return [
-      { date: '2026-06-15', mood: 4 },
-      { date: '2026-06-16', mood: 5 },
-      { date: '2026-06-17', mood: 3 },
-      { date: '2026-06-18', mood: 4 },
-      { date: '2026-06-19', mood: 5 },
-    ];
+    return [];
   });
 
+  // ۱. مقادیر اولیه روی 0 (یا ثبت نشده)
   const [userHeight, setUserHeight] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('sayeban_user_height');
-      if (saved) return Number(saved);
+      return saved ? Number(saved) : 0;
     }
-    return 175;
+    return 0;
   });
 
   const [userWeight, setUserWeight] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('sayeban_user_weight');
-      if (saved) return Number(saved);
+      return saved ? Number(saved) : 0;
     }
-    return 72;
+    return 0;
   });
 
   const [brainProfile, setBrainProfile] = useState<BrainProfile>(ZERO_BRAIN_PROFILE);
@@ -205,99 +200,105 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
         }
 
         if (t !== null) {
-          if (t.length === 0 && tasks.length > 0) {
-            tasks.forEach((x) => dbAddTask(x).catch(console.error));
-          } else {
-            setTasks(t);
-            lastSavedTasksRef.current = t;
-            localStorage.setItem('sayeban_tasks', JSON.stringify(t));
-          }
+          setTasks(t);
+          lastSavedTasksRef.current = t;
+          localStorage.setItem('sayeban_tasks', JSON.stringify(t));
         }
-
         if (n !== null) {
-          if (n.length === 0 && notes.length > 0) {
-            notes.forEach((x) => dbAddNote(x).catch(console.error));
-          } else {
-            setNotes(n);
-            lastSavedNotesRef.current = n;
-            localStorage.setItem('sayeban_notes', JSON.stringify(n));
-          }
+          setNotes(n);
+          lastSavedNotesRef.current = n;
+          localStorage.setItem('sayeban_notes', JSON.stringify(n));
         }
 
         if (e !== null) {
-          if (e.length === 0 && events.length > 0) {
-            events.forEach((x) => dbAddEvent(x).catch(console.error));
-          } else {
-            setEvents(e);
-            lastSavedEventsRef.current = e;
-            localStorage.setItem('sayeban_events', JSON.stringify(e));
-          }
+          setEvents(e);
+          lastSavedEventsRef.current = e;
+          localStorage.setItem('sayeban_events', JSON.stringify(e));
         }
-
         if (h !== null) {
-          if (h.length === 0 && habits.length > 0) {
-            habits.forEach((x) => dbAddHabit(x.id, x.name).catch(console.error));
-          } else {
-            setHabits(h);
-            lastSavedHabitsRef.current = h;
-            localStorage.setItem('sayeban_habits', JSON.stringify(h));
-          }
+          setHabits(h);
+          lastSavedHabitsRef.current = h;
+          localStorage.setItem('sayeban_habits', JSON.stringify(h));
         }
-
         if (m !== null) {
-          if (m.length === 0 && medicines.length > 0) {
-            medicines.forEach((x) => dbAddMedicine(x).catch(console.error));
-          } else {
-            setMedicines(m);
-            lastSavedMedicinesRef.current = m;
-            localStorage.setItem('sayeban_medicines', JSON.stringify(m));
-          }
+          setMedicines(m);
+          lastSavedMedicinesRef.current = m;
+          localStorage.setItem('sayeban_medicines', JSON.stringify(m));
         }
 
-        if (p?.calendar_type !== undefined) {
-          setUseJalaliCalendar(p.calendar_type === 'jalali');
+        // if (p?.calendar_type !== undefined) {
+        //   setUseJalaliCalendar(p.calendar_type === 'jalali');
+        // }
+
+        // اصلاح شود به (پشتیبانی مطمئن از هر دو فرمت):
+        const calType = p?.calendarType || p?.calendar_type;
+        if (calType !== undefined) {
+          setUseJalaliCalendar(calType === 'jalali');
         }
+
 
         if (hl !== null) {
-          const daily: Record<string, any> = {};
-          let latestWeight = 0;
-          let latestLogDate = '';
-          for (const log of hl) {
-            const sq =
-              log.sleep_quality === 1
-                ? 'poor'
-                : log.sleep_quality === 2
-                  ? 'fair'
-                  : log.sleep_quality === 3
-                    ? 'good'
-                    : 'excellent';
-            daily[log.log_date] = {
-              waterToday: log.water_ml || 0,
-              sleepHours: log.sleep_hours || 0,
-              sleepQuality: sq,
-              moodScore: log.mood || 3,
-              weight: log.weight_kg || 0,
-            };
-            if (log.weight_kg && (!latestLogDate || log.log_date > latestLogDate)) {
-              latestWeight = log.weight_kg;
+        const daily: Record<string, any> = {};
+        const fetchedMoodLogs: MoodLog[] = [];
+        let latestWeight = 0;
+        let latestLogDate = '';
+
+        for (const log of hl) {
+          const sq =
+            log.sleep_quality === 1
+              ? 'poor'
+              : log.sleep_quality === 2
+                ? 'fair'
+                : log.sleep_quality === 3
+                  ? 'good'
+                  : 'excellent';
+
+          daily[log.log_date] = {
+            waterToday: log.water_ml || 0,
+            sleepHours: log.sleep_hours || 0,
+            sleepQuality: sq,
+            moodScore: log.mood || 3,
+            weight: log.weight_kg || 0,
+          };
+
+          // استخراج تاریخچه احساسات واقعی کاربر از دیتابیس
+          if (log.mood && log.log_date) {
+            fetchedMoodLogs.push({
+              date: log.log_date,
+              mood: log.mood,
+            });
+          }
+
+          // پیدا کردن آخرین وزنی که کاربر ثبت کرده
+          if (log.weight_kg && Number(log.weight_kg) > 0) {
+            if (!latestLogDate || log.log_date >= latestLogDate) {
+              latestWeight = Number(log.weight_kg);
               latestLogDate = log.log_date;
             }
           }
-          if (latestWeight > 0) {
-            setUserWeight(latestWeight);
-            localStorage.setItem('sayeban_user_weight', String(latestWeight));
-          }
-          setDailyHealthData((prev) => {
-            const updated = { ...prev, ...daily };
-            localStorage.setItem('sayeban_daily_health', JSON.stringify(updated));
-            return updated;
-          });
         }
-      } catch (err) {
-        console.error('Error loading data', err);
-      } finally {
-        setIsHealthDataLoaded(true);
+
+        // ذخیره سوابق واقعی احساسات کاربر
+        fetchedMoodLogs.sort((a, b) => a.date.localeCompare(b.date));
+        setMoodLogs(fetchedMoodLogs);
+        localStorage.setItem('sayeban_mood_logs', JSON.stringify(fetchedMoodLogs));
+
+        if (latestWeight > 0) {
+          setUserWeight(latestWeight);
+          localStorage.setItem('sayeban_user_weight', String(latestWeight));
+        }
+
+        setDailyHealthData((prev) => {
+          const updated = { ...prev, ...daily };
+          localStorage.setItem('sayeban_daily_health', JSON.stringify(updated));
+          return updated;
+        });
       }
+    } catch (err) {
+      console.error('Error loading data', err);
+    } finally {
+      setIsHealthDataLoaded(true);
+    }
     }
     loadData();
   }, [userName]);
@@ -606,12 +607,13 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
   );
 
   const toggleCalendarType = useCallback(() => {
-    setUseJalaliCalendar((prev) => {
-      const next = !prev;
-      updateProfile({ calendar_type: next ? 'jalali' : 'gregorian' });
-      return next;
-    });
-  }, []);
+  setUseJalaliCalendar((prev) => {
+    const next = !prev;
+    const value = next ? 'jalali' : 'gregorian';
+    updateProfile({ calendarType: value }); // فقط نام دقیق فیلد اسکیما ارسال شود
+    return next;
+  });
+}, []);
 
   return {
     todayISO,

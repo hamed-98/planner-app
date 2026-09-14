@@ -616,70 +616,79 @@ export default function HealthView({
               </div>
             </div>
 
-            {/* کارت خروجی محاسبات BMI */}
-            {(() => {
-              const heightInMeters = userHeight / 100;
-              const bmi = Number((userWeight / (heightInMeters * heightInMeters)).toFixed(1)) || 0;
-              let bmiState = 'نرمال';
-              let bmiColor = 'text-emerald-600 dark:text-emerald-400';
-              let bmiBg = 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800';
-              let scaleOffset = '45%';
+            {/* در زیرتب bmi فایل HealthView.tsx */}
+            {userHeight > 0 && userWeight > 0 ? (
+              (() => {
+                const heightInMeters = userHeight / 100;
+                const bmi = Number((userWeight / (heightInMeters * heightInMeters)).toFixed(1)) || 0;
+                let bmiState = 'نرمال';
+                let bmiColor = 'text-emerald-600 dark:text-emerald-400';
+                let bmiBg = 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800';
+                let scaleOffset = '45%';
 
-              if (bmi < 18.5) {
-                bmiState = 'کمبود وزن بدنی';
-                bmiColor = 'text-amber-600 dark:text-amber-400';
-                bmiBg = 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800';
-                scaleOffset = '22%';
-              } else if (bmi >= 18.5 && bmi < 25) {
-                bmiState = 'تناسب وزن ایده‌آل و نرمال';
-                bmiColor = 'text-emerald-600 dark:text-emerald-400';
-                bmiBg = 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800';
-                scaleOffset = '45%';
-              } else if (bmi >= 25 && bmi < 30) {
-                bmiState = 'اضافه‌وزن نسبی';
-                bmiColor = 'text-orange-600 dark:text-orange-400';
-                bmiBg = 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800';
-                scaleOffset = '68%';
-              } else {
-                bmiState = 'چاقی و تجمع بیش‌ازحد چربی';
-                bmiColor = 'text-rose-600 dark:text-rose-400';
-                bmiBg = 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800';
-                scaleOffset = '88%';
-              }
+                if (bmi < 18.5) {
+                  bmiState = 'کمبود وزن بدنی';
+                  bmiColor = 'text-amber-600 dark:text-amber-400';
+                  bmiBg = 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800';
+                  scaleOffset = '22%';
+                } else if (bmi >= 18.5 && bmi < 25) {
+                  bmiState = 'تناسب وزن ایده‌آل و نرمال';
+                  bmiColor = 'text-emerald-600 dark:text-emerald-400';
+                  bmiBg = 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800';
+                  scaleOffset = '45%';
+                } else if (bmi >= 25 && bmi < 30) {
+                  bmiState = 'اضافه‌وزن نسبی';
+                  bmiColor = 'text-orange-600 dark:text-orange-400';
+                  bmiBg = 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800';
+                  scaleOffset = '68%';
+                } else {
+                  bmiState = 'چاقی و تجمع بیش‌ازحد چربی';
+                  bmiColor = 'text-rose-600 dark:text-rose-400';
+                  bmiBg = 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800';
+                  scaleOffset = '88%';
+                }
 
-              return (
-                <div className={`p-6 rounded-2xl border ${bmiBg} text-right space-y-4`}>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">شاخص بیولوژیکی (BMI):</span>
-                    <span className={`text-2xl font-black font-mono leading-none ${bmiColor}`}>{bmi}</span>
+                return (
+                  <div className={`p-6 rounded-2xl border ${bmiBg} text-right space-y-4`}>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">شاخص بیولوژیکی (BMI):</span>
+                      <span className={`text-2xl font-black font-mono leading-none ${bmiColor}`}>{bmi}</span>
+                    </div>
+
+                    <div className="text-xs font-bold text-slate-750 dark:text-slate-200 leading-relaxed">
+                      وضعیت شما: <span className={bmiColor}>{bmiState}</span>
+                    </div>
+
+                    <div className="bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full relative overflow-visible mt-6">
+                      <div
+                        className="absolute top-[-4px] w-4.5 h-4.5 rounded-full bg-slate-900 dark:bg-white border-2 border-white dark:border-slate-900 shadow transition-all duration-300"
+                        style={{ right: scaleOffset }}
+                      />
+                      <div className="absolute top-4 text-[8px] text-slate-400 right-[22%] translate-x-[50%] font-bold">
+                        لاغر (&lt;۱۸.۵)
+                      </div>
+                      <div className="absolute top-4 text-[8px] text-slate-400 right-[45%] translate-x-[50%] font-bold">
+                        ایده‌آل (۱۸.۵-۲۵)
+                      </div>
+                      <div className="absolute top-4 text-[8px] text-slate-400 right-[68%] translate-x-[50%] font-bold">
+                        اضافه (۲۵-۳۰)
+                      </div>
+                      <div className="absolute top-4 text-[8px] text-slate-400 right-[88%] translate-x-[50%] font-bold">
+                        چاق (&gt;۳۰)
+                      </div>
+                    </div>
                   </div>
-
-                  <div className="text-xs font-bold text-slate-750 dark:text-slate-200 leading-relaxed">
-                    وضعیت شما: <span className={bmiColor}>{bmiState}</span>
-                  </div>
-
-                  {/* نوار سنجش دامنه BMI */}
-                  <div className="bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full relative overflow-visible mt-6">
-                    <div
-                      className="absolute top-[-4px] w-4.5 h-4.5 rounded-full bg-slate-900 dark:bg-white border-2 border-white dark:border-slate-900 shadow transition-all duration-300"
-                      style={{ right: scaleOffset }}
-                    />
-                    <div className="absolute top-4 text-[8px] text-slate-400 right-[22%] translate-x-[50%] font-bold">
-                      لاغر (&lt;۱۸.۵)
-                    </div>
-                    <div className="absolute top-4 text-[8px] text-slate-400 right-[45%] translate-x-[50%] font-bold">
-                      ایده‌آل (۱۸.۵-۲۵)
-                    </div>
-                    <div className="absolute top-4 text-[8px] text-slate-400 right-[68%] translate-x-[50%] font-bold">
-                      اضافه (۲۵-۳۰)
-                    </div>
-                    <div className="absolute top-4 text-[8px] text-slate-400 right-[88%] translate-x-[50%] font-bold">
-                      چاق (&gt;۳۰)
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
+                );
+              })()
+            ) : (
+              <div className="p-8 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-2">
+                <Weight className="w-8 h-8 text-slate-400 mx-auto opacity-50" />
+                <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300">قد و وزن هنوز ثبت نشده است</h4>
+                <p className="text-[10px] text-slate-400 leading-relaxed max-w-xs mx-auto">
+                  لطفاً مقادیر قد و وزن خود را از کادرهای کناری وارد کنید تا نمودار شاخص توده بدنی برای شما فعال گردد.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -740,7 +749,14 @@ export default function HealthView({
             </div>
 
             <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-              {moodLogs
+              {
+              moodLogs.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-xs italic">
+                  هنوز وضعیت روحی برای شما ثبت نشده است.
+                </div>
+              ) :
+              (
+              moodLogs
                 .slice()
                 .reverse()
                 .map((log, i) => {
@@ -779,7 +795,8 @@ export default function HealthView({
                       <span className={`text-[10px] px-2.5 py-1 rounded-lg ${moodStyle}`}>{moodEmoji}</span>
                     </div>
                   );
-                })}
+                })
+                )}
             </div>
           </div>
         </div>
