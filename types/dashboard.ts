@@ -52,7 +52,7 @@ export interface HealthMetrics {
   waterToday: number | null; // تعداد لیوان یا ml
   sleepHours: number | null;
   sleepQuality: 'excellent' | 'good' | 'fair' | 'poor';
-  moodScore: number; // 1-5
+  moodScore: number | null; // 1-5
   weight: number; // کیلوگرم
   workoutType: string;
   workoutMin: number;

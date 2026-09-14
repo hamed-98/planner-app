@@ -327,27 +327,34 @@ export default function OverviewView({
         </div>
 
         {/* ۲. کیفیت و ساعت خواب */}
+        {/* کارت خواب */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-2">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs text-slate-400 font-bold">
-              میزان و کیفیت خواب
-            </span>
+            <span className="text-xs text-slate-400 font-bold">میزان و کیفیت خواب</span>
             <Moon className="w-5 h-5 text-indigo-500" />
           </div>
           <div className="text-center py-1">
-            <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">
-              {health.sleepHours}{" "}
-              <span className="text-xs font-normal text-slate-400">ساعت</span>
-            </h4>
+            {health.sleepHours === null ? (
+              <h4 className="text-xl font-bold text-slate-400 dark:text-slate-500 py-1">
+                ثبت‌نشده
+              </h4>
+            ) : (
+              <h4 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+                {health.sleepHours} <span className="text-xs font-normal text-slate-400">ساعت</span>
+              </h4>
+            )}
             <p className="text-[10px] text-indigo-500 font-bold mt-0.5">
-              کیفیت:{" "}
-              {health.sleepQuality === "excellent"
-                ? "بسیار عالی"
-                : health.sleepQuality === "good"
-                  ? "خوب و رضایت‌بخش"
-                  : health.sleepQuality === "fair"
-                    ? "متوسط"
-                    : "آشفته"}
+              {health.sleepHours === null
+                ? 'ساعات خواب دیشب را مشخص کنید'
+                : `کیفیت: ${
+                    health.sleepQuality === 'excellent'
+                      ? 'بسیار عالی و عمیق'
+                      : health.sleepQuality === 'good'
+                      ? 'خوب و با نشاط'
+                      : health.sleepQuality === 'fair'
+                      ? 'متوسط و سطحی'
+                      : 'آشفته و خواب‌پریشی'
+                  }`}
             </p>
           </div>
           <input
@@ -357,41 +364,35 @@ export default function OverviewView({
             step="0.5"
             disabled={isSelectedDatePast || isSelectedDateFuture}
             value={health.sleepHours ?? 7}
-            onChange={(e) =>
-              onSaveHealth({ ...health, sleepHours: Number(e.target.value) })
-            }
+            onChange={(e) => onSaveHealth({ ...health, sleepHours: Number(e.target.value) })}
             className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-40"
           />
           <select
             disabled={isSelectedDatePast || isSelectedDateFuture}
             value={health.sleepQuality}
-            onChange={(e) =>
-              onSaveHealth({ ...health, sleepQuality: e.target.value as any })
-            }
+            onChange={(e) => onSaveHealth({ ...health, sleepQuality: e.target.value as any })}
             className="w-full bg-slate-50 dark:bg-slate-950 rounded-xl p-1.5 border border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-300 mt-1 cursor-pointer"
           >
-            <option value="excellent">🏆 بسیار عالی و عمیق</option>
-            <option value="good">🟢 خوب و با نشاط</option>
-            <option value="fair">🟡 متوسط و سطحی</option>
-            <option value="poor">🔴 آشفته و خواب‌پریشی</option>
+            <option value="excellent">بسیار عالی و عمیق</option>
+            <option value="good">خوب و با نشاط</option>
+            <option value="fair">متوسط و سطحی</option>
+            <option value="poor">آشفته و خواب‌پریشی</option>
           </select>
         </div>
 
-        {/* ۳. پایش خلق‌وخو */}
+        {/* کارت حالت روحی و مود */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <div className="flex justify-between items-center mb-4">
-            <span className="text-xs text-slate-400 font-bold">
-              خلق‌وخوی امروز
-            </span>
+            <span className="text-xs text-slate-400 font-bold">وضعیت روحی</span>
             <Smile className="w-5 h-5 text-emerald-500" />
           </div>
           <div className="flex justify-center gap-1.5 py-3">
             {[
-              { score: 1, label: "عصبی/بحرانی", emoji: "😡" },
-              { score: 2, label: "خسته/بی‌ذوق", emoji: "😔" },
-              { score: 3, label: "معمولی", emoji: "😐" },
-              { score: 4, label: "شاداب", emoji: "😊" },
-              { score: 5, label: "بمب انگیزه", emoji: "🤩" },
+              { score: 1, label: 'خیلی بد', emoji: '😫' },
+              { score: 2, label: 'بد', emoji: '🙁' },
+              { score: 3, label: 'معمولی', emoji: '😐' },
+              { score: 4, label: 'خوب', emoji: '😊' },
+              { score: 5, label: 'عالی', emoji: '🚀' },
             ].map((item) => (
               <button
                 key={item.score}
@@ -400,8 +401,8 @@ export default function OverviewView({
                 onClick={() => onSelectMood(item.score, item.label)}
                 className={`text-lg p-1.5 rounded-xl transition-all cursor-pointer disabled:opacity-30 ${
                   health.moodScore === item.score
-                    ? "bg-emerald-50 dark:bg-emerald-950/50 scale-110 border border-emerald-300 dark:border-emerald-700"
-                    : "opacity-50 hover:opacity-100"
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 scale-110 border border-emerald-300 dark:border-emerald-700'
+                    : 'opacity-50 hover:opacity-100'
                 }`}
                 title={item.label}
               >
@@ -410,7 +411,9 @@ export default function OverviewView({
             ))}
           </div>
           <p className="text-center text-[10px] font-bold text-slate-400 mt-1">
-            امتیاز ثبت‌شده: {health.moodScore} از ۵
+            {health.moodScore === null
+              ? 'وضعیت امروز هنوز ثبت نشده است'
+              : `وضعیت انتخابی: ${health.moodScore} از ۵`}
           </p>
         </div>
 

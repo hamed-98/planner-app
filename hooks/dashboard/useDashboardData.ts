@@ -131,7 +131,7 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
       waterToday: null,
       sleepHours: 7,
       sleepQuality: 'good',
-      moodScore: 4,
+      moodScore: null,
       weight: 0,
       workoutType: 'پیاده‌روی',
       workoutMin: 0,
@@ -297,7 +297,8 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
                   ? Number(log.sleep_hours)
                   : null,
               sleepQuality: sq,
-              moodScore: log.mood || 3,
+              moodScore:
+                log.mood !== null && log.mood !== undefined ? Number(log.mood) : null,
               weight: log.weight_kg ? Number(log.weight_kg) : 0,
             };
 
@@ -409,7 +410,7 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
         waterToday: number | null;
         sleepHours: number | null; // اضافه شدن null
         sleepQuality: any;
-        moodScore: number;
+        moodScore: number | null;
         weight: number;
       }>,
     ) => {
@@ -536,9 +537,12 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
   const activeRecord = dailyHealthData[selectedDateISO];
   const activeDailyHealth = {
     waterToday: activeRecord?.waterToday !== undefined ? activeRecord.waterToday : null,
-    sleepHours: activeRecord?.sleepHours && Number(activeRecord.sleepHours) > 0 ? Number(activeRecord.sleepHours) : null,
+    sleepHours:
+      activeRecord?.sleepHours && Number(activeRecord.sleepHours) > 0
+        ? Number(activeRecord.sleepHours)
+        : null,
     sleepQuality: activeRecord?.sleepQuality || 'good',
-    moodScore: activeRecord?.moodScore || 3,
+    moodScore: activeRecord?.moodScore !== undefined ? activeRecord.moodScore : null, // <--- به جای 3
   };
   const health: HealthMetrics = { ...globalHealth, ...activeDailyHealth };
 
