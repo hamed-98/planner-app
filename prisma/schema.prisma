@@ -102,6 +102,7 @@ model Profile {
   theme        String   @default("system")
   language     String   @default("fa")
   calendarType String   @default("jalali")
+  heightCm     Int?     @default(0)
   createdAt    DateTime @default(now())
 
   user User @relation(fields: [id], references: [id], onDelete: Cascade)
@@ -168,7 +169,7 @@ model HealthLog {
   id           String   @id @default(uuid())
   userId       String
   logDate      String   // ساختار YYYY-MM-DD
-  waterMl      Int?     @default(0)
+  waterMl      Int?     
   sleepHours   Decimal? @default(0) @db.Decimal(3, 1)
   sleepQuality Int?     @default(3) // 1: poor, 2: fair, 3: good, 4: excellent
   mood         Int?     @default(3)

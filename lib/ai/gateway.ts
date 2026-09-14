@@ -39,7 +39,7 @@ function sanitizeExtractedText(val: any): string {
       try {
         const inner = JSON.parse(trimmed);
         return sanitizeExtractedText(inner.text || inner.message || inner);
-      } catch {}
+      } catch { }
     }
     return trimmed;
   }
@@ -73,7 +73,7 @@ function extractJsonFromText(rawText: string): any {
         payload: parsed.payload || {}
       };
     }
-  } catch {}
+  } catch { }
 
   // تلاش ۲: یافتن اولین و آخرین براکت JSON در متن
   const firstBrace = clean.indexOf("{");
@@ -89,7 +89,7 @@ function extractJsonFromText(rawText: string): any {
           payload: parsed.payload || {}
         };
       }
-    } catch {}
+    } catch { }
   }
 
   // تلاش ۳: اگر مدل کلاً JSON تولید نکرد و متن معمولی فرستاد
@@ -170,7 +170,18 @@ async function callGeminiNative(
   provider: AiProviderConfig,
   options: GatewayRequestOptions
 ): Promise<GatewayResponse> {
-  const ai = new GoogleGenAI({ apiKey: provider.apiKey.trim() });
+
+  const rawKey = provider.apiKey || process.env.GEMINI_API_KEY || '';
+  const apiKeys = rawKey
+    .split(',')
+    .map((k) => k.trim())
+    .filter((k) => k.length > 5);
+
+  const activeKey = apiKeys.length > 0
+    ? apiKeys[Math.floor(Math.random() * apiKeys.length)]
+    : rawKey.trim();
+
+  const ai = new GoogleGenAI({ apiKey: activeKey });
 
   // فرمت استاندارد پیام‌ها در SDK جدید گوگل (فقط نقش‌های user و model معتبرند)
   const contents: any[] = options.messages

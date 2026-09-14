@@ -31,9 +31,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           text: "⚠️ لطفاً ابتدا وارد حساب کاربری خود شوید.",
-          actionData: { action: "NONE", payload: {} }
+          actionData: { action: "NONE", payload: {} },
         },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -45,9 +45,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           text: "⚠️ طول پیام بیش از حد مجاز است. لطفاً در حداکثر ۱۰۰۰ کاراکتر خلاصه فرمایید.",
-          actionData: { action: "NONE", payload: {} }
+          actionData: { action: "NONE", payload: {} },
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -55,15 +55,18 @@ export async function POST(req: NextRequest) {
     let featureFlags: any = {
       enable_ai_assistant: true,
       free_tier_daily_limit: 15,
-      enable_gemini_fallback: true
+      enable_gemini_fallback: true,
     };
 
     try {
       const flagRecord = await prisma.globalSetting.findUnique({
-        where: { id: "feature_flags" }
+        where: { id: "feature_flags" },
       });
       if (flagRecord?.value && typeof flagRecord.value === "object") {
-        featureFlags = { ...featureFlags, ...(flagRecord.value as Record<string, any>) };
+        featureFlags = {
+          ...featureFlags,
+          ...(flagRecord.value as Record<string, any>),
+        };
       }
     } catch {}
 
@@ -72,35 +75,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           text: "⚠️ سرویس دستیار هوش مصنوعی در حال حاضر توسط مدیریت سامانه موقتاً غیرفعال شده است.",
-          actionData: { action: "NONE", payload: {} }
+          actionData: { action: "NONE", payload: {} },
         },
-        { status: 503 }
+        { status: 503 },
       );
     }
 
     // ۴. بررسی پروفایل و محاسبه سهمیه روزانه
     const profile = await prisma.profile.findUnique({
-      where: { id: user.id }
+      where: { id: user.id },
     });
     const userPlan = profile?.plan || "free";
 
-    const clientToday = userData?.clientToday || new Date().toISOString().split("T")[0];
+    const clientToday =
+      userData?.clientToday || new Date().toISOString().split("T")[0];
     const targetDateStr = userData?.targetDate || clientToday;
 
     const clientTodayObj = new Date(clientToday + "T12:00:00Z");
-    const clientTomorrow = new Date(clientTodayObj.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-    const clientDayAfter = new Date(clientTodayObj.getTime() + 48 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const clientTomorrow = new Date(
+      clientTodayObj.getTime() + 24 * 60 * 60 * 1000,
+    )
+      .toISOString()
+      .split("T")[0];
+    const clientDayAfter = new Date(
+      clientTodayObj.getTime() + 48 * 60 * 60 * 1000,
+    )
+      .toISOString()
+      .split("T")[0];
 
     const freeDailyLimit = Number(featureFlags.free_tier_daily_limit) || 15;
-    const dailyLimit = userPlan === "pro" ? 100 : userPlan === "team" ? 250 : freeDailyLimit;
+    const dailyLimit =
+      userPlan === "pro" ? 100 : userPlan === "team" ? 250 : freeDailyLimit;
 
     const usageRecord = await prisma.userAiUsage.findUnique({
       where: {
         userId_usageDate: {
           userId: user.id,
           usageDate: clientToday,
-        }
-      }
+        },
+      },
     });
 
     let currentUsage = usageRecord?.requestCount || 0;
@@ -112,9 +125,9 @@ export async function POST(req: NextRequest) {
           actionData: { action: "NONE", payload: {} },
           isLimitReached: true,
           currentUsage,
-          dailyLimit
+          dailyLimit,
         },
-        { status: 429 }
+        { status: 429 },
       );
     }
 
@@ -122,12 +135,13 @@ export async function POST(req: NextRequest) {
     let providers: AiProviderConfig[] = [];
     try {
       const dbSettings = await prisma.globalSetting.findUnique({
-        where: { id: "ai_providers" }
+        where: { id: "ai_providers" },
       });
       if (dbSettings?.value && Array.isArray(dbSettings.value)) {
         // فقط مدل‌های فعال پنل ادمین دریافت می‌شوند
-        providers = (dbSettings.value as unknown as AiProviderConfig[])
-          .filter(p => p.isActive !== false);
+        providers = (dbSettings.value as unknown as AiProviderConfig[]).filter(
+          (p) => p.isActive !== false,
+        );
       }
     } catch (e) {
       console.error("Failed to load admin AI providers:", e);
@@ -135,16 +149,17 @@ export async function POST(req: NextRequest) {
 
     // ۶. بررسی سوئیچ فال‌بک جمینای از پنل ادمین
     // اگر در پنل ادمین سوئیچ خاموش شده باشد (false)، جمینای به هیچ عنوان لود نمی‌شود
-    const isGeminiFallbackAllowed = featureFlags.enable_gemini_fallback === true;
+    const isGeminiFallbackAllowed =
+      featureFlags.enable_gemini_fallback === true;
 
     if (isGeminiFallbackAllowed) {
       const geminiKeys = (process.env.GEMINI_API_KEY || "")
         .split(",")
-        .map(k => k.trim())
-        .filter(k => k.length > 10 && !k.includes("MY_GEMINI"));
+        .map((k) => k.trim())
+        .filter((k) => k.length > 10 && !k.includes("MY_GEMINI"));
 
       geminiKeys.forEach((k, idx) => {
-        if (!providers.some(p => p.apiKey === k)) {
+        if (!providers.some((p) => p.apiKey === k)) {
           providers.push({
             id: `env-gemini-fallback-${idx}`,
             name: `Google Gemini 3.7 Flash (${idx + 1})`,
@@ -152,7 +167,7 @@ export async function POST(req: NextRequest) {
             apiKey: k,
             model: "gemini-3.7-flash",
             priority: 9000 + idx, // انتهای صف؛ بعد از تمام مدل‌های پنل ادمین
-            isActive: true
+            isActive: true,
           });
         }
       });
@@ -164,7 +179,7 @@ export async function POST(req: NextRequest) {
     if (providers.length === 0) {
       return NextResponse.json({
         text: "⚠️ هیچ ارائه‌دهنده فعالی برای هوش مصنوعی یافت نشد. لطفاً از پنل مدیریت یک مدل تعریف فرمایید.",
-        actionData: { action: "NONE", payload: {} }
+        actionData: { action: "NONE", payload: {} },
       });
     }
 
@@ -174,44 +189,62 @@ export async function POST(req: NextRequest) {
       const bm = userData.brainMetrics;
       const bp = userData.brainProfile;
 
-      const spatialToday = bm?.spatialMemory?.todayAttempts > 0 
-        ? `${bm.spatialMemory.todayAttempts} تمرین (میانگین نمره: ${bm.spatialMemory.todayScore})` 
-        : "امروز آزمونی داده نشده";
+      const spatialToday =
+        bm?.spatialMemory?.todayAttempts > 0
+          ? `${bm.spatialMemory.todayAttempts} تمرین (میانگین نمره: ${bm.spatialMemory.todayScore})`
+          : "امروز آزمونی داده نشده";
 
-      const stroopToday = bm?.stroopFlexibility?.todayAttempts > 0 
-        ? `${bm.stroopFlexibility.todayAttempts} تمرین (میانگین نمره: ${bm.stroopFlexibility.todayScore})` 
-        : "امروز آزمونی داده نشده";
+      const stroopToday =
+        bm?.stroopFlexibility?.todayAttempts > 0
+          ? `${bm.stroopFlexibility.todayAttempts} تمرین (میانگین نمره: ${bm.stroopFlexibility.todayScore})`
+          : "امروز آزمونی داده نشده";
 
-      const mathToday = bm?.mathSpeed?.todayAttempts > 0 
-        ? `${bm.mathSpeed.todayAttempts} تمرین (میانگین نمره: ${bm.mathSpeed.todayScore})` 
-        : "امروز آزمونی داده نشده";
+      const mathToday =
+        bm?.mathSpeed?.todayAttempts > 0
+          ? `${bm.mathSpeed.todayAttempts} تمرین (میانگین نمره: ${bm.mathSpeed.todayScore})`
+          : "امروز آزمونی داده نشده";
 
-      const totalAttemptsToday = (bm?.spatialMemory?.todayAttempts || 0) + 
-                                 (bm?.stroopFlexibility?.todayAttempts || 0) + 
-                                 (bm?.mathSpeed?.todayAttempts || 0);
+      const totalAttemptsToday =
+        (bm?.spatialMemory?.todayAttempts || 0) +
+        (bm?.stroopFlexibility?.todayAttempts || 0) +
+        (bm?.mathSpeed?.todayAttempts || 0);
 
-      const memBase = typeof bm?.spatialMemory?.score === 'number' && !bm?.spatialMemory?.isCalibrating 
-        ? `${bm.spatialMemory.score} از ۱۰۰` 
-        : "در حال کالیبراسیون";
+      const memBase =
+        typeof bm?.spatialMemory?.score === "number" &&
+        !bm?.spatialMemory?.isCalibrating
+          ? `${bm.spatialMemory.score} از ۱۰۰`
+          : "در حال کالیبراسیون";
 
-      const strBase = typeof bm?.stroopFlexibility?.score === 'number' && !bm?.stroopFlexibility?.isCalibrating 
-        ? `${bm.stroopFlexibility.score} از ۱۰۰` 
-        : "در حال کالیبراسیون";
+      const strBase =
+        typeof bm?.stroopFlexibility?.score === "number" &&
+        !bm?.stroopFlexibility?.isCalibrating
+          ? `${bm.stroopFlexibility.score} از ۱۰۰`
+          : "در حال کالیبراسیون";
 
-      const mathBase = typeof bm?.mathSpeed?.score === 'number' && !bm?.mathSpeed?.isCalibrating 
-        ? `${bm.mathSpeed.score} از ۱۰۰` 
-        : "در حال کالیبراسیون";
+      const mathBase =
+        typeof bm?.mathSpeed?.score === "number" &&
+        !bm?.mathSpeed?.isCalibrating
+          ? `${bm.mathSpeed.score} از ۱۰۰`
+          : "در حال کالیبراسیون";
 
-      const rxTime = bm?.avgReactionTimeMs 
-        ? `${bm.avgReactionTimeMs}ms` 
-        : (userData.brainReaction ? `${userData.brainReaction}ms` : "نامشخص");
+      const rxTime = bm?.avgReactionTimeMs
+        ? `${bm.avgReactionTimeMs}ms`
+        : userData.brainReaction
+          ? `${userData.brainReaction}ms`
+          : "نامشخص";
 
-      const acc = bm?.accuracyRate !== null && bm?.accuracyRate !== undefined 
-        ? `${bm.accuracyRate}٪` 
-        : "نامشخص";
+      const acc =
+        bm?.accuracyRate !== null && bm?.accuracyRate !== undefined
+          ? `${bm.accuracyRate}٪`
+          : "نامشخص";
 
-      const overall = bm?.overallIndex ?? 
-        (bp?.memoryScore ? Math.round((bp.memoryScore + bp.flexibilityScore + bp.processingSpeed) / 3) : null);
+      const overall =
+        bm?.overallIndex ??
+        (bp?.memoryScore
+          ? Math.round(
+              (bp.memoryScore + bp.flexibilityScore + bp.processingSpeed) / 3,
+            )
+          : null);
 
       brainContextReport = `  * شاخص کل توانمندی کورتکس: ${overall ? `${overall} از ۱۰۰` : "در حال کالیبراسیون"}
   * حافظه کاری: خط مبنا (${memBase}) | وضعیت امروز: ${spatialToday}
@@ -221,20 +254,21 @@ export async function POST(req: NextRequest) {
   * تلاش‌های شناختی امروز: ${totalAttemptsToday} آزمون (${totalAttemptsToday > 0 ? "قابل استناد و ربط‌دادن به خواب دیشب" : "هشدار: کاربر امروز آزمونی نداده، وضعیت خواب را به نمرات روزهای قبل ربط ندهید"})`;
     }
 
-    const neuroHabitsText = userData?.neuroHabitsCompleted !== undefined 
-      ? `- عادات نورون‌سازی امروز: ${userData.neuroHabitsCompleted} از ${userData.neuroHabitsTotal || 5} ماموریت انجام شده` 
-      : "";
+    const neuroHabitsText =
+      userData?.neuroHabitsCompleted !== undefined
+        ? `- عادات نورون‌سازی امروز: ${userData.neuroHabitsCompleted} از ${userData.neuroHabitsTotal || 5} ماموریت انجام شده`
+        : "";
 
-    const cbtSummaryText = userData?.recentCbtDistortion 
-      ? `- آخرین بازسازی شناختی (CBT): کار بر روی تحریف «${userData.recentCbtDistortion}»` 
+    const cbtSummaryText = userData?.recentCbtDistortion
+      ? `- آخرین بازسازی شناختی (CBT): کار بر روی تحریف «${userData.recentCbtDistortion}»`
       : "";
 
     const contextPrompt = `داده‌های وضعیت کاربر (${userData?.userName || "کاربر"}):
 - تاریخ امروز سیستم: ${clientToday}
 - فردا: ${clientTomorrow}
 - پس‌فردا: ${clientDayAfter}
-- وضعیت خواب دیشب: ${userData?.sleepHours ? `${userData.sleepHours} ساعت (کیفیت: ${userData.sleepQuality || "خوب"})` : "هنوز ثبت نشده"}
-- وضعیت مصرف آب امروز: ${userData?.waterToday || 0} لیوان از هدف ۸ لیوان
+- وضعیت خواب دیشب: ${userData?.sleepHours !== null && userData?.sleepHours !== undefined ? `${userData.sleepHours} ساعت (کیفیت: ${userData.sleepQuality || "خوب"})` : "هنوز ثبت نشده"}
+- وضعیت مصرف آب امروز: ${userData?.waterToday !== null && userData?.waterToday !== undefined ? `${userData.waterToday} لیوان از هدف ۸ لیوان` : "هنوز ثبت نشده"}
 - خلق‌وخو: ${userData?.moodScore ? `${userData.moodScore} از ۵` : "هنوز ثبت نشده"}
 - کارهای مانده امروز: ${userData?.pendingTasksToday || 0} مورد
 - رویدادهای تقویم امروز: ${userData?.eventsToday || 0} مورد
@@ -266,49 +300,92 @@ ${brainContextReport}`;
     };
 
     // ----------------------------------------------------
-    // حالت ۱: تحلیل سلامت پیشخوان (analyze)
+    // حالت ۱: تحلیل سلامت و انگیزش روزانه (analyze)
     // ----------------------------------------------------
     if (mode === "analyze") {
       let analysisText = "";
+
+      const waterStatus =
+        userData?.waterToday === null || userData?.waterToday === undefined
+          ? "ثبت‌نشده"
+          : `${userData.waterToday} لیوان از هدف ۸ لیوان`;
+
+      const sleepStatus =
+        userData?.sleepHours === null || userData?.sleepHours === undefined
+          ? "ثبت‌نشده"
+          : `${userData.sleepHours} ساعت (کیفیت: ${userData.sleepQuality || "معمولی"})`;
+
+      const analyzePrompt = `وضعیت بیولوژیک و کاری کاربر (${userData?.userName || "کاربر"}) در تاریخ ${userData?.targetDate || "امروز"}:
+- هیدراتاسیون: ${waterStatus}
+- خواب دیشب: ${sleepStatus}
+- سطح انرژی و خلق‌وخو: ${userData?.moodScore ? `${userData.moodScore} از ۵` : "ثبت‌نشده"}
+- وزن ثبت‌شده: ${userData?.weight && userData.weight > 0 ? `${userData.weight} کیلوگرم` : "ثبت‌نشده"}
+- وظایف باز امروز: ${userData?.pendingTasksToday ?? 0} مورد
+- رویدادهای تقویم: ${userData?.eventsToday ?? 0} برنامه
+- تسک‌های انجام‌شده: ${userData?.completedTasksToday ?? 0}`;
+
       try {
-        const systemInstruction = `تو دستیار تندرستی و مشاور هوشمند اپلیکیشن «سایبان» هستی.
-داده‌های کاربر را با لحنی صمیمی، دلسوزانه و تحلیل‌گرانه در ۳ تا ۴ جمله پیوسته بررسی کن.
-قوانین:
-۱. برای آب فقط از واحد «لیوان» نسبت به هدف ۸ لیوان صحبت کن.
-۲. ارتباط میان کم‌خوابی، کم‌آبی و عملکرد شناختی را در صورت وجود داده گوشزد کن.
-۳. پاسخ بدون مقدمه‌چینی طولانی و مستقیماً به موضوع بپردازد.`;
+        const systemInstruction = `تو یک کوچ ارشد سلامت، نوروساینس و مربی سبک زندگی در اپلیکیشن «سایبان» هستی.
+وظیفه تو ارائه تحلیلی گرم، پرانرژی، علمی و ترغیب‌کننده در ۳ تا ۴ جمله منسجم است.
+
+اصول نگارش و لحن:
+۱. علم پشت عادات: تأثیر فیزیولوژی روی ذهن را ساده بیان کن؛ مثلاً «کاهش ۲ درصدی آب بدن تا ۲۰ درصد تمرکز و حافظه کاری را کند می‌کند» یا «خواب ناکافی کنترل تکانه و سرعت واکنش مغز را کاهش می‌دهد».
+۲. پیوند هوشمند به ابزارهای سایبان (Feature Cross-Promotion):
+   - اگر کارها زیاد یا کاربر مضطرب است: او را به «حالت ذن (تایمر تمرکز)» دعوت کن.
+   - اگر انرژی یا نشاط بالاست: پیشنهاد کن مغز خود را در «باشگاه مغز (تست استروپ یا حافظه فضایی)» به چالش بکشد.
+   - اگر مود پایین یا افکار منفی دارد: یادآوری کن چند خط در «دفترچه بازسازی افکار (CBT)» بنویسد.
+   - اگر وضعیت آب یا خواب ثبت نشده: با لحنی مشوق (نه سرزنشگر) بخواه داده‌ها را وارد کند تا نقشه شناختی دقیق‌تری بگیرد.
+۳. پرهیز از الگوهای ماشینی: از گفتن کلیشه‌هایی مثل «سلام، من بررسی کردم»، بولت‌پوینت، تیتر یا مقدمه‌چینی رباتیک اکیداً خودداری کن؛ مستقیماً به پیام انگیزاننده و تحلیل روز بپرداز».`;
 
         const result = await executeAiGateway(providers, {
           systemInstruction,
-          messages: [{ role: "user", content: contextPrompt }],
-          temperature: 0.3,
-          jsonMode: false
+          messages: [{ role: "user", content: analyzePrompt }],
+          temperature: 0.45,
+          jsonMode: false,
         });
         analysisText = result.text;
       } catch {}
 
+      // فال‌بک دینامیک، انگیزشی و متصل به فیچرهای برنامه در زمان آفلاین بودن هوش مصنوعی
       if (!analysisText) {
-        const waterGlasses = userData?.waterToday ?? 0;
-        const sleepVal = userData?.sleepHours ?? 0;
-        const moodVal = userData?.moodScore ?? 3;
-        const pendingT = userData?.pendingTasksToday ?? 0;
-        const eventsCount = userData?.eventsToday ?? 0;
+        const waterVal = userData?.waterToday;
+        const sleepVal = userData?.sleepHours;
+        const moodVal = userData?.moodScore;
+        const pendingCount = (userData?.pendingTasksToday ?? 0) + (userData?.eventsToday ?? 0);
 
-        const parts: string[] = [];
-        if (sleepVal > 0 && sleepVal < 6) parts.push(`میزان خواب دیشب (${sleepVal} ساعت) کم بوده و استراحت زودهنگام امشب توصیه می‌شود.`);
-        else if (sleepVal >= 6) parts.push(`خواب ${sleepVal} ساعته شما ریکاوری مناسبی فراهم کرده است.`);
-        else parts.push(`ساعات خواب دیشب هنوز ثبت نشده است.`);
+        const insights: string[] = [];
 
-        if (moodVal === 1) parts.push(`تنش بالایی ثبت کرده‌اید؛ چند دقیقه تمرین تنفس آرام را پیشنهاد می‌کنم.`);
-        else if (moodVal >= 4) parts.push(`سطح انگیزه و نشاط شما عالی است.`);
+        // سناریوی کم‌آبی یا ثبت‌نشده
+        if (waterVal === null || waterVal === undefined) {
+          insights.push(`ثبت نوشیدن آب را با یک لیوان تازه شروع کن؛ هیدراته ماندن خون‌رسانی به کورتکس مغز را تقویت می‌کند.`);
+        } else if (waterVal < 4) {
+          insights.push(`هنوز تا سوخت‌گیری کامل فاصله داری! افت آب یعنی افت فوکوس؛ یک لیوان آب بردار تا تمرکزت شارژ شود.`);
+        } else if (waterVal >= 8) {
+          insights.push(`هدف هیدراتاسیون امروز فتح شد؛ مغزت در بالاترین سطح هدایت عصبی قرار دارد.`);
+        }
 
-        if (waterGlasses >= 8) parts.push(`مصرف آب شما (${waterGlasses} لیوان) کامل و در وضعیت ایده‌آل است.`);
-        else if (waterGlasses < 4) parts.push(`مصرف آب (${waterGlasses} لیوان) پایین است و تا هدف ۸ لیوان فاصله دارید.`);
+        // سناریوی خواب و ابزار متناظر
+        if (sleepVal !== null && sleepVal !== undefined) {
+          if (sleepVal < 6) {
+            insights.push(`با خواب ${sleepVal} ساعته، انرژی محدودی در دسترس است؛ کارهای سنگین را خرد کن و تایمرهای کوتاه «حالت ذن» را فعال کن.`);
+          } else {
+            insights.push(`ریکاوری شبانه خوبی داشتی؛ وقت مناسبی است تا در «باشگاه مغز» رکورد چابکی ذهنی خود را محک بزنی.`);
+          }
+        }
 
-        if (pendingT + eventsCount >= 4) parts.push(`امروز با ${eventsCount} رویداد و ${pendingT} وظیفه، روز پرمشغله‌ای دارید.`);
-        else parts.push(`برنامه‌های امروز در تعادل است.`);
+        // سناریوی مود و CBT
+        if (moodVal === 1 || moodVal === 2) {
+          insights.push(`اگر بار ذهنی امروز بالاست، پنج دقیقه در بخش CBT افکارت را مکتوب کن تا تخلیه شناختی صورت گیرد.`);
+        }
 
-        analysisText = parts.join(" ");
+        // بار کاری و تسک‌ها
+        if (pendingCount >= 4) {
+          insights.push(`${pendingCount} ماموریت کاری در انتظارت است؛ برای جلوگیری از حواس‌پرتی، تمرکز تک‌تسک با صدای امبینت ذن را امتحان کن.`);
+        } else {
+          insights.push(`ریتم امروز در دستان توست؛ با قدم‌های حساب‌شده روز را بساز.`);
+        }
+
+        analysisText = insights.slice(0, 3).join(" ");
       }
 
       currentUsage = await incrementDailyUsage();
@@ -317,7 +394,7 @@ ${brainContextReport}`;
         text: analysisText,
         actionData: { action: "ANALYZE_RESPONSE" },
         currentUsage,
-        dailyLimit
+        dailyLimit,
       });
     }
 
@@ -336,6 +413,7 @@ ${brainContextReport}`;
 
 قوانین حیاتی تعامل:
 ۱. موضوعات سیاسی، اجتماعی، اعتراضات، وقایع حساس و نقد حاکمیت/دولت‌ها:
+   -فارسی رو خوب حرف بزن
    - اکیداً از ورود به تحلیل‌های سیاسی، جانبداری، تایید یا رد رویدادهای اعتراضی، نقد مسئولان و تحلیل وقایع سیاسی پرهیز کن.
    - فشار روانی و دغدغه کاربر را در یک جمله محترمانه درک کن، اما بلافاصله مسیر گفتگو را به مراقبت از خود، سلامت روان و مدیریت زندگی هدایت کن:
      (مثلاً: «فشارها و دغدغه‌های روزمره واقعاً سنگین هستند، اما تمرکز من در سایبان بر حفظ آرامش، نظم ذهنی و برنامه‌های فردی شماست. چطور می‌توانم در مدیریت کارهای امروز یا کاهش استرس به شما کمک کنم؟»).
@@ -345,7 +423,8 @@ ${brainContextReport}`;
    - پاسخی گرم، طبیعی و دوستانه بده و نیازی نیست حتماً بحث را به آمار خواب و آب وصل کنی.
 ۴. برای سوالات تحلیلی و وضعیت روز:
    - داده‌های سلامت (خواب، آب، باشگاه مغز) را مشفقانه و علمی تحلیل کن.
-   - در مورد آب فقط از واحد «لیوان آب» (از هدف ۸ لیوان) صحبت کن.
+   - هرگز مقادیر «هنوز ثبت نشده» را معادل صفر یا کم‌کاری ندان و نگو مصرف آب صفر است؛ بلکه بگو هنوز ثبت نشده یا مشوقانه بخواه که آن را ثبت کند.
+   - در صورت ثبت بودن آب، فقط از واحد «لیوان آب» (از هدف ۸ لیوان) صحبت کن.
    - متن درون فیلد "text" هرگز نباید رباتیک، خشک یا تک‌خطی باشد.
 ۵. ${isOngoing ? "این گفتگوی ادامه‌دار است؛ نیازی به سلام و معرفی مجدد خودت نیست." : "در پیام اول یک سلام کوتاه بده و سپس به اصل مطلب بپرداز."}
 ۶. تاریخ‌ها را به صورت نسبی (امروز، فردا، پس‌فردا) یا شمسی بیان کن (نام ماه‌های میلادی نگو).
@@ -359,13 +438,16 @@ ${brainContextReport}`;
    - پس‌فردا: ${clientDayAfter}
    - نامشخص: ${targetDateStr}`;
 
-      const formattedMessages: { role: "system" | "user" | "assistant"; content: string }[] = [];
+      const formattedMessages: {
+        role: "system" | "user" | "assistant";
+        content: string;
+      }[] = [];
       formattedMessages.push({ role: "system", content: contextPrompt });
 
       history.slice(-6).forEach((h: any) => {
         formattedMessages.push({
           role: h.sender === "user" ? "user" : "assistant",
-          content: h.content
+          content: h.content,
         });
       });
 
@@ -375,7 +457,7 @@ ${brainContextReport}`;
         systemInstruction,
         messages: formattedMessages,
         temperature: 0.35,
-        jsonMode: true
+        jsonMode: true,
       });
 
       const parsed = result.actionData || { action: "NONE" };
@@ -383,7 +465,11 @@ ${brainContextReport}`;
       if (parsed.action && parsed.action !== "NONE") {
         if (!parsed.payload) parsed.payload = {};
         const lowerMsg = (message || "").toLowerCase();
-        if (lowerMsg.includes("پس‌فردا") || lowerMsg.includes("پسفردا") || lowerMsg.includes("۲ روز بعد")) {
+        if (
+          lowerMsg.includes("پس‌فردا") ||
+          lowerMsg.includes("پسفردا") ||
+          lowerMsg.includes("۲ روز بعد")
+        ) {
           parsed.payload.targetDate = clientDayAfter;
         } else if (lowerMsg.includes("فردا")) {
           parsed.payload.targetDate = clientTomorrow;
@@ -398,11 +484,11 @@ ${brainContextReport}`;
         text: parsed.text || result.text || "درخواست شما بررسی شد.",
         actionData: {
           ...parsed,
-          provider: result.providerUsed
+          provider: result.providerUsed,
         },
         providerUsed: result.providerUsed,
         currentUsage,
-        dailyLimit
+        dailyLimit,
       });
     }
 
@@ -426,7 +512,7 @@ ${brainContextReport}`;
         systemInstruction,
         messages: [{ role: "user", content: message }],
         temperature: 0.1,
-        jsonMode: true
+        jsonMode: true,
       });
 
       const parsed = result.actionData || { action: "NONE" };
@@ -448,7 +534,7 @@ ${brainContextReport}`;
         text: parsed.text || result.text || "ثبت گردید.",
         actionData: parsed,
         currentUsage,
-        dailyLimit
+        dailyLimit,
       });
     }
 

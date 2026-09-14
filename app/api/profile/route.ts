@@ -35,6 +35,8 @@ export async function GET() {
       theme: profile.theme,
       language: profile.language,
       calendar_type: profile.calendarType,
+      calendarType: profile.calendarType,
+      heightCm: profile.heightCm || 0,
       created_at: profile.createdAt.toISOString(),
     });
   } catch (error: any) {
@@ -52,7 +54,7 @@ export async function PATCH(req: Request) {
 
   try {
     const body = await req.json();
-    const { calendar_type, calendarType, theme, language, avatar_url, avatarUrl } = body;
+    const { calendar_type, calendarType, theme, language, avatar_url, avatarUrl, heightCm } = body;
 
     const calType = calendarType || calendar_type;
     const avUrl = avatarUrl !== undefined ? avatarUrl : avatar_url;
@@ -65,12 +67,14 @@ export async function PATCH(req: Request) {
         theme: theme || 'system',
         language: language || 'fa',
         avatarUrl: avUrl || null,
+        heightCm: heightCm !== undefined ? Number(heightCm) : 0,
       },
       update: {
         calendarType: calType || undefined,
         theme: theme || undefined,
         language: language || undefined,
         avatarUrl: avUrl !== undefined ? avUrl : undefined,
+        heightCm: heightCm !== undefined ? Number(heightCm) : undefined,
       },
     });
 
@@ -82,6 +86,8 @@ export async function PATCH(req: Request) {
       theme: updated.theme,
       language: updated.language,
       calendar_type: updated.calendarType,
+      calendarType: updated.calendarType,
+      heightCm: updated.heightCm ?? 0,
     });
   } catch (error: any) {
     console.error('Profile PATCH error:', error);

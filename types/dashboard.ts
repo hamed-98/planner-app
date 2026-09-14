@@ -49,8 +49,8 @@ export interface Task {
 }
 
 export interface HealthMetrics {
-  waterToday: number; // تعداد لیوان یا ml
-  sleepHours: number;
+  waterToday: number | null; // تعداد لیوان یا ml
+  sleepHours: number | null;
   sleepQuality: 'excellent' | 'good' | 'fair' | 'poor';
   moodScore: number; // 1-5
   weight: number; // کیلوگرم

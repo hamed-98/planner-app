@@ -599,11 +599,13 @@ export default function AssistantView({
               return (
                 <div className="space-y-2 text-[11px] font-bold">
                   {/* ردیف خواب */}
+                  {/* خواب دیشب */}
                   <div className="flex justify-between text-slate-600 dark:text-slate-400">
                     <span>خواب دیشب:</span>
                     <span className="text-indigo-600 dark:text-indigo-400 font-mono">
-                      {userDataContext?.sleepHours
-                        ? `${userDataContext.sleepHours} ساعت (${userDataContext.sleepQuality === 'excellent' ? 'عالی' : userDataContext.sleepQuality === 'good' ? 'خوب' : userDataContext.sleepQuality === 'fair' ? 'متوسط' : 'آشفته'})`
+                      {userDataContext?.sleepHours !== null &&
+                      userDataContext?.sleepHours !== undefined
+                        ? `${userDataContext.sleepHours} ساعت (${userDataContext.sleepQuality === "excellent" ? "عالی" : userDataContext.sleepQuality === "good" ? "خوب" : userDataContext.sleepQuality === "fair" ? "معمولی" : "ضعیف"})`
                         : "ثبت‌نشده"}
                     </span>
                   </div>
@@ -612,7 +614,10 @@ export default function AssistantView({
                   <div className="flex justify-between text-slate-600 dark:text-slate-400">
                     <span>آب امروز:</span>
                     <span className="text-teal-600 dark:text-teal-400 font-mono">
-                      {userDataContext?.waterToday || 0} از ۸ لیوان
+                      {userDataContext?.waterToday !== null &&
+                      userDataContext?.waterToday !== undefined
+                        ? `${userDataContext.waterToday} از ۸ لیوان`
+                        : "ثبت‌نشده"}
                     </span>
                   </div>
 

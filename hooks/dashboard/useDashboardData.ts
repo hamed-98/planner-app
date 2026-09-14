@@ -56,6 +56,33 @@ const scheduleTaskUpdate = (id: string, t: Task) => {
   );
 };
 
+// در بالای useDashboardData.ts
+const pendingHealthUpdates = new Map<string, NodeJS.Timeout>();
+const pendingHealthPayloads = new Map<string, any>();
+
+const scheduleHealthUpdate = (dateISO: string, data: any) => {
+  if (pendingHealthUpdates.has(dateISO)) {
+    clearTimeout(pendingHealthUpdates.get(dateISO)!);
+  }
+
+  // ادغام تغییرات جدید با تغییرات معلق قبلی همان روز
+  const merged = { ...(pendingHealthPayloads.get(dateISO) || {}), ...data };
+  pendingHealthPayloads.set(dateISO, merged);
+
+  pendingHealthUpdates.set(
+    dateISO,
+    setTimeout(() => {
+      const payloadToSend = pendingHealthPayloads.get(dateISO);
+      pendingHealthPayloads.delete(dateISO);
+      pendingHealthUpdates.delete(dateISO);
+
+      if (payloadToSend) {
+        saveHealthLog(dateISO, payloadToSend).catch(console.error);
+      }
+    }, 700)
+  );
+};
+
 interface UseDashboardDataProps {
   userName: string;
   earnXp: (amount: number, reason: string) => void;
@@ -101,11 +128,11 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
       if (saved) return JSON.parse(saved);
     }
     return {
-      waterToday: 0,
+      waterToday: null,
       sleepHours: 7,
       sleepQuality: 'good',
       moodScore: 4,
-      weight: 72,
+      weight: 0,
       workoutType: 'پیاده‌روی',
       workoutMin: 0,
     };
@@ -226,6 +253,12 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
           localStorage.setItem('sayeban_medicines', JSON.stringify(m));
         }
 
+        // بازیابی قد از پروفایل دیتابیس
+        if (p?.heightCm && p.heightCm > 0) {
+          setUserHeight(p.heightCm);
+          localStorage.setItem('sayeban_user_height', String(p.heightCm));
+        }
+
         // if (p?.calendar_type !== undefined) {
         //   setUseJalaliCalendar(p.calendar_type === 'jalali');
         // }
@@ -238,67 +271,74 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
 
 
         if (hl !== null) {
-        const daily: Record<string, any> = {};
-        const fetchedMoodLogs: MoodLog[] = [];
-        let latestWeight = 0;
-        let latestLogDate = '';
+          const daily: Record<string, any> = {};
+          const fetchedMoodLogs: MoodLog[] = [];
+          let latestWeight = 0;
+          let latestLogDate = '';
 
-        for (const log of hl) {
-          const sq =
-            log.sleep_quality === 1
-              ? 'poor'
-              : log.sleep_quality === 2
-                ? 'fair'
-                : log.sleep_quality === 3
-                  ? 'good'
-                  : 'excellent';
+          for (const log of hl) {
+            const sq =
+              log.sleep_quality === 1
+                ? 'poor'
+                : log.sleep_quality === 2
+                  ? 'fair'
+                  : log.sleep_quality === 3
+                    ? 'good'
+                    : 'excellent';
 
-          daily[log.log_date] = {
-            waterToday: log.water_ml || 0,
-            sleepHours: log.sleep_hours || 0,
-            sleepQuality: sq,
-            moodScore: log.mood || 3,
-            weight: log.weight_kg || 0,
-          };
+            daily[log.log_date] = {
+              // حفظ مقدار null در صورت ثبت‌نشدن
+              waterToday:
+                log.water_ml !== null && log.water_ml !== undefined
+                  ? log.water_ml
+                  : null,
+              sleepHours:
+                log.sleep_hours !== null && log.sleep_hours !== undefined
+                  ? Number(log.sleep_hours)
+                  : null,
+              sleepQuality: sq,
+              moodScore: log.mood || 3,
+              weight: log.weight_kg ? Number(log.weight_kg) : 0,
+            };
 
-          // استخراج تاریخچه احساسات واقعی کاربر از دیتابیس
-          if (log.mood && log.log_date) {
-            fetchedMoodLogs.push({
-              date: log.log_date,
-              mood: log.mood,
-            });
-          }
+            // استخراج تاریخچه احساسات واقعی کاربر از دیتابیس
+            if (log.mood && log.log_date) {
+              fetchedMoodLogs.push({
+                date: log.log_date,
+                mood: log.mood,
+              });
+            }
 
-          // پیدا کردن آخرین وزنی که کاربر ثبت کرده
-          if (log.weight_kg && Number(log.weight_kg) > 0) {
-            if (!latestLogDate || log.log_date >= latestLogDate) {
-              latestWeight = Number(log.weight_kg);
-              latestLogDate = log.log_date;
+            // پیدا کردن آخرین وزنی که کاربر ثبت کرده
+            if (log.weight_kg && Number(log.weight_kg) > 0) {
+              if (!latestLogDate || log.log_date >= latestLogDate) {
+                latestWeight = Number(log.weight_kg);
+                latestLogDate = log.log_date;
+              }
             }
           }
+
+          // ذخیره سوابق واقعی احساسات کاربر
+          fetchedMoodLogs.sort((a, b) => a.date.localeCompare(b.date));
+          setMoodLogs(fetchedMoodLogs);
+          localStorage.setItem('sayeban_mood_logs', JSON.stringify(fetchedMoodLogs));
+
+          if (latestWeight > 0) {
+            setUserWeight(latestWeight);
+            localStorage.setItem('sayeban_user_weight', String(latestWeight));
+          }
+
+          setDailyHealthData((prev) => {
+            const updated = { ...prev, ...daily };
+            localStorage.setItem('sayeban_daily_health', JSON.stringify(updated));
+            return updated;
+          });
         }
-
-        // ذخیره سوابق واقعی احساسات کاربر
-        fetchedMoodLogs.sort((a, b) => a.date.localeCompare(b.date));
-        setMoodLogs(fetchedMoodLogs);
-        localStorage.setItem('sayeban_mood_logs', JSON.stringify(fetchedMoodLogs));
-
-        if (latestWeight > 0) {
-          setUserWeight(latestWeight);
-          localStorage.setItem('sayeban_user_weight', String(latestWeight));
-        }
-
-        setDailyHealthData((prev) => {
-          const updated = { ...prev, ...daily };
-          localStorage.setItem('sayeban_daily_health', JSON.stringify(updated));
-          return updated;
-        });
+      } catch (err) {
+        console.error('Error loading data', err);
+      } finally {
+        setIsHealthDataLoaded(true);
       }
-    } catch (err) {
-      console.error('Error loading data', err);
-    } finally {
-      setIsHealthDataLoaded(true);
-    }
     }
     loadData();
   }, [userName]);
@@ -349,7 +389,7 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
     const prev = lastSavedTasksRef.current;
     lastSavedTasksRef.current = data;
     setTasks(data);
-    localStorage.setItem('sayeban_tasks', JSON.stringify(data));
+    localStorage.setItem("sayeban_tasks", JSON.stringify(data));
     const pm = new Map(prev.map((t) => [t.id, t]));
     const nm = new Map(data.map((t) => [t.id, t]));
     for (const id of pm.keys()) {
@@ -357,45 +397,72 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
     }
     for (const [id, t] of nm.entries()) {
       if (!pm.has(id)) dbAddTask(t).catch(console.error);
-      else if (JSON.stringify(t) !== JSON.stringify(pm.get(id))) scheduleTaskUpdate(id, t);
+      else if (JSON.stringify(t) !== JSON.stringify(pm.get(id)))
+        scheduleTaskUpdate(id, t);
     }
   }, []);
 
   const saveDailyHealth = useCallback(
-    (dateISO: string, data: Partial<{ waterToday: number; sleepHours: number; sleepQuality: any; moodScore: number; weight: number }>) => {
+    (
+      dateISO: string,
+      data: Partial<{
+        waterToday: number | null;
+        sleepHours: number | null; // اضافه شدن null
+        sleepQuality: any;
+        moodScore: number;
+        weight: number;
+      }>,
+    ) => {
       setDailyHealthData((prev) => {
         const existing = prev[dateISO] || {
-          waterToday: 0,
-          sleepHours: 7,
-          sleepQuality: 'good',
+          waterToday: null,
+          sleepHours: null,
+          sleepQuality: "good",
           moodScore: 3,
           weight: userWeight,
         };
         const updatedDaily = { ...existing, ...data };
         const newData = { ...prev, [dateISO]: updatedDaily };
-        localStorage.setItem('sayeban_daily_health', JSON.stringify(newData));
+        localStorage.setItem("sayeban_daily_health", JSON.stringify(newData));
         return newData;
       });
-      saveHealthLog(dateISO, data).catch(console.error);
+
+      scheduleHealthUpdate(dateISO, data);
     },
-    [userWeight]
+    [userWeight],
   );
 
   const saveHealthToLocal = useCallback(
     (data: HealthMetrics) => {
-      const safeWater = Math.max(0, Math.min(4000, Number(data.waterToday) || 0));
-      const validatedData = { ...data, waterToday: safeWater };
+      // حفظ دقیق null در صورت ثبت‌نشدن
+      const safeWater =
+        data.waterToday === null || data.waterToday === undefined
+          ? null
+          : Math.max(0, Math.min(14, Number(data.waterToday) || 0));
+
+      const safeSleep =
+        data.sleepHours === null || data.sleepHours === undefined
+          ? null
+          : Number(data.sleepHours);
+
+      const validatedData: HealthMetrics = {
+        ...data,
+        waterToday: safeWater,
+        sleepHours: safeSleep,
+      };
+
       saveDailyHealth(selectedDateISO, {
         waterToday: validatedData.waterToday,
         sleepHours: validatedData.sleepHours,
         sleepQuality: validatedData.sleepQuality,
         moodScore: validatedData.moodScore,
       });
+
       setGlobalHealth(validatedData);
-      localStorage.setItem('sayeban_health', JSON.stringify(validatedData));
+      localStorage.setItem("sayeban_health", JSON.stringify(validatedData));
       localStorage.removeItem(`sayeban_daily_ai_tip_${selectedDateISO}`);
     },
-    [selectedDateISO, saveDailyHealth]
+    [selectedDateISO, saveDailyHealth],
   );
 
   const saveHabitsToLocal = useCallback((data: Habit[]) => {
@@ -429,8 +496,10 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
   }, []);
 
   const saveUserHeight = useCallback((h: number) => {
-    setUserHeight(h);
-    localStorage.setItem('sayeban_user_height', String(h));
+    const cleanHeight = Math.max(0, Math.min(250, Math.round(h)));
+    setUserHeight(cleanHeight);
+    localStorage.setItem("sayeban_user_height", String(cleanHeight));
+    updateProfile({ heightCm: cleanHeight }).catch(console.error);
   }, []);
 
   const saveUserWeight = useCallback(
@@ -464,11 +533,12 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
   const isSelectedDatePast = Boolean(selectedDateISO && todayISO && selectedDateISO < todayISO);
   const isSelectedDateFuture = Boolean(selectedDateISO && todayISO && selectedDateISO > todayISO);
 
-  const activeDailyHealth = dailyHealthData[selectedDateISO] || {
-    waterToday: 0,
-    sleepHours: 0,
-    sleepQuality: 'fair',
-    moodScore: 3,
+  const activeRecord = dailyHealthData[selectedDateISO];
+  const activeDailyHealth = {
+    waterToday: activeRecord?.waterToday !== undefined ? activeRecord.waterToday : null,
+    sleepHours: activeRecord?.sleepHours !== undefined ? activeRecord.sleepHours : null,
+    sleepQuality: activeRecord?.sleepQuality || 'fair',
+    moodScore: activeRecord?.moodScore || 3,
   };
   const health: HealthMetrics = { ...globalHealth, ...activeDailyHealth };
 
@@ -559,11 +629,12 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
         showToast('امکان ثبت مصرف آب برای روزهای گذشته یا آینده وجود ندارد.', 'error');
         return;
       }
-      const currentWater = Math.max(0, Number(health.waterToday) || 0);
+
+      const currentWater = health.waterToday === null ? 0 : health.waterToday;
 
       if (amount < 0) {
-        if (currentWater <= 0) {
-          showToast('تعداد لیوان آب صفر است و نمی‌تواند کمتر شود.', 'info');
+        if (health.waterToday === null || currentWater <= 0) {
+          showToast('میزان آب ثبت‌نشده یا صفر است و نمی‌تواند کمتر شود.', 'info');
           return;
         }
         const nextWater = Math.max(0, currentWater + amount);
@@ -607,13 +678,13 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
   );
 
   const toggleCalendarType = useCallback(() => {
-  setUseJalaliCalendar((prev) => {
-    const next = !prev;
-    const value = next ? 'jalali' : 'gregorian';
-    updateProfile({ calendarType: value }); // فقط نام دقیق فیلد اسکیما ارسال شود
-    return next;
-  });
-}, []);
+    setUseJalaliCalendar((prev) => {
+      const next = !prev;
+      const value = next ? 'jalali' : 'gregorian';
+      updateProfile({ calendarType: value }); // فقط نام دقیق فیلد اسکیما ارسال شود
+      return next;
+    });
+  }, []);
 
   return {
     todayISO,

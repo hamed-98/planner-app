@@ -138,18 +138,19 @@ export default function HealthView({
             خانه تندرستی و ردیابی ارگانیک
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-md">
-            شاخص‌های زیستی، زنجیره‌های عادات، مکمل‌ها، توده بدنی و خواب خود را مانیتور کنید.
+            شاخص‌های زیستی، زنجیره‌های عادات، مکمل‌ها، توده بدنی و خواب خود را
+            مانیتور کنید.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-1 bg-slate-50 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-700/50 w-full lg:w-auto lg:flex-nowrap">
           <button
             type="button"
-            onClick={() => setActiveSubTab('habits_meds')}
+            onClick={() => setActiveSubTab("habits_meds")}
             className={`flex-1 sm:flex-none px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeSubTab === 'habits_meds'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              activeSubTab === "habits_meds"
+                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
             <Heart className="w-4 h-4 flex-shrink-0 text-rose-500" />
@@ -158,11 +159,11 @@ export default function HealthView({
 
           <button
             type="button"
-            onClick={() => setActiveSubTab('water_sleep')}
+            onClick={() => setActiveSubTab("water_sleep")}
             className={`flex-1 sm:flex-none px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeSubTab === 'water_sleep'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              activeSubTab === "water_sleep"
+                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
             <Droplets className="w-4 h-4 flex-shrink-0 text-teal-500" />
@@ -171,11 +172,11 @@ export default function HealthView({
 
           <button
             type="button"
-            onClick={() => setActiveSubTab('bmi')}
+            onClick={() => setActiveSubTab("bmi")}
             className={`flex-1 sm:flex-none px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeSubTab === 'bmi'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              activeSubTab === "bmi"
+                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
             <Weight className="w-4 h-4 flex-shrink-0 text-indigo-500" />
@@ -184,11 +185,11 @@ export default function HealthView({
 
           <button
             type="button"
-            onClick={() => setActiveSubTab('mood')}
+            onClick={() => setActiveSubTab("mood")}
             className={`flex-1 sm:flex-none px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeSubTab === 'mood'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              activeSubTab === "mood"
+                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
             <Smile className="w-4 h-4 flex-shrink-0 text-amber-500" />
@@ -198,7 +199,7 @@ export default function HealthView({
       </div>
 
       {/* زیرتب ۱: عادات و مکمل‌ها */}
-      {activeSubTab === 'habits_meds' && (
+      {activeSubTab === "habits_meds" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* بخش عادات */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
@@ -254,7 +255,9 @@ export default function HealthView({
                       <div className="space-y-1">
                         <h4
                           className={`font-bold text-xs text-slate-800 dark:text-slate-200 ${
-                            isHabitCompleted(hbt) ? 'line-through text-slate-400' : ''
+                            isHabitCompleted(hbt)
+                              ? "line-through text-slate-400"
+                              : ""
                           }`}
                         >
                           {hbt.name}
@@ -271,11 +274,11 @@ export default function HealthView({
                           onClick={() => toggleHabit(hbt.id)}
                           className={`text-xs font-medium px-3 py-1.5 rounded-xl cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
                             isHabitCompleted(hbt)
-                              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold'
-                              : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300'
+                              ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300"
                           }`}
                         >
-                          {isHabitCompleted(hbt) ? 'کامل شد ✓' : 'تکمیل امروز'}
+                          {isHabitCompleted(hbt) ? "کامل شد ✓" : "تکمیل امروز"}
                         </button>
 
                         <button
@@ -302,7 +305,8 @@ export default function HealthView({
                 <span>یادآور مصرف مکمل و داروها</span>
               </h3>
               <span className="text-[10px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded font-bold">
-                {medicines.filter((m) => isMedicineCompleted(m)).length} مصرف‌شده
+                {medicines.filter((m) => isMedicineCompleted(m)).length}{" "}
+                مصرف‌شده
               </span>
             </div>
 
@@ -367,7 +371,9 @@ export default function HealthView({
                       <div className="space-y-1">
                         <h4
                           className={`font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-2 ${
-                            isMedicineCompleted(med) ? 'text-slate-400 line-through' : ''
+                            isMedicineCompleted(med)
+                              ? "text-slate-400 line-through"
+                              : ""
                           }`}
                         >
                           <span>{med.name}</span>
@@ -375,7 +381,9 @@ export default function HealthView({
                             {med.time}
                           </span>
                         </h4>
-                        <p className="text-[10px] text-slate-400">{med.dosage}</p>
+                        <p className="text-[10px] text-slate-400">
+                          {med.dosage}
+                        </p>
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -385,11 +393,13 @@ export default function HealthView({
                           onClick={() => toggleMedicine(med.id)}
                           className={`px-3 py-1.5 text-xs rounded-xl font-bold cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                             isMedicineCompleted(med)
-                              ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800 line-through'
-                              : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                              ? "bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800 line-through"
+                              : "bg-indigo-600 text-white hover:bg-indigo-700"
                           }`}
                         >
-                          {isMedicineCompleted(med) ? 'مصرف شد ✓' : 'تأیید مصرف'}
+                          {isMedicineCompleted(med)
+                            ? "مصرف شد ✓"
+                            : "تأیید مصرف"}
                         </button>
 
                         <button
@@ -411,7 +421,7 @@ export default function HealthView({
       )}
 
       {/* زیرتب ۲: پایش آب و خواب */}
-      {activeSubTab === 'water_sleep' && (
+      {activeSubTab === "water_sleep" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* پایش مصرف آب */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
@@ -427,20 +437,41 @@ export default function HealthView({
 
             <div className="flex items-center justify-between bg-teal-50/20 dark:bg-teal-950/20 p-5 rounded-2xl border border-teal-100/50 dark:border-teal-900/50">
               <div className="space-y-1">
-                <span className="text-[10px] text-slate-400 block font-bold">مصرف شده تا این لحظه:</span>
-                <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-mono">
-                  {health.waterToday} از ۸
+                <span className="text-[10px] text-slate-400 block font-bold">
+                  مصرف شده تا این لحظه:
                 </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 block">لیوان آب</span>
+                {health.waterToday === null ? (
+                  <span className="text-2xl font-bold text-slate-400 dark:text-slate-500 block py-0.5">
+                    ثبت‌نشده
+                  </span>
+                ) : (
+                  <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-mono">
+                    {health.waterToday} از ۸
+                  </span>
+                )}
+                <span className="text-xs text-slate-500 dark:text-slate-400 block">
+                  لیوان آب
+                </span>
               </div>
 
               {/* دایره پیشرفت آب */}
+              {/* دایره پیشرفت آب در HealthView.tsx */}
               <div className="relative w-16 h-16 flex items-center justify-center">
                 <span className="font-extrabold text-xs text-teal-600 dark:text-teal-400">
-                  {Math.min(100, Math.round((health.waterToday / 8) * 100))}%
+                  {health.waterToday === null
+                    ? "۰٪"
+                    : `${Math.min(100, Math.round((health.waterToday / 8) * 100))}%`}
                 </span>
                 <svg className="absolute inset-0 w-full h-full -rotate-90">
-                  <circle cx="32" cy="32" r="28" fill="none" stroke="#e2e8f0" strokeWidth="4" className="dark:stroke-slate-800" />
+                  <circle
+                    cx="32"
+                    cy="32"
+                    r="28"
+                    fill="none"
+                    stroke="#e2e8f0"
+                    strokeWidth="4"
+                    className="dark:stroke-slate-800"
+                  />
                   <circle
                     cx="32"
                     cy="32"
@@ -449,7 +480,14 @@ export default function HealthView({
                     stroke="#0d9488"
                     strokeWidth="4"
                     strokeDasharray="176"
-                    strokeDashoffset={Math.max(0, 176 - (176 * Math.min(health.waterToday, 8)) / 8)}
+                    strokeDashoffset={
+                      health.waterToday === null
+                        ? 176
+                        : Math.max(
+                            0,
+                            176 - (176 * Math.min(health.waterToday, 8)) / 8,
+                          )
+                    }
                     className="transition-all duration-500"
                   />
                 </svg>
@@ -469,7 +507,11 @@ export default function HealthView({
 
               <button
                 type="button"
-                disabled={isSelectedDatePast || isSelectedDateFuture || (health.waterToday || 0) <= 0}
+                disabled={
+                  isSelectedDatePast ||
+                  isSelectedDateFuture ||
+                  (health.waterToday || 0) <= 0
+                }
                 onClick={() => onAddWater(-1)}
                 className="py-2.5 bg-slate-50 dark:bg-slate-950 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-slate-500 hover:text-rose-600 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-0.5"
               >
@@ -494,7 +536,9 @@ export default function HealthView({
 
             <div className="space-y-4">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500 dark:text-slate-400 font-bold">ساعات استراحت شب گذشته:</span>
+                <span className="text-slate-500 dark:text-slate-400 font-bold">
+                  ساعات استراحت شب گذشته:
+                </span>
                 <span className="font-bold text-indigo-600 dark:text-indigo-400 font-mono text-sm">
                   {health.sleepHours} ساعت
                 </span>
@@ -506,18 +550,30 @@ export default function HealthView({
                 max="14"
                 step="0.5"
                 disabled={isSelectedDatePast || isSelectedDateFuture}
-                value={health.sleepHours}
-                onChange={(e) => onSaveHealth({ ...health, sleepHours: Number(e.target.value) })}
+                value={health.sleepHours ?? 7}
+                onChange={(e) =>
+                  onSaveHealth({
+                    ...health,
+                    sleepHours: Number(e.target.value),
+                  })
+                }
                 className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-40"
               />
 
               <div className="grid grid-cols-2 gap-3 text-xs pt-2">
                 <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-slate-450 uppercase">کیفیت عمومی خواب:</label>
+                  <label className="block text-[10px] font-bold text-slate-450 uppercase">
+                    کیفیت عمومی خواب:
+                  </label>
                   <select
                     disabled={isSelectedDatePast || isSelectedDateFuture}
                     value={health.sleepQuality}
-                    onChange={(e) => onSaveHealth({ ...health, sleepQuality: e.target.value as any })}
+                    onChange={(e) =>
+                      onSaveHealth({
+                        ...health,
+                        sleepQuality: e.target.value as any,
+                      })
+                    }
                     className="w-full bg-slate-50 dark:bg-slate-950 rounded-xl p-2.5 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium text-xs cursor-pointer disabled:opacity-40"
                   >
                     <option value="excellent">🏆 بسیار عالی و عمیق</option>
@@ -528,15 +584,17 @@ export default function HealthView({
                 </div>
 
                 <div className="flex flex-col justify-center items-center bg-indigo-50/40 dark:bg-indigo-950/20 p-3 rounded-2xl text-center border border-indigo-100/50 dark:border-indigo-900/50">
-                  <span className="text-[9px] text-slate-400 block font-bold mb-1">بازسازی بیولوژیک سلولی:</span>
+                  <span className="text-[9px] text-slate-400 block font-bold mb-1">
+                    بازسازی بیولوژیک سلولی:
+                  </span>
                   <span className="font-bold text-xs text-indigo-700 dark:text-indigo-300">
-                    {health.sleepQuality === 'excellent'
-                      ? '۱۰۰٪ (ایده‌آل)'
-                      : health.sleepQuality === 'good'
-                      ? '۸۵٪ (بسیار خوب)'
-                      : health.sleepQuality === 'fair'
-                      ? '۶۰٪ (متوسط)'
-                      : '۳۵٪ (نیازمند استراحت)'}
+                    {health.sleepQuality === "excellent"
+                      ? "۱۰۰٪ (ایده‌آل)"
+                      : health.sleepQuality === "good"
+                        ? "۸۵٪ (بسیار خوب)"
+                        : health.sleepQuality === "fair"
+                          ? "۶۰٪ (متوسط)"
+                          : "۳۵٪ (نیازمند استراحت)"}
                   </span>
                 </div>
               </div>
@@ -546,7 +604,7 @@ export default function HealthView({
       )}
 
       {/* زیرتب ۳: شاخص توده بدنی (BMI) */}
-      {activeSubTab === 'bmi' && (
+      {activeSubTab === "bmi" && (
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-6">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
             <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -558,7 +616,8 @@ export default function HealthView({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div className="space-y-4">
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                با ثبت منظم وزن و قد، نسبت ترکیب بدنی خود را تحلیل و بهینه‌سازی کنید.
+                با ثبت منظم وزن و قد، نسبت ترکیب بدنی خود را تحلیل و بهینه‌سازی
+                کنید.
               </p>
 
               <div className="grid grid-cols-2 gap-4">
@@ -601,14 +660,18 @@ export default function HealthView({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => onSaveUserWeight(Number((userWeight - 0.5).toFixed(1)))}
+                  onClick={() =>
+                    onSaveUserWeight(Number((userWeight - 0.5).toFixed(1)))
+                  }
                   className="text-xs font-bold px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer"
                 >
                   -۰.۵ کیلوگرم
                 </button>
                 <button
                   type="button"
-                  onClick={() => onSaveUserWeight(Number((userWeight + 0.5).toFixed(1)))}
+                  onClick={() =>
+                    onSaveUserWeight(Number((userWeight + 0.5).toFixed(1)))
+                  }
                   className="text-xs font-bold px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer"
                 >
                   +۰.۵ کیلوگرم
@@ -620,39 +683,55 @@ export default function HealthView({
             {userHeight > 0 && userWeight > 0 ? (
               (() => {
                 const heightInMeters = userHeight / 100;
-                const bmi = Number((userWeight / (heightInMeters * heightInMeters)).toFixed(1)) || 0;
-                let bmiState = 'نرمال';
-                let bmiColor = 'text-emerald-600 dark:text-emerald-400';
-                let bmiBg = 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800';
-                let scaleOffset = '45%';
+                const bmi =
+                  Number(
+                    (userWeight / (heightInMeters * heightInMeters)).toFixed(1),
+                  ) || 0;
+                let bmiState = "نرمال";
+                let bmiColor = "text-emerald-600 dark:text-emerald-400";
+                let bmiBg =
+                  "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800";
+                let scaleOffset = "45%";
 
                 if (bmi < 18.5) {
-                  bmiState = 'کمبود وزن بدنی';
-                  bmiColor = 'text-amber-600 dark:text-amber-400';
-                  bmiBg = 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800';
-                  scaleOffset = '22%';
+                  bmiState = "کمبود وزن بدنی";
+                  bmiColor = "text-amber-600 dark:text-amber-400";
+                  bmiBg =
+                    "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800";
+                  scaleOffset = "22%";
                 } else if (bmi >= 18.5 && bmi < 25) {
-                  bmiState = 'تناسب وزن ایده‌آل و نرمال';
-                  bmiColor = 'text-emerald-600 dark:text-emerald-400';
-                  bmiBg = 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800';
-                  scaleOffset = '45%';
+                  bmiState = "تناسب وزن ایده‌آل و نرمال";
+                  bmiColor = "text-emerald-600 dark:text-emerald-400";
+                  bmiBg =
+                    "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800";
+                  scaleOffset = "45%";
                 } else if (bmi >= 25 && bmi < 30) {
-                  bmiState = 'اضافه‌وزن نسبی';
-                  bmiColor = 'text-orange-600 dark:text-orange-400';
-                  bmiBg = 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800';
-                  scaleOffset = '68%';
+                  bmiState = "اضافه‌وزن نسبی";
+                  bmiColor = "text-orange-600 dark:text-orange-400";
+                  bmiBg =
+                    "bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800";
+                  scaleOffset = "68%";
                 } else {
-                  bmiState = 'چاقی و تجمع بیش‌ازحد چربی';
-                  bmiColor = 'text-rose-600 dark:text-rose-400';
-                  bmiBg = 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800';
-                  scaleOffset = '88%';
+                  bmiState = "چاقی و تجمع بیش‌ازحد چربی";
+                  bmiColor = "text-rose-600 dark:text-rose-400";
+                  bmiBg =
+                    "bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800";
+                  scaleOffset = "88%";
                 }
 
                 return (
-                  <div className={`p-6 rounded-2xl border ${bmiBg} text-right space-y-4`}>
+                  <div
+                    className={`p-6 rounded-2xl border ${bmiBg} text-right space-y-4`}
+                  >
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">شاخص بیولوژیکی (BMI):</span>
-                      <span className={`text-2xl font-black font-mono leading-none ${bmiColor}`}>{bmi}</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">
+                        شاخص بیولوژیکی (BMI):
+                      </span>
+                      <span
+                        className={`text-2xl font-black font-mono leading-none ${bmiColor}`}
+                      >
+                        {bmi}
+                      </span>
                     </div>
 
                     <div className="text-xs font-bold text-slate-750 dark:text-slate-200 leading-relaxed">
@@ -683,9 +762,12 @@ export default function HealthView({
             ) : (
               <div className="p-8 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-2">
                 <Weight className="w-8 h-8 text-slate-400 mx-auto opacity-50" />
-                <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300">قد و وزن هنوز ثبت نشده است</h4>
+                <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                  قد و وزن هنوز ثبت نشده است
+                </h4>
                 <p className="text-[10px] text-slate-400 leading-relaxed max-w-xs mx-auto">
-                  لطفاً مقادیر قد و وزن خود را از کادرهای کناری وارد کنید تا نمودار شاخص توده بدنی برای شما فعال گردد.
+                  لطفاً مقادیر قد و وزن خود را از کادرهای کناری وارد کنید تا
+                  نمودار شاخص توده بدنی برای شما فعال گردد.
                 </p>
               </div>
             )}
@@ -694,7 +776,7 @@ export default function HealthView({
       )}
 
       {/* زیرتب ۴: پایش خلق‌وخو و سوابق نوسان احساسی */}
-      {activeSubTab === 'mood' && (
+      {activeSubTab === "mood" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* ثبت خلق‌وخوی روز */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
@@ -707,17 +789,18 @@ export default function HealthView({
 
             <div className="space-y-4">
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                سطح انگیزه و حال روحی امروزتان را لمس کنید تا در نمودار ثبت گردد:
+                سطح انگیزه و حال روحی امروزتان را لمس کنید تا در نمودار ثبت
+                گردد:
               </p>
 
               <div className="flex justify-around items-center py-3 border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 rounded-2xl">
                 {(
                   [
-                    { score: 5, label: 'بمب انگیزه', emoji: '🚀' },
-                    { score: 4, label: 'شاداب', emoji: '😊' },
-                    { score: 3, label: 'معمولی', emoji: '😐' },
-                    { score: 2, label: 'خسته/بی‌ذوق', emoji: '😞' },
-                    { score: 1, label: 'عصبی/بحرانی', emoji: '😠' },
+                    { score: 5, label: "بمب انگیزه", emoji: "🚀" },
+                    { score: 4, label: "شاداب", emoji: "😊" },
+                    { score: 3, label: "معمولی", emoji: "😐" },
+                    { score: 2, label: "خسته/بی‌ذوق", emoji: "😞" },
+                    { score: 1, label: "عصبی/بحرانی", emoji: "😠" },
                   ] as const
                 ).map((item) => (
                   <button
@@ -727,8 +810,8 @@ export default function HealthView({
                     onClick={() => onSelectMood(item.score, item.label)}
                     className={`flex flex-col items-center p-2 rounded-xl transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       health.moodScore === item.score
-                        ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 scale-105 font-bold'
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400'
+                        ? "bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 scale-105 font-bold"
+                        : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400"
                     }`}
                   >
                     <span className="text-2xl mb-1">{item.emoji}</span>
@@ -749,54 +832,64 @@ export default function HealthView({
             </div>
 
             <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-              {
-              moodLogs.length === 0 ? (
+              {moodLogs.length === 0 ? (
                 <div className="text-center py-8 text-slate-400 text-xs italic">
                   هنوز وضعیت روحی برای شما ثبت نشده است.
                 </div>
-              ) :
-              (
-              moodLogs
-                .slice()
-                .reverse()
-                .map((log, i) => {
-                  const dateText = !log.date
-                    ? ''
-                    : useJalaliCalendar
-                    ? getJalaliDate(log.date)
-                    : log.date;
+              ) : (
+                moodLogs
+                  .slice()
+                  .reverse()
+                  .map((log, i) => {
+                    const dateText = !log.date
+                      ? ""
+                      : useJalaliCalendar
+                        ? getJalaliDate(log.date)
+                        : log.date;
 
-                  let moodEmoji = '😐';
-                  let moodStyle = 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800';
+                    let moodEmoji = "😐";
+                    let moodStyle =
+                      "text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800";
 
-                  if (log.mood === 5) {
-                    moodEmoji = '🚀 بمب انگیزه';
-                    moodStyle = 'text-pink-600 bg-pink-50 dark:bg-pink-950/50 font-bold';
-                  } else if (log.mood === 4) {
-                    moodEmoji = '😊 خندان و پر انرژی';
-                    moodStyle = 'text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 font-bold';
-                  } else if (log.mood === 3) {
-                    moodEmoji = '😐 معمولی و آرام';
-                    moodStyle = 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950';
-                  } else if (log.mood === 2) {
-                    moodEmoji = '😞 کمی خسته';
-                    moodStyle = 'text-amber-600 bg-amber-50 dark:bg-amber-950/50';
-                  } else if (log.mood === 1) {
-                    moodEmoji = '😠 دغدغه‌مند/بحرانی';
-                    moodStyle = 'text-rose-600 bg-rose-50 dark:bg-rose-950/50';
-                  }
+                    if (log.mood === 5) {
+                      moodEmoji = "🚀 بمب انگیزه";
+                      moodStyle =
+                        "text-pink-600 bg-pink-50 dark:bg-pink-950/50 font-bold";
+                    } else if (log.mood === 4) {
+                      moodEmoji = "😊 خندان و پر انرژی";
+                      moodStyle =
+                        "text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 font-bold";
+                    } else if (log.mood === 3) {
+                      moodEmoji = "😐 معمولی و آرام";
+                      moodStyle =
+                        "text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950";
+                    } else if (log.mood === 2) {
+                      moodEmoji = "😞 کمی خسته";
+                      moodStyle =
+                        "text-amber-600 bg-amber-50 dark:bg-amber-950/50";
+                    } else if (log.mood === 1) {
+                      moodEmoji = "😠 دغدغه‌مند/بحرانی";
+                      moodStyle =
+                        "text-rose-600 bg-rose-50 dark:bg-rose-950/50";
+                    }
 
-                  return (
-                    <div
-                      key={i}
-                      className="flex justify-between items-center text-xs p-2.5 bg-slate-50 dark:bg-slate-950/50 hover:bg-slate-100 dark:hover:bg-slate-800/50 rounded-xl transition-all border border-transparent hover:border-slate-100 dark:border-slate-800"
-                    >
-                      <span className="text-slate-500 dark:text-slate-400 font-bold">{dateText}</span>
-                      <span className={`text-[10px] px-2.5 py-1 rounded-lg ${moodStyle}`}>{moodEmoji}</span>
-                    </div>
-                  );
-                })
-                )}
+                    return (
+                      <div
+                        key={i}
+                        className="flex justify-between items-center text-xs p-2.5 bg-slate-50 dark:bg-slate-950/50 hover:bg-slate-100 dark:hover:bg-slate-800/50 rounded-xl transition-all border border-transparent hover:border-slate-100 dark:border-slate-800"
+                      >
+                        <span className="text-slate-500 dark:text-slate-400 font-bold">
+                          {dateText}
+                        </span>
+                        <span
+                          className={`text-[10px] px-2.5 py-1 rounded-lg ${moodStyle}`}
+                        >
+                          {moodEmoji}
+                        </span>
+                      </div>
+                    );
+                  })
+              )}
             </div>
           </div>
         </div>
