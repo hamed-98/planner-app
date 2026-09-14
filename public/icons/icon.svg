@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14b8a6" />
+      <stop offset="50%" stop-color="#0d9488" />
+      <stop offset="100%" stop-color="#0f766e" />
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#ccfbf1" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#042f2e" flood-opacity="0.35" />
+    </filter>
+  </defs>
+  
+  <!-- Squircle Background -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  
+  <!-- Canopy / Umbrella Arc and Symbol -->
+  <g filter="url(#shadow)" fill="none" stroke="url(#glowGrad)" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Canopy Roof -->
+    <path d="M 120 270 C 120 160, 392 160, 392 270 C 340 250, 310 250, 256 262 C 202 250, 172 250, 120 270 Z" fill="url(#glowGrad)" stroke-width="4" />
+    
+    <!-- Canopy Stem and Hook -->
+    <path d="M 256 262 L 256 360 C 256 385, 230 385, 220 375" stroke="#ffffff" stroke-width="20" />
+    
+    <!-- Top Finial -->
+    <path d="M 256 160 L 256 135" stroke="#ffffff" stroke-width="16" />
+    
+    <!-- Central Mind / Core Sparkle -->
+    <circle cx="256" cy="215" r="14" fill="#0d9488" stroke="#ffffff" stroke-width="8" />
+  </g>
+</svg>
