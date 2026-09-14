@@ -267,8 +267,7 @@ export async function POST(req: NextRequest) {
 - تاریخ امروز سیستم: ${clientToday}
 - فردا: ${clientTomorrow}
 - پس‌فردا: ${clientDayAfter}
-- وضعیت خواب دیشب: ${userData?.sleepHours !== null && userData?.sleepHours !== undefined ? `${userData.sleepHours} ساعت (کیفیت: ${userData.sleepQuality || "خوب"})` : "هنوز ثبت نشده"}
-- وضعیت مصرف آب امروز: ${userData?.waterToday !== null && userData?.waterToday !== undefined ? `${userData.waterToday} لیوان از هدف ۸ لیوان` : "هنوز ثبت نشده"}
+- وضعیت خواب دیشب: ${Number(userData?.sleepHours) > 0 ? `${userData.sleepHours} ساعت (کیفیت: ${userData.sleepQuality || "معمولی"})` : "هنوز ثبت نشده"}- وضعیت مصرف آب امروز: ${userData?.waterToday !== null && userData?.waterToday !== undefined ? `${userData.waterToday} لیوان از هدف ۸ لیوان` : "هنوز ثبت نشده"}
 - خلق‌وخو: ${userData?.moodScore ? `${userData.moodScore} از ۵` : "هنوز ثبت نشده"}
 - کارهای مانده امروز: ${userData?.pendingTasksToday || 0} مورد
 - رویدادهای تقویم امروز: ${userData?.eventsToday || 0} مورد

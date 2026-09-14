@@ -78,6 +78,30 @@ export default function AssistantView({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const [isLoadingThreads, setIsLoadingThreads] = useState(true);
+
+  useEffect(() => {
+    async function initThreads() {
+      setIsLoadingThreads(true);
+      try {
+        const threads = await getConversations();
+        setConversations(threads);
+        if (threads.length > 0) {
+          setActiveConvId(threads[0].id);
+        } else {
+          const fresh = await createConversation('گفتگوی جدید');
+          if (fresh) {
+            setConversations([fresh]);
+            setActiveConvId(fresh.id);
+          }
+        }
+      } finally {
+        setIsLoadingThreads(false);
+      }
+    }
+    initThreads();
+  }, []);
+
   useEffect(() => {
     async function initThreads() {
       const threads = await getConversations();
@@ -449,9 +473,10 @@ export default function AssistantView({
       {/* چیدمان اصلی */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6 min-h-[580px] relative">
         {/* ستون سایدبار (در دسکتاپ ثابت، در موبایل کشویی) */}
+        {/* ستون سایدبار بهینه‌شده و کم‌ارتفاع */}
         <div
           className={`
-          lg:col-span-1 space-y-4
+          lg:col-span-1 space-y-2.5
           ${isMobileSidebarOpen ? "fixed inset-0 z-40 bg-slate-950/80 p-4 flex flex-col justify-center overflow-y-auto" : "hidden lg:block"}
         `}
         >
@@ -466,102 +491,113 @@ export default function AssistantView({
 
           <button
             onClick={handleNewConversation}
-            className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-teal-600/20 cursor-pointer transition-all"
+            className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm shadow-teal-600/20 cursor-pointer transition-all"
           >
             <Plus className="w-4 h-4" />
             <span>گفتگوی جدید</span>
           </button>
 
-          {/* لیست سوابق */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-3 shadow-sm space-y-1.5 max-h-60 overflow-y-auto">
-            <span className="text-[10px] font-black text-slate-400 block px-2 mb-1 uppercase tracking-wider">
+          {/* لیست سوابق با اسکلت لودینگ */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-2.5 shadow-sm space-y-1 max-h-36 overflow-y-auto">
+            <span className="text-[10px] font-black text-slate-400 block px-1.5 mb-1 uppercase tracking-wider">
               سوابق جلسات چت
             </span>
-            {conversations.map((conv) => (
-              <div
-                key={conv.id}
-                onClick={() => {
-                  if (editingConvId !== conv.id) {
-                    setIsAiResponding(false);
-                    setActiveConvId(conv.id);
-                    setIsMobileSidebarOpen(false);
-                  }
-                }}
-                className={`flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer group ${
-                  activeConvId === conv.id
-                    ? "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                }`}
-              >
-                {editingConvId === conv.id ? (
-                  <div
-                    className="flex items-center gap-1 w-full"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <input
-                      type="text"
-                      autoFocus
-                      value={editTitleText}
-                      onChange={(e) => setEditTitleText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSaveRename(conv.id);
-                        if (e.key === "Escape") setEditingConvId(null);
-                      }}
-                      className="flex-1 bg-white dark:bg-slate-800 text-xs p-1 rounded border border-teal-500 text-slate-800 dark:text-slate-200"
-                    />
-                    <button
-                      onClick={() => handleSaveRename(conv.id)}
-                      className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setEditingConvId(null)}
-                      className="p-1 text-rose-500 hover:bg-rose-50 rounded"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 truncate">
-                      <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-60" />
-                      <span className="truncate">{conv.title}</span>
-                    </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingConvId(conv.id);
-                          setEditTitleText(conv.title);
-                        }}
-                        className="p-1 hover:text-teal-600"
-                        title="تغییر نام"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setConvToDelete(conv.id);
-                        }}
-                        className="p-1 hover:text-rose-500"
-                        title="حذف"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </>
-                )}
+
+            {isLoadingThreads ? (
+              <div className="space-y-1.5 p-1">
+                <div className="h-7 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
+                <div className="h-7 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse opacity-60" />
+                <div className="h-7 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse opacity-30" />
               </div>
-            ))}
+            ) : conversations.length === 0 ? (
+              <p className="text-[10px] text-slate-400 text-center py-2">گفتگویی یافت نشد</p>
+            ) : (
+              conversations.map((conv) => (
+                <div
+                  key={conv.id}
+                  onClick={() => {
+                    if (editingConvId !== conv.id) {
+                      setIsAiResponding(false);
+                      setActiveConvId(conv.id);
+                      setIsMobileSidebarOpen(false);
+                    }
+                  }}
+                  className={`flex items-center justify-between p-2 rounded-xl text-xs font-bold transition-all cursor-pointer group ${
+                    activeConvId === conv.id
+                      ? "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60"
+                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  }`}
+                >
+                  {editingConvId === conv.id ? (
+                    <div
+                      className="flex items-center gap-1 w-full"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="text"
+                        autoFocus
+                        value={editTitleText}
+                        onChange={(e) => setEditTitleText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveRename(conv.id);
+                          if (e.key === "Escape") setEditingConvId(null);
+                        }}
+                        className="flex-1 bg-white dark:bg-slate-800 text-xs p-1 rounded border border-teal-500 text-slate-800 dark:text-slate-200"
+                      />
+                      <button
+                        onClick={() => handleSaveRename(conv.id)}
+                        className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setEditingConvId(null)}
+                        className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-60" />
+                        <span className="truncate text-[11px]">{conv.title}</span>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingConvId(conv.id);
+                            setEditTitleText(conv.title);
+                          }}
+                          className="p-1 hover:text-teal-600"
+                          title="تغییر نام"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConvToDelete(conv.id);
+                          }}
+                          className="p-1 hover:text-rose-500"
+                          title="حذف"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))
+            )}
           </div>
 
-          {/* کانتکست زنده داده‌ها و باشگاه مغز */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 shadow-sm space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <Activity className="w-4 h-4 text-teal-600" />
+          {/* کانتکست زنده داده‌ها (چیدمان فشرده ۲ ستونه) */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-3 shadow-sm space-y-2">
+            <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
+              <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-teal-600" />
                 <span>داده‌های دریافتی دستیار</span>
               </span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -571,120 +607,107 @@ export default function AssistantView({
               const bm = userDataContext?.brainMetrics;
 
               const memoryText = typeof bm?.spatialMemory?.score === 'number' && !bm?.spatialMemory?.isCalibrating
-                ? `${bm.spatialMemory.score} از ۱۰۰`
+                ? `${bm.spatialMemory.score}`
                 : bm?.spatialMemory?.isCalibrating
-                  ? "کالیبراسیون"
-                  : (userDataContext?.brainMemory ? `${userDataContext.brainMemory} از ۱۰۰` : "ثبت‌نشده");
+                  ? "کالیبره"
+                  : (userDataContext?.brainMemory ? `${userDataContext.brainMemory}` : "---");
 
               const stroopText = typeof bm?.stroopFlexibility?.score === 'number' && !bm?.stroopFlexibility?.isCalibrating
-                ? `${bm.stroopFlexibility.score} از ۱۰۰`
+                ? `${bm.stroopFlexibility.score}`
                 : bm?.stroopFlexibility?.isCalibrating
-                  ? "کالیبراسیون"
-                  : (userDataContext?.brainFlexibility ? `${userDataContext.brainFlexibility} از ۱۰۰` : "ثبت‌نشده");
+                  ? "کالیبره"
+                  : (userDataContext?.brainFlexibility ? `${userDataContext.brainFlexibility}` : "---");
 
               const mathText = typeof bm?.mathSpeed?.score === 'number' && !bm?.mathSpeed?.isCalibrating
-                ? `${bm.mathSpeed.score} از ۱۰۰`
+                ? `${bm.mathSpeed.score}`
                 : bm?.mathSpeed?.isCalibrating
-                  ? "کالیبراسیون"
-                  : "ثبت‌نشده";
+                  ? "کالیبره"
+                  : "---";
 
               const reactionText = bm?.avgReactionTimeMs
                 ? `${bm.avgReactionTimeMs}ms`
-                : (userDataContext?.brainReaction ? `${userDataContext.brainReaction}ms` : "بدون آزمون");
+                : (userDataContext?.brainReaction ? `${userDataContext.brainReaction}ms` : "---");
 
               const accuracyText = typeof bm?.accuracyRate === 'number'
                 ? `${bm.accuracyRate}٪`
                 : "---";
 
               return (
-                <div className="space-y-2 text-[11px] font-bold">
+                <div className="grid grid-cols-2 gap-x-2.5 gap-y-1.5 text-[10px] font-bold">
                   {/* ردیف خواب */}
-                  {/* خواب دیشب */}
-                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>خواب دیشب:</span>
+                  <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/40 px-2 py-1 rounded-lg">
+                    <span className="text-slate-500">خواب:</span>
                     <span className="text-indigo-600 dark:text-indigo-400 font-mono">
-                      {userDataContext?.sleepHours !== null &&
-                      userDataContext?.sleepHours !== undefined
-                        ? `${userDataContext.sleepHours} ساعت (${userDataContext.sleepQuality === "excellent" ? "عالی" : userDataContext.sleepQuality === "good" ? "خوب" : userDataContext.sleepQuality === "fair" ? "معمولی" : "ضعیف"})`
-                        : "ثبت‌نشده"}
+                      {userDataContext?.sleepHours !== null && userDataContext?.sleepHours !== undefined
+                        ? `${userDataContext.sleepHours}h`
+                        : "---"}
                     </span>
                   </div>
 
                   {/* ردیف آب */}
-                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>آب امروز:</span>
+                  <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/40 px-2 py-1 rounded-lg">
+                    <span className="text-slate-500">آب:</span>
                     <span className="text-teal-600 dark:text-teal-400 font-mono">
-                      {userDataContext?.waterToday !== null &&
-                      userDataContext?.waterToday !== undefined
-                        ? `${userDataContext.waterToday} از ۸ لیوان`
-                        : "ثبت‌نشده"}
+                      {userDataContext?.waterToday !== null && userDataContext?.waterToday !== undefined
+                        ? `${userDataContext.waterToday}/۸`
+                        : "---"}
                     </span>
                   </div>
 
-                  {/* ردیف حافظه کاری */}
-                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>حافظه کاری:</span>
-                    <span className="text-purple-600 dark:text-purple-400 font-mono">
-                      {memoryText}
-                    </span>
+                  {/* ردیف حافظه فضایی */}
+                  <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/40 px-2 py-1 rounded-lg">
+                    <span className="text-slate-500">حافظه:</span>
+                    <span className="text-purple-600 dark:text-purple-400 font-mono">{memoryText}</span>
                   </div>
 
-                  {/* ردیف انعطاف استروپ */}
-                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>انعطاف استروپ:</span>
-                    <span className="text-indigo-600 dark:text-indigo-400 font-mono">
-                      {stroopText}
-                    </span>
+                  {/* ردیف استروپ */}
+                  <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/40 px-2 py-1 rounded-lg">
+                    <span className="text-slate-500">استروپ:</span>
+                    <span className="text-indigo-600 dark:text-indigo-400 font-mono">{stroopText}</span>
                   </div>
 
-                  {/* ردیف سرعت محاسبات */}
-                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>سرعت محاسبات:</span>
-                    <span className="text-amber-600 dark:text-amber-400 font-mono">
-                      {mathText}
-                    </span>
+                  {/* ردیف محاسبات */}
+                  <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/40 px-2 py-1 rounded-lg">
+                    <span className="text-slate-500">محاسبات:</span>
+                    <span className="text-amber-600 dark:text-amber-400 font-mono">{mathText}</span>
                   </div>
 
-                  {/* ردیف زمان واکنش عصبی */}
-                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>زمان واکنش عصبی:</span>
-                    <span className="text-rose-600 dark:text-rose-400 font-mono">
-                      {reactionText}
-                    </span>
+                  {/* زمان واکنش */}
+                  <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/40 px-2 py-1 rounded-lg">
+                    <span className="text-slate-500">واکنش:</span>
+                    <span className="text-rose-600 dark:text-rose-400 font-mono">{reactionText}</span>
                   </div>
 
-                  {/* ردیف دقت شناختی */}
-                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>دقت شناختی:</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-mono">
-                      {accuracyText}
-                    </span>
+                  {/* دقت شناختی کل */}
+                  <div className="col-span-2 flex justify-between items-center bg-slate-50 dark:bg-slate-800/40 px-2 py-1 rounded-lg">
+                    <span className="text-slate-500">دقت شناختی مغز:</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-mono">{accuracyText}</span>
                   </div>
                 </div>
               );
             })()}
           </div>
 
-          {/* ویجت میزان مصرف و سهمیه روزانه هوش مصنوعی */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 shadow-sm space-y-2.5">
+          {/* سهمیه روزانه هوش مصنوعی */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-2.5 shadow-sm space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
-                <span>سهمیه روزانه هوش مصنوعی</span>
+              <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                <span>سهمیه روزانه AI</span>
               </span>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800">
-                {aiUsage.plan === "pro" ? "اشتراک Pro" : "پلن رایگان"}
+              <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400">
+                {aiUsage.plan === "pro" ? "Pro" : "رایگان"}
               </span>
             </div>
 
-            <div className="space-y-1.5 pt-1">
-              <div className="flex justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                <span>مصرف امروز:</span>
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                <span>مصرف:</span>
                 <span className="font-mono text-slate-800 dark:text-slate-200">
-                  {aiUsage.count} از {aiUsage.limit} پیام
+                  {aiUsage.count} از {aiUsage.limit}
                 </span>
               </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${
                     aiUsage.count >= aiUsage.limit
@@ -698,10 +721,6 @@ export default function AssistantView({
                   }}
                 />
               </div>
-              <p className="text-[10px] text-slate-400 font-bold text-left pt-0.5">
-                {Math.max(0, aiUsage.limit - aiUsage.count)} پیام باقی‌مانده تا
-                ۱۲ شب
-              </p>
             </div>
           </div>
         </div>

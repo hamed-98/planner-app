@@ -536,8 +536,8 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
   const activeRecord = dailyHealthData[selectedDateISO];
   const activeDailyHealth = {
     waterToday: activeRecord?.waterToday !== undefined ? activeRecord.waterToday : null,
-    sleepHours: activeRecord?.sleepHours !== undefined ? activeRecord.sleepHours : null,
-    sleepQuality: activeRecord?.sleepQuality || 'fair',
+    sleepHours: activeRecord?.sleepHours && Number(activeRecord.sleepHours) > 0 ? Number(activeRecord.sleepHours) : null,
+    sleepQuality: activeRecord?.sleepQuality || 'good',
     moodScore: activeRecord?.moodScore || 3,
   };
   const health: HealthMetrics = { ...globalHealth, ...activeDailyHealth };
