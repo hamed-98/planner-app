@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "health_logs" ALTER COLUMN "sleepHours" DROP DEFAULT,
+ALTER COLUMN "sleepQuality" DROP DEFAULT,
+ALTER COLUMN "mood" DROP DEFAULT,
+ALTER COLUMN "weightKg" DROP DEFAULT;

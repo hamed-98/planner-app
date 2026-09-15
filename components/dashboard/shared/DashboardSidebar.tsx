@@ -189,7 +189,7 @@ export default function DashboardSidebar({
             }`}
           >
             <CheckSquare className="w-4.5 h-4.5" />
-            <span>وظایف و کانبان</span>
+            <span>وظایف</span>
             <span className="mr-auto text-[10px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-sans">
               {pendingTasksCount}
             </span>

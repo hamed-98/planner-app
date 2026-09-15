@@ -80,6 +80,7 @@ export default function AssistantView({
 
   const [isLoadingThreads, setIsLoadingThreads] = useState(true);
 
+  // دریافت سوابق جلسات چت با مدیریت لودینگ (فقط یک‌بار در لود کامپوننت)
   useEffect(() => {
     async function initThreads() {
       setIsLoadingThreads(true);
@@ -97,23 +98,6 @@ export default function AssistantView({
         }
       } finally {
         setIsLoadingThreads(false);
-      }
-    }
-    initThreads();
-  }, []);
-
-  useEffect(() => {
-    async function initThreads() {
-      const threads = await getConversations();
-      setConversations(threads);
-      if (threads.length > 0) {
-        setActiveConvId(threads[0].id);
-      } else {
-        const fresh = await createConversation('گفتگوی جدید');
-        if (fresh) {
-          setConversations([fresh]);
-          setActiveConvId(fresh.id);
-        }
       }
     }
     initThreads();

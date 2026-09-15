@@ -143,18 +143,7 @@ export default function SettingsView({
               <span>خروجی گرفتن فایل JSON</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (confirm('آیا مایلید حافظه محلی مرورگر پاک‌سازی شود؟ داده‌های ذخیره‌شده در دیتابیس آسیبی نخواهند دید.')) {
-                  localStorage.clear();
-                  window.location.reload();
-                }
-              }}
-              className="px-4 py-2.5 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 rounded-xl text-xs font-bold cursor-pointer transition-colors"
-            >
-              پاک‌سازی کش مرورگر
-            </button>
+            
           </div>
         </div>
 

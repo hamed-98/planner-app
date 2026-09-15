@@ -80,7 +80,7 @@ export default function TasksView({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
-            بورد کارهای من (آسان کایزن و کانبان)
+            بورد کارهای من ، {dateLabel(selectedDateISO)}
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             وظایف خود را سازماندهی کرده و با تغییر وضعیت آن‌ها امتیاز تجربه دریافت کنید.

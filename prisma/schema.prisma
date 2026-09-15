@@ -170,10 +170,10 @@ model HealthLog {
   userId       String
   logDate      String   // ساختار YYYY-MM-DD
   waterMl      Int?     
-  sleepHours   Decimal? @default(0) @db.Decimal(3, 1)
-  sleepQuality Int?     @default(3) // 1: poor, 2: fair, 3: good, 4: excellent
-  mood         Int?     @default(3)
-  weightKg     Decimal? @default(70) @db.Decimal(4, 1)
+  sleepHours   Decimal?  @db.Decimal(3, 1)
+  sleepQuality Int?     // 1: poor, 2: fair, 3: good, 4: excellent
+  mood         Int?     
+  weightKg     Decimal?  @db.Decimal(4, 1)
   notes        String?
   createdAt    DateTime @default(now())
 

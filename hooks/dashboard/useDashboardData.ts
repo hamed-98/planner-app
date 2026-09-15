@@ -38,19 +38,32 @@ const scheduleNoteUpdate = (id: string, n: Note) => {
   pendingNoteUpdates.set(
     id,
     setTimeout(() => {
-      dbUpdateNote(id, n).catch(console.error);
+      dbUpdateNote(id, n)
+        .then((res) => {
+          if (!res) enqueueOfflineAction({ entity: 'notes', action: 'update', payload: { id, updates: n } });
+        })
+        .catch(() => {
+          enqueueOfflineAction({ entity: 'notes', action: 'update', payload: { id, updates: n } });
+        });
       pendingNoteUpdates.delete(id);
     }, 1500)
   );
 };
 
 const pendingTaskUpdates = new Map<string, NodeJS.Timeout>();
+// ویرایش تسک با پشتیبانی از صف آفلاین
 const scheduleTaskUpdate = (id: string, t: Task) => {
   if (pendingTaskUpdates.has(id)) clearTimeout(pendingTaskUpdates.get(id)!);
   pendingTaskUpdates.set(
     id,
     setTimeout(() => {
-      dbUpdateTask(id, t).catch(console.error);
+      dbUpdateTask(id, t)
+        .then((res) => {
+          if (!res) enqueueOfflineAction({ entity: 'tasks', action: 'update', payload: { id, updates: t } });
+        })
+        .catch(() => {
+          enqueueOfflineAction({ entity: 'tasks', action: 'update', payload: { id, updates: t } });
+        });
       pendingTaskUpdates.delete(id);
     }, 1000)
   );
@@ -60,24 +73,27 @@ const scheduleTaskUpdate = (id: string, t: Task) => {
 const pendingHealthUpdates = new Map<string, NodeJS.Timeout>();
 const pendingHealthPayloads = new Map<string, any>();
 
+// ذخیره لاگ سلامت (آب، خواب، مود، وزن) با صف آفلاین
 const scheduleHealthUpdate = (dateISO: string, data: any) => {
   if (pendingHealthUpdates.has(dateISO)) {
     clearTimeout(pendingHealthUpdates.get(dateISO)!);
   }
-
-  // ادغام تغییرات جدید با تغییرات معلق قبلی همان روز
   const merged = { ...(pendingHealthPayloads.get(dateISO) || {}), ...data };
   pendingHealthPayloads.set(dateISO, merged);
-
   pendingHealthUpdates.set(
     dateISO,
     setTimeout(() => {
       const payloadToSend = pendingHealthPayloads.get(dateISO);
       pendingHealthPayloads.delete(dateISO);
       pendingHealthUpdates.delete(dateISO);
-
       if (payloadToSend) {
-        saveHealthLog(dateISO, payloadToSend).catch(console.error);
+        saveHealthLog(dateISO, payloadToSend)
+          .then((res) => {
+            if (!res) enqueueOfflineAction({ entity: 'health', action: 'save', payload: { dateISO, data: payloadToSend } });
+          })
+          .catch(() => {
+            enqueueOfflineAction({ entity: 'health', action: 'save', payload: { dateISO, data: payloadToSend } });
+          });
       }
     }, 700)
   );
@@ -88,6 +104,89 @@ interface UseDashboardDataProps {
   earnXp: (amount: number, reason: string) => void;
   showToast: (message: string, type?: 'success' | 'info' | 'error') => void;
 }
+
+
+// ساختار آیتم‌های صف همگام‌سازی آفلاین
+interface OfflineQueueItem {
+  id: string;
+  entity: 'events' | 'tasks' | 'notes' | 'habits' | 'medicines' | 'health' | 'profile' ;
+  action: 'create' | 'update' | 'delete' | 'toggle' | 'updateLog' | 'save';
+  payload: any;
+  timestamp: number;
+}
+
+const OFFLINE_QUEUE_KEY = 'sayeban_offline_queue';
+
+export function getOfflineQueue(): OfflineQueueItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function enqueueOfflineAction(item: Omit<OfflineQueueItem, 'id' | 'timestamp'>) {
+  if (typeof window === 'undefined') return;
+  const queue = getOfflineQueue();
+  const newItem: OfflineQueueItem = {
+    ...item,
+    id: crypto.randomUUID(),
+    timestamp: Date.now(),
+  };
+  // جلوگیری از ثبت اکشن‌های تکراری برای یک شیء
+  const filtered = queue.filter(
+    (q) => !(q.entity === item.entity && q.action === item.action && JSON.stringify(q.payload) === JSON.stringify(item.payload))
+  );
+  filtered.push(newItem);
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(filtered));
+}
+
+export async function flushOfflineQueue() {
+  if (typeof window === 'undefined' || !navigator.onLine) return;
+  const queue = getOfflineQueue();
+  if (queue.length === 0) return;
+
+  const remaining: OfflineQueueItem[] = [];
+
+  for (const item of queue) {
+    try {
+      if (item.entity === 'events') {
+        if (item.action === 'create') await dbAddEvent(item.payload);
+        if (item.action === 'delete') await dbDeleteEvent(item.payload.id);
+      } else if (item.entity === 'tasks') {
+        if (item.action === 'create') await dbAddTask(item.payload);
+        if (item.action === 'update') await dbUpdateTask(item.payload.id, item.payload.updates);
+        if (item.action === 'delete') await dbDeleteTask(item.payload.id);
+      } else if (item.entity === 'notes') {
+        if (item.action === 'create') await dbAddNote(item.payload);
+        if (item.action === 'update') await dbUpdateNote(item.payload.id, item.payload.updates);
+        if (item.action === 'delete') await dbDeleteNote(item.payload.id);
+      } else if (item.entity === 'habits') {
+        if (item.action === 'create') await dbAddHabit(item.payload.id, item.payload.name);
+        if (item.action === 'delete') await dbDeleteHabit(item.payload.id);
+        if (item.action === 'toggle') await toggleHabitLog(item.payload.habitId, item.payload.dateISO, item.payload.completed);
+      } else if (item.entity === 'medicines') {
+        if (item.action === 'create') await dbAddMedicine(item.payload);
+        if (item.action === 'delete') await dbDeleteMedicine(item.payload.id);
+        if (item.action === 'updateLog') await updateMedicineLog(item.payload.id, item.payload.completedDates);
+      } else if (item.entity === 'health') {
+        if (item.action === 'save') await saveHealthLog(item.payload.dateISO, item.payload.data);
+      }else if (item.entity === 'profile') {
+        if (item.action === 'update') await updateProfile(item.payload);
+      }
+    } catch (err) {
+      console.warn('[Offline Sync] خطا در ارسال آیتم صف، در صف باقی می‌ماند:', item, err);
+      remaining.push(item);
+    }
+  }
+
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
+}
+
+
+
 
 export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDataProps) {
   const [todayISO, setTodayISO] = useState('');
@@ -129,7 +228,7 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
     }
     return {
       waterToday: null,
-      sleepHours: 7,
+      sleepHours: null,
       sleepQuality: 'good',
       moodScore: null,
       weight: 0,
@@ -211,6 +310,11 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
   useEffect(() => {
     async function loadData() {
       try {
+        // ۱. ابتدا تمام کارهای ثبت‌شده در حالت آفلاین به سرور ارسال شوند
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
+          await flushOfflineQueue();
+        }
+
         const [t, n, e, h, m, hl, p, ticketsData] = await Promise.all([
           getTasks(),
           getNotes(),
@@ -354,19 +458,43 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
     });
   }, [selectedDateISO, todayISO]);
 
-  // توابع ذخیره‌سازی داده‌ها
+  // همگام‌سازی خودکار به محض آنلاین شدن اینترنت
+  useEffect(() => {
+    const handleSyncOnOnline = async () => {
+      await flushOfflineQueue();
+    };
+    window.addEventListener('online', handleSyncOnOnline);
+    return () => window.removeEventListener('online', handleSyncOnOnline);
+  }, []);
+
+  // توابع ذخیره‌سازی داده‌ها////////////////////////////////////////////////////
   const saveEventsToLocal = useCallback((data: CalendarEvent[]) => {
     const prev = lastSavedEventsRef.current;
     lastSavedEventsRef.current = data;
     setEvents(data);
     localStorage.setItem('sayeban_events', JSON.stringify(data));
+
     const pm = new Map(prev.map((x) => [x.id, x]));
     const nm = new Map(data.map((x) => [x.id, x]));
+
     for (const id of pm.keys()) {
-      if (!nm.has(id)) dbDeleteEvent(id).catch(console.error);
+      if (!nm.has(id)) {
+        dbDeleteEvent(id).then((ok) => {
+          if (!ok) enqueueOfflineAction({ entity: 'events', action: 'delete', payload: { id } });
+        }).catch(() => {
+          enqueueOfflineAction({ entity: 'events', action: 'delete', payload: { id } });
+        });
+      }
     }
+
     for (const [id, x] of nm.entries()) {
-      if (!pm.has(id)) dbAddEvent(x).catch(console.error);
+      if (!pm.has(id)) {
+        dbAddEvent(x).then((res) => {
+          if (!res) enqueueOfflineAction({ entity: 'events', action: 'create', payload: x });
+        }).catch(() => {
+          enqueueOfflineAction({ entity: 'events', action: 'create', payload: x });
+        });
+      }
     }
   }, []);
 
@@ -375,14 +503,36 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
     lastSavedNotesRef.current = data;
     setNotes(data);
     localStorage.setItem('sayeban_notes', JSON.stringify(data));
+
     const pm = new Map(prev.map((n) => [n.id, n]));
     const nm = new Map(data.map((n) => [n.id, n]));
+
+    // ۱. بررسی حذف یادداشت‌ها در حالت آفلاین/آنلاین
     for (const id of pm.keys()) {
-      if (!nm.has(id)) dbDeleteNote(id).catch(console.error);
+      if (!nm.has(id)) {
+        dbDeleteNote(id)
+          .then((ok) => {
+            if (!ok) enqueueOfflineAction({ entity: 'notes', action: 'delete', payload: { id } });
+          })
+          .catch(() => {
+            enqueueOfflineAction({ entity: 'notes', action: 'delete', payload: { id } });
+          });
+      }
     }
+
+    // ۲. بررسی ایجاد یادداشت جدید یا ویرایش متن
     for (const [id, n] of nm.entries()) {
-      if (!pm.has(id)) dbAddNote(n).catch(console.error);
-      else if (JSON.stringify(n) !== JSON.stringify(pm.get(id))) scheduleNoteUpdate(id, n);
+      if (!pm.has(id)) {
+        dbAddNote(n)
+          .then((res) => {
+            if (!res) enqueueOfflineAction({ entity: 'notes', action: 'create', payload: n });
+          })
+          .catch(() => {
+            enqueueOfflineAction({ entity: 'notes', action: 'create', payload: n });
+          });
+      } else if (JSON.stringify(n) !== JSON.stringify(pm.get(id))) {
+        scheduleNoteUpdate(id, n);
+      }
     }
   }, []);
 
@@ -391,15 +541,30 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
     lastSavedTasksRef.current = data;
     setTasks(data);
     localStorage.setItem("sayeban_tasks", JSON.stringify(data));
+
     const pm = new Map(prev.map((t) => [t.id, t]));
     const nm = new Map(data.map((t) => [t.id, t]));
+
     for (const id of pm.keys()) {
-      if (!nm.has(id)) dbDeleteTask(id).catch(console.error);
+      if (!nm.has(id)) {
+        dbDeleteTask(id).then((ok) => {
+          if (!ok) enqueueOfflineAction({ entity: 'tasks', action: 'delete', payload: { id } });
+        }).catch(() => {
+          enqueueOfflineAction({ entity: 'tasks', action: 'delete', payload: { id } });
+        });
+      }
     }
+
     for (const [id, t] of nm.entries()) {
-      if (!pm.has(id)) dbAddTask(t).catch(console.error);
-      else if (JSON.stringify(t) !== JSON.stringify(pm.get(id)))
+      if (!pm.has(id)) {
+        dbAddTask(t).then((res) => {
+          if (!res) enqueueOfflineAction({ entity: 'tasks', action: 'create', payload: t });
+        }).catch(() => {
+          enqueueOfflineAction({ entity: 'tasks', action: 'create', payload: t });
+        });
+      } else if (JSON.stringify(t) !== JSON.stringify(pm.get(id))) {
         scheduleTaskUpdate(id, t);
+      }
     }
   }, []);
 
@@ -419,7 +584,7 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
           waterToday: null,
           sleepHours: null,
           sleepQuality: "good",
-          moodScore: 3,
+          moodScore: null,
           weight: userWeight,
         };
         const updatedDaily = { ...existing, ...data };
@@ -471,13 +636,32 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
     lastSavedHabitsRef.current = data;
     setHabits(data);
     localStorage.setItem('sayeban_habits', JSON.stringify(data));
+
     const pm = new Map(prev.map((x) => [x.id, x]));
     const nm = new Map(data.map((x) => [x.id, x]));
+
     for (const id of pm.keys()) {
-      if (!nm.has(id)) dbDeleteHabit(id).catch(console.error);
+      if (!nm.has(id)) {
+        dbDeleteHabit(id)
+          .then((ok) => {
+            if (!ok) enqueueOfflineAction({ entity: 'habits', action: 'delete', payload: { id } });
+          })
+          .catch(() => {
+            enqueueOfflineAction({ entity: 'habits', action: 'delete', payload: { id } });
+          });
+      }
     }
+
     for (const [id, x] of nm.entries()) {
-      if (!pm.has(id)) dbAddHabit(x.id, x.name).catch(console.error);
+      if (!pm.has(id)) {
+        dbAddHabit(x.id, x.name)
+          .then((res) => {
+            if (!res) enqueueOfflineAction({ entity: 'habits', action: 'create', payload: { id: x.id, name: x.name } });
+          })
+          .catch(() => {
+            enqueueOfflineAction({ entity: 'habits', action: 'create', payload: { id: x.id, name: x.name } });
+          });
+      }
     }
   }, []);
 
@@ -500,7 +684,13 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
     const cleanHeight = Math.max(0, Math.min(250, Math.round(h)));
     setUserHeight(cleanHeight);
     localStorage.setItem("sayeban_user_height", String(cleanHeight));
-    updateProfile({ heightCm: cleanHeight }).catch(console.error);
+    updateProfile({ heightCm: cleanHeight })
+      .then((res) => {
+        if (!res) enqueueOfflineAction({ entity: 'profile' as any, action: 'update', payload: { heightCm: cleanHeight } });
+      })
+      .catch(() => {
+        enqueueOfflineAction({ entity: 'profile' as any, action: 'update', payload: { heightCm: cleanHeight } });
+      });
   }, []);
 
   const saveUserWeight = useCallback(
@@ -586,10 +776,19 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
         return h;
       });
       setHabits(updated);
-      toggleHabitLog(id, selectedDateISO, compl).catch(console.error);
-      showToast('وضعیت عادت با موفقیت تغییر کرد! 🔥', 'success');
-      if (compl) earnXp(15, `تکمیل عادت سالم "${hName}"`);
-      else earnXp(-15, `تکمیل عادت سالم "${hName}"`);
+      localStorage.setItem('sayeban_habits', JSON.stringify(updated));
+
+      toggleHabitLog(id, selectedDateISO, compl).catch(() => {
+        enqueueOfflineAction({
+          entity: 'habits',
+          action: 'toggle',
+          payload: { habitId: id, dateISO: selectedDateISO, completed: compl },
+        });
+      });
+
+      showToast('وضعیت عادت به‌روزرسانی شد.', 'success');
+      if (compl) earnXp(15, `انجام عادت "${hName}"`);
+      else earnXp(-15, `لغو عادت "${hName}"`);
     },
     [habits, isSelectedDatePast, isSelectedDateFuture, isHabitCompleted, selectedDateISO, todayISO, earnXp, showToast]
   );
