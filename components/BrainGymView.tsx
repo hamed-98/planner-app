@@ -1,25 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-// import {
-//   getBrainProfile,
-//   saveBrainProfile,
-//   getCbtRecords,
-//   addCbtRecord,
-//   deleteCbtRecord,
-//   getNeuroHabits,
-//   saveNeuroHabit,
-//   getNeuroArticlesGlobal,
-//   DEFAULT_NEURO_ARTICLES,
-//   DEFAULT_NEURO_HABITS,
-//   ZERO_BRAIN_PROFILE,
-//   BrainProfile,
-//   CbtRecord,
-//   NeuroHabit,
-//   AggregatedBrainMetrics,
-//   getAggregatedBrainMetrics
-// } from '../lib/supabase/brainGym';
-
 import {
   getBrainProfile,
   saveBrainProfile,
@@ -29,6 +10,7 @@ import {
   getNeuroHabits,
   saveNeuroHabit,
   getNeuroArticlesGlobal,
+  flushBrainGymOfflineQueue,
   DEFAULT_NEURO_ARTICLES,
   DEFAULT_NEURO_HABITS,
   ZERO_BRAIN_PROFILE,
@@ -36,12 +18,9 @@ import {
   CbtRecord,
   NeuroHabit,
   AggregatedBrainMetrics,
-  getAggregatedBrainMetrics
+  getAggregatedBrainMetrics,
 } from '../lib/api/brainGym';
-
 import { calculateBrainIndex } from '../lib/utils/brainMath';
-
-// کامپوننت‌های تفکیک‌شده
 import BrainHeader from './brainGym/BrainHeader';
 import BrainOverview from './brainGym/overview/BrainOverview';
 import SpatialMemoryGame from './brainGym/games/SpatialMemoryGame';
@@ -63,98 +42,160 @@ interface BrainGymViewProps {
 export default function BrainGymView({
   earnXp,
   showToast,
-  playAudioFeedback
+  playAudioFeedback,
 }: BrainGymViewProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'games' | 'cbt' | 'articles' | 'habits' | 'badges'>('overview');
-  const [brainProfile, setBrainProfile] = useState<BrainProfile>(ZERO_BRAIN_PROFILE);
-  const [cbtRecords, setCbtRecords] = useState<CbtRecord[]>([]);
-  const [neuroHabits, setNeuroHabits] = useState<NeuroHabit[]>(DEFAULT_NEURO_HABITS);
-  const [neuroArticles, setNeuroArticles] = useState<any[]>(DEFAULT_NEURO_ARTICLES);
-  const [aggregatedMetrics, setAggregatedMetrics] = useState<AggregatedBrainMetrics | null>(null);
 
-  // رهگیری بازی فعال برای جلوگیری از شروع همزمان
+  // مقداردهی اولیه بدون وقفه از حافظه محلی
+  const [brainProfile, setBrainProfile] = useState<BrainProfile>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sayeban_brain_profile');
+      if (saved) {
+        try { return JSON.parse(saved); } catch {}
+      }
+    }
+    return ZERO_BRAIN_PROFILE;
+  });
+
+  const [cbtRecords, setCbtRecords] = useState<CbtRecord[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sayeban_cbt_records');
+      if (saved) {
+        try { return JSON.parse(saved); } catch {}
+      }
+    }
+    return [];
+  });
+
+  const [neuroHabits, setNeuroHabits] = useState<NeuroHabit[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sayeban_neuro_habits');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch {}
+      }
+    }
+    return DEFAULT_NEURO_HABITS;
+  });
+
+  const [neuroArticles, setNeuroArticles] = useState<any[]>(DEFAULT_NEURO_ARTICLES);
+
+  const [aggregatedMetrics, setAggregatedMetrics] = useState<AggregatedBrainMetrics | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sayeban_brain_metrics');
+      if (saved) {
+        try { return JSON.parse(saved); } catch {}
+      }
+    }
+    return null;
+  });
+
   const [activeGameId, setActiveGameId] = useState<'spatial' | 'stroop' | 'math' | null>(null);
 
   const reloadAggregatedMetrics = useCallback(async () => {
     const metrics = await getAggregatedBrainMetrics();
-    setAggregatedMetrics(metrics);
+    if (metrics) setAggregatedMetrics(metrics);
   }, []);
 
+  // لود اولیه و استعلام دیتای تازه از سرور در صورت اتصال
   useEffect(() => {
     async function loadBrainData() {
       try {
+        
         const [profile, cbts, habits, articles] = await Promise.all([
           getBrainProfile(),
           getCbtRecords(),
           getNeuroHabits(),
-          getNeuroArticlesGlobal()
+          getNeuroArticlesGlobal(),
         ]);
-
         setBrainProfile(profile);
         setCbtRecords(cbts);
         setNeuroHabits(habits);
         setNeuroArticles(articles);
         await reloadAggregatedMetrics();
       } catch (err) {
-        console.error('Failed loading Brain Gym data:', err);
+        console.warn('[BrainGym] بارگذاری با دیتای آفلاین محلی انجام شد.');
       }
     }
     loadBrainData();
   }, [reloadAggregatedMetrics]);
 
-  const saveProfileHandler = async (updated: BrainProfile) => {
+  // شنود آنی رویداد پایان بازی جهت افزایش فوری آمار در حالت آفلاین
+  useEffect(() => {
+    const handleBrainUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        if (customEvent.detail.metrics) {
+          setAggregatedMetrics(customEvent.detail.metrics);
+        }
+        if (customEvent.detail.profile) {
+          setBrainProfile(customEvent.detail.profile);
+        }
+      } else {
+        try {
+          const m = localStorage.getItem('sayeban_brain_metrics');
+          if (m) setAggregatedMetrics(JSON.parse(m));
+          const p = localStorage.getItem('sayeban_brain_profile');
+          if (p) setBrainProfile(JSON.parse(p));
+        } catch {}
+      }
+    };
+
+    window.addEventListener('sayeban_brain_updated', handleBrainUpdate);
+    return () => window.removeEventListener('sayeban_brain_updated', handleBrainUpdate);
+  }, []);
+
+  // تخلیه خودکار صف با وصل شدن مجدد اینترنت
+  // useEffect(() => {
+  //   const handleOnline = async () => {
+  //     await flushBrainGymOfflineQueue();
+  //     await reloadAggregatedMetrics();
+  //     showToast('اطلاعات آفلاین باشگاه مغز همگام‌سازی شد.', 'success');
+  //   };
+  //   window.addEventListener('online', handleOnline);
+  //   return () => window.removeEventListener('online', handleOnline);
+  // }, [reloadAggregatedMetrics, showToast]);
+
+ const saveProfileHandler = async (updated: BrainProfile) => {
     setBrainProfile(updated);
     try {
       await saveBrainProfile(updated);
-      await reloadAggregatedMetrics();
-    } catch (e: any) {
-      showToast(e.message || 'خطا در ذخیره پروفایل', 'error');
-    }
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        await reloadAggregatedMetrics();
+      }
+    } catch {}
   };
 
   const handleSaveCbtRecord = async (newRecord: CbtRecord) => {
-    setCbtRecords(prev => [newRecord, ...prev]);
-    try {
-      await addCbtRecord(newRecord);
-      showToast('چرخه CBT با موفقیت ذخیره شد! +۳۵ XP', 'success');
-    } catch (e: any) {
-      showToast(e.message || 'خطا در ذخیره CBT', 'error');
-    }
+    setCbtRecords((prev) => [newRecord, ...prev]);
+    await addCbtRecord(newRecord);
+    showToast('تمرین CBT ذخیره شد (+XP)', 'success');
   };
 
   const handleDeleteCbtRecord = async (id: string) => {
-    setCbtRecords(prev => prev.filter(r => r.id !== id));
-    try {
-      await deleteCbtRecord(id);
-      showToast('پیشینه مورد نظر حذف گردید.', 'info');
-    } catch (e: any) {
-      showToast(e.message || 'خطا در حذف پیشینه', 'error');
-    }
+    setCbtRecords((prev) => prev.filter((r) => r.id !== id));
+    await deleteCbtRecord(id);
+    showToast('رکورد با موفقیت حذف شد.', 'info');
   };
 
   const handleToggleHabit = async (id: string) => {
-    const target = neuroHabits.find(h => h.id === id);
+    const target = neuroHabits.find((h) => h.id === id);
     if (!target) return;
-
     const nextState = !target.completed;
     const updatedHabit = { ...target, completed: nextState };
+    setNeuroHabits((prev) => prev.map((h) => (h.id === id ? updatedHabit : h)));
 
-    setNeuroHabits(prev => prev.map(h => (h.id === id ? updatedHabit : h)));
+    await saveNeuroHabit(updatedHabit);
 
-    try {
-      await saveNeuroHabit(updatedHabit);
-
-      if (nextState) {
-        earnXp(updatedHabit.xp, `ماموریت نورون‌سازی: ${updatedHabit.title}`);
-        showToast(`ماموریت انجام شد! +${updatedHabit.xp} XP`, 'success');
-        playAudioFeedback?.('done');
-      } else {
-        earnXp(-updatedHabit.xp, `لغو ماموریت: ${updatedHabit.title}`);
-        showToast(`ماموریت لغو شد. -${updatedHabit.xp} XP`, 'info');
-      }
-    } catch (e: any) {
-      setNeuroHabits(prev => prev.map(h => (h.id === id ? target : h)));
-      showToast(e.message || 'خطا در ذخیره ماموریت', 'error');
+    if (nextState) {
+      earnXp(updatedHabit.xp, `عادت نورونی: ${updatedHabit.title}`);
+      showToast(`عالی بود! +${updatedHabit.xp} XP`, 'success');
+      playAudioFeedback?.('done');
+    } else {
+      earnXp(-updatedHabit.xp, `لغو عادت نورونی: ${updatedHabit.title}`);
+      showToast(`عادت لغو شد. -${updatedHabit.xp} XP`, 'info');
     }
   };
 
@@ -164,19 +205,14 @@ export default function BrainGymView({
       title,
       completed: false,
       xp: 20,
-      isCustom: true
+      isCustom: true,
     };
-
-    setNeuroHabits(prev => [...prev, newH]);
-    try {
-      await saveNeuroHabit(newH);
-      showToast('عادت مغزی جدید ذخیره شد!', 'success');
-    } catch (e: any) {
-      showToast(e.message || 'خطا در ذخیره عادت', 'error');
-    }
+    setNeuroHabits((prev) => [...prev, newH]);
+    await saveNeuroHabit(newH);
+    showToast('عادت نورونی جدید ثبت شد!', 'success');
   };
 
-  const completedMissionsCount = neuroHabits.filter(h => h.completed).length;
+  const completedMissionsCount = neuroHabits.filter((h) => h.completed).length;
   const displayOverallIndex = aggregatedMetrics?.overallIndex ?? calculateBrainIndex(brainProfile);
 
   return (
@@ -187,7 +223,6 @@ export default function BrainGymView({
         overallIndex={displayOverallIndex}
         completedMissionsCount={completedMissionsCount}
       />
-
       {activeTab === 'overview' && (
         <BrainOverview
           brainProfile={brainProfile}
@@ -198,7 +233,6 @@ export default function BrainGymView({
           onStartSpatialGame={() => setActiveTab('games')}
         />
       )}
-
       {activeTab === 'games' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <SpatialMemoryGame
@@ -233,7 +267,6 @@ export default function BrainGymView({
           />
         </div>
       )}
-
       {activeTab === 'cbt' && (
         <div className="space-y-6">
           <CbtWizard
@@ -247,7 +280,6 @@ export default function BrainGymView({
           />
         </div>
       )}
-
       {activeTab === 'habits' && (
         <NeuroHabitsTab
           habits={neuroHabits}
@@ -255,11 +287,9 @@ export default function BrainGymView({
           onAddHabit={handleAddCustomHabit}
         />
       )}
-
       {activeTab === 'articles' && (
         <NeuroArticlesTab articles={neuroArticles} />
       )}
-
       {activeTab === 'badges' && (
         <CognitiveBadges
           brainProfile={brainProfile}
@@ -267,7 +297,6 @@ export default function BrainGymView({
           neuroHabits={neuroHabits}
         />
       )}
-
     </div>
   );
 }

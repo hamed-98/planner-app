@@ -88,19 +88,35 @@ export default function PwaRegister() {
     };
   }, []);
 
+  // تنظیم خودکار متغیر ارتفاع برای حذف اسکرول‌بار صفحه
+  useEffect(() => {
+    if (isOffline) {
+      document.documentElement.style.setProperty('--pwa-banner-h', '40px');
+    } else {
+      document.documentElement.style.setProperty('--pwa-banner-h', '0px');
+    }
+    return () => {
+      document.documentElement.style.setProperty('--pwa-banner-h', '0px');
+    };
+  }, [isOffline]);
+
   return (
     <>
-      {/* نوار حالت آفلاین در بالاترین نقطه که سایدبار را به پایین هل می‌دهد */}
+      
+      {/* نوار حالت آفلاین با ارتفاع مقید و بدون ایجاد اسکرول‌بار */}
       {isOffline && (
-        <div className="relative z-[9999] w-full bg-amber-500 text-white px-4 py-2.5 text-xs md:text-sm font-bold flex items-center justify-between shadow-sm transition-all">
+        <div className="relative z-[9999] w-full h-10 bg-amber-500 text-white px-4 text-xs md:text-sm font-bold flex items-center justify-between shadow-sm shrink-0">
           <div className="flex items-center gap-2 mx-auto">
             <WifiOff className="w-4 h-4 shrink-0 animate-pulse" />
             <span>حالت آفلاین: ارتباط با شبکه قطع است؛ تغییرات روی حافظه دستگاه ذخیره می‌شود.</span>
           </div>
           <button
-            onClick={() => setIsOffline(false)}
+            onClick={() => {
+              setIsOffline(false);
+              document.documentElement.style.setProperty('--pwa-banner-h', '0px');
+            }}
             aria-label="بستن هشدار"
-            className="p-1 hover:bg-amber-600/50 rounded-lg transition-colors cursor-pointer text-white/80 hover:text-white"
+            className="p-1 hover:bg-amber-600/60 rounded-lg transition-colors cursor-pointer text-white/80 hover:text-white"
           >
             ✕
           </button>

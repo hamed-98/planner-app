@@ -171,9 +171,8 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   const fontStyleClass = fontSize === 'small' ? 'text-sm' : fontSize === 'large' ? 'text-xl' : 'text-base';
 
   return (
-    <div className={`min-h-screen md:h-screen ${fontStyleClass} flex flex-col md:overflow-hidden bg-[#FAFCFC] dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors`}>
-      {/* هدر موبایل */}
-      <MobileHeader
+    <div className={`min-h-screen md:min-h-0 md:h-[calc(100dvh-var(--pwa-banner-h,0px))] ${fontStyleClass} flex flex-col md:overflow-hidden bg-[#FAFCFC] dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors`}>
+    <MobileHeader
         isMobileMenuOpen={isMobileMenuOpen}
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
       />

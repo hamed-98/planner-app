@@ -20,6 +20,7 @@ import { getTickets } from '@/lib/api/tickets';
 import {
   AggregatedBrainMetrics,
   BrainProfile,
+  flushBrainGymOfflineQueue,
   getAggregatedBrainMetrics,
   getBrainProfile,
   ZERO_BRAIN_PROFILE,
@@ -145,6 +146,7 @@ export function enqueueOfflineAction(item: Omit<OfflineQueueItem, 'id' | 'timest
 
 export async function flushOfflineQueue() {
   if (typeof window === 'undefined' || !navigator.onLine) return;
+  await flushBrainGymOfflineQueue();
   const queue = getOfflineQueue();
   if (queue.length === 0) return;
 
@@ -286,8 +288,30 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
     return 0;
   });
 
-  const [brainProfile, setBrainProfile] = useState<BrainProfile>(ZERO_BRAIN_PROFILE);
-  const [brainMetrics, setBrainMetrics] = useState<AggregatedBrainMetrics | null>(null);
+  const [brainProfile, setBrainProfile] = useState<BrainProfile>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("sayeban_brain_profile");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {}
+      }
+    }
+    return ZERO_BRAIN_PROFILE;
+  });
+
+  const [brainMetrics, setBrainMetrics] =
+    useState<AggregatedBrainMetrics | null>(() => {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("sayeban_brain_metrics");
+        if (saved) {
+          try {
+            return JSON.parse(saved);
+          } catch {}
+        }
+      }
+      return null;
+    });
 
   const lastSavedNotesRef = useRef<Note[]>(notes);
   const lastSavedTasksRef = useRef<Task[]>(tasks);
@@ -456,6 +480,16 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
     getAggregatedBrainMetrics(selectedDateISO || todayISO).then((m) => {
       if (m) setBrainMetrics(m);
     });
+
+    // شنود تغییرات ناشی از انجام بازی در تب مغز
+    const handleProfileSync = () => {
+      const saved = localStorage.getItem('sayeban_brain_profile');
+      if (saved) {
+        try { setBrainProfile(JSON.parse(saved)); } catch {}
+      }
+    };
+    window.addEventListener('sayeban_brain_profile_updated', handleProfileSync);
+    return () => window.removeEventListener('sayeban_brain_profile_updated', handleProfileSync);
   }, [selectedDateISO, todayISO]);
 
   // همگام‌سازی خودکار به محض آنلاین شدن اینترنت
