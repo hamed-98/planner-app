@@ -117,9 +117,13 @@ const KEYS = {
 };
 
 // اعلان تغییر برای هماهنگی بلادرنگ بین تب‌ها
-function notifyProfileUpdate() {
+function notifyProfileUpdate(profile?: BrainProfile) {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event('sayeban_brain_profile_updated'));
+    window.dispatchEvent(
+      new CustomEvent('sayeban_brain_updated', {
+        detail: { profile },
+      })
+    );
   }
 }
 
@@ -489,20 +493,19 @@ export async function getNeuroArticlesGlobal(): Promise<any[]> {
   }
 }
 
-let isBrainSyncInProgress = false;
 
 // ----------------------------------------------------
 // ۶. موتور تخلیه صفوف آفلاین باشگاه مغز (Sync Engine)
 // ----------------------------------------------------
 // متغیر سراسری قفل جهت جلوگیری از شلیک موازی درخواست‌ها (Fix 1)
-let isBrainSyncRunning = false;
+let isBrainSyncRunning = false; // متغیر تمیز و یکتا
 
 export async function flushBrainGymOfflineQueue(): Promise<void> {
   if (typeof window === 'undefined' || !navigator.onLine || isBrainSyncRunning) return;
   isBrainSyncRunning = true;
 
   try {
-    // ۱. همگام‌سازی پروفایل معوق
+    // ۱. پروفایل
     const pendingProfile = localStorage.getItem(KEYS.QUEUE_PROFILE);
     if (pendingProfile) {
       try {
@@ -511,13 +514,11 @@ export async function flushBrainGymOfflineQueue(): Promise<void> {
           headers: { "Content-Type": "application/json" },
           body: pendingProfile,
         });
-        if (res.ok || res.status === 400) {
-          localStorage.removeItem(KEYS.QUEUE_PROFILE);
-        }
+        if (res.ok || res.status < 500) localStorage.removeItem(KEYS.QUEUE_PROFILE);
       } catch {}
     }
 
-    // ۲. همگام‌سازی لاگ بازی‌ها با مهار لقمه مسموم (Fix 2)
+    // ۲. لاگ بازی‌ها
     const pendingActivities = JSON.parse(localStorage.getItem(KEYS.QUEUE_ACTIVITIES) || '[]');
     if (pendingActivities.length > 0) {
       const remaining = [];
@@ -528,10 +529,7 @@ export async function flushBrainGymOfflineQueue(): Promise<void> {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(log),
           });
-          // فقط در صورت خطای شبکه یا 5xx نگه دار؛ خطای 4xx را دور بریز
-          if (!res.ok && res.status >= 500) {
-            remaining.push(log);
-          }
+          if (!res.ok && res.status >= 500) remaining.push(log);
         } catch {
           remaining.push(log);
         }
@@ -539,7 +537,7 @@ export async function flushBrainGymOfflineQueue(): Promise<void> {
       localStorage.setItem(KEYS.QUEUE_ACTIVITIES, JSON.stringify(remaining));
     }
 
-    // ۳. همگام‌سازی بهینه CBT (Fix 3)
+    // ۳. رکوردهای CBT
     const pendingCbt = JSON.parse(localStorage.getItem(KEYS.QUEUE_CBT) || '[]');
     if (pendingCbt.length > 0) {
       const remaining = [];
@@ -563,6 +561,25 @@ export async function flushBrainGymOfflineQueue(): Promise<void> {
         }
       }
       localStorage.setItem(KEYS.QUEUE_CBT, JSON.stringify(remaining));
+    }
+
+    // ۴. عادات نورونی (رفع باگ ۲)
+    const pendingHabits = JSON.parse(localStorage.getItem(KEYS.QUEUE_HABITS) || '[]');
+    if (pendingHabits.length > 0) {
+      const remaining = [];
+      for (const habit of pendingHabits) {
+        try {
+          const res = await fetch("/api/brain-gym/habits", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(habit),
+          });
+          if (!res.ok && res.status >= 500) remaining.push(habit);
+        } catch {
+          remaining.push(habit);
+        }
+      }
+      localStorage.setItem(KEYS.QUEUE_HABITS, JSON.stringify(remaining));
     }
   } finally {
     isBrainSyncRunning = false;

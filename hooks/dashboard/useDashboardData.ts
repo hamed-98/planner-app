@@ -488,8 +488,8 @@ export function useDashboardData({ userName, earnXp, showToast }: UseDashboardDa
         try { setBrainProfile(JSON.parse(saved)); } catch {}
       }
     };
-    window.addEventListener('sayeban_brain_profile_updated', handleProfileSync);
-    return () => window.removeEventListener('sayeban_brain_profile_updated', handleProfileSync);
+    window.addEventListener('sayeban_brain_updated', handleProfileSync);
+    return () => window.removeEventListener('sayeban_brain_updated', handleProfileSync);
   }, [selectedDateISO, todayISO]);
 
   // همگام‌سازی خودکار به محض آنلاین شدن اینترنت
