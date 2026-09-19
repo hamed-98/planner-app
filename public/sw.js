@@ -202,3 +202,68 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+
+// ----------------------------------------------------
+// ۴. رویدادهای سیستم اعلان‌های هوشمند (Web Push)
+// ----------------------------------------------------
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  try {
+    const data = event.data.json();
+    
+    // تضمین وجود تگ معتبر جهت جلوگیری از خطای TypeError در زمان renotify
+    const notificationTag = data.payload?.dedupeKey || `sayeban-${Date.now()}`;
+
+    const options = {
+      body: data.body,
+      icon: data.icon || '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: data.payload || {},
+      actions: data.actions || [],
+      dir: 'rtl',
+      lang: 'fa',
+      tag: notificationTag,
+      renotify: true,
+      silent: data.silent === true,
+    };
+
+    event.waitUntil(self.registration.showNotification(data.title, options));
+  } catch (err) {
+    console.error('[SW] Push processing error:', err);
+  }
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const action = event.action;
+  const payload = event.notification.data || {};
+
+  if (action === 'MARK_DONE' || action === 'SNOOZE_10') {
+    event.waitUntil(
+      fetch('/api/notifications/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...payload }),
+      }).catch((err) => {
+        console.error('[SW] Action API call failed:', err);
+      })
+    );
+  } else {
+    // کلیک روی بدنه پیام (مسیر اصلی دسکتاپ، اندروید و محدودیت‌های iOS)
+    const targetUrl = payload.url || '/dashboard';
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes('/dashboard') && 'focus' in client) {
+            client.navigate(targetUrl);
+            return client.focus();
+          }
+        }
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
+        }
+      })
+    );
+  }
+});

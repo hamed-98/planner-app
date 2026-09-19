@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Sun, Moon, Monitor, Download } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import NotificationSettingsCard from '../settings/NotificationSettingsCard';
 
 interface SettingsViewProps {
   fontSize: 'small' | 'medium' | 'large';
@@ -160,6 +161,11 @@ export default function SettingsView({
             <span className="font-bold text-teal-600 dark:text-teal-400">وضعیت اتصال:</span> متصل به دیتابیس لوکال PostgreSQL (پورت ۵۴۳۳) بدون وابستگی خارجی.
           </div>
         </div>
+
+        <div>
+          <NotificationSettingsCard></NotificationSettingsCard>
+        </div>
+
       </div>
     </div>
   );

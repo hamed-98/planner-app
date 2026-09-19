@@ -39,6 +39,9 @@ model User {
   aiConversations   AiConversation[]
   brainActivityLogs BrainActivityLog[]
   adminLogs         AdminLog[]
+  pushSubscriptions     PushSubscription[]
+  scheduledNotifications ScheduledNotification[]
+  notificationDeliveries NotificationDelivery[]
 
   @@map("users")
 }
@@ -101,9 +104,11 @@ model Profile {
   avatarUrl    String?
   theme        String   @default("system")
   language     String   @default("fa")
-  calendarType String   @default("jalali")
-  heightCm     Int?     @default(0)
-  createdAt    DateTime @default(now())
+  calendarType      String   @default("jalali")
+  heightCm          Int?     @default(0)
+  timezone          String   @default("Asia/Tehran")
+  notificationPrefs Json?    // { medicines: true, events: true, habits: true }
+  createdAt         DateTime @default(now())
 
   user User @relation(fields: [id], references: [id], onDelete: Cascade)
 
@@ -400,3 +405,58 @@ model AiMessage {
 
   @@map("ai_messages")
 }
+
+// ----------------------------------------------------
+// مدل‌های سیستم اعلان‌های هوشمند (Notification Engine)
+// ----------------------------------------------------
+
+model PushSubscription {
+  id           String    @id @default(uuid())
+  userId       String
+  endpoint     String    @unique
+  p256dh       String
+  auth         String
+  userAgent    String?
+  failureCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model ScheduledNotification {
+  id         String   @id @default(uuid())
+  userId     String
+  channel    String   // "medicines" | "events" | "habits"
+  refId      String   // شناسه هدف (مثلا ID دارو یا ID رویداد)
+  dedupeKey  String   @unique // فرمت: {channel}:{refId}:{dateLocal}_{time}
+  payload    Json     // { title, body, icon, url, actions }
+  runAt      DateTime // ساعت اجرا تبدیل شده به UTC
+  status     String   @default("pending") // "pending" | "processing" | "sent" | "expired" | "failed" | "cancelled"
+  attempts   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@map("scheduled_notifications")
+}
+
+model NotificationDelivery {
+  id           String   @id @default(uuid())
+  userId       String
+  channel      String
+  refId        String
+  scheduledFor DateTime
+  deliveredAt  DateTime @default(now())
+  status       String   // "delivered" | "dropped_quiet_hours" | "expired" | "failed"
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel, refId, scheduledFor])
+  @@index([deliveredAt])
+  @@map("notification_deliveries")
+}

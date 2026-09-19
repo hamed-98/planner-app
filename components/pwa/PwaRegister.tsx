@@ -9,19 +9,19 @@ export default function PwaRegister() {
 
   useEffect(() => {
     // ۱. در محیط توسعه (dev)، سرویس‌ورکر را کلاً پاک کن تا مانع تغییرات لحظه‌ای نشود
-    if (process.env.NODE_ENV === 'development') {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then((registrations) => {
-          for (const reg of registrations) {
-            reg.unregister();
-          }
-        });
-        caches.keys().then((keys) => {
-          keys.forEach((key) => caches.delete(key));
-        });
-      }
-      return;
-    }
+    // if (process.env.NODE_ENV === 'development') {
+    //   if ('serviceWorker' in navigator) {
+    //     navigator.serviceWorker.getRegistrations().then((registrations) => {
+    //       for (const reg of registrations) {
+    //         reg.unregister();
+    //       }
+    //     });
+    //     caches.keys().then((keys) => {
+    //       keys.forEach((key) => caches.delete(key));
+    //     });
+    //   }
+    //   return;
+    // }
 
     // ۲. در محیط پروداکشن: ثبت سرویس‌ورکر و مدیریت به‌روزرسانی خودکار
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
