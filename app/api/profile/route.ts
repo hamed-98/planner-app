@@ -37,6 +37,8 @@ export async function GET() {
       calendar_type: profile.calendarType,
       calendarType: profile.calendarType,
       heightCm: profile.heightCm || 0,
+      timezone: profile.timezone,
+      notificationPrefs: profile.notificationPrefs, // <--- فیلد اضافه شد
       created_at: profile.createdAt.toISOString(),
     });
   } catch (error: any) {
@@ -54,7 +56,16 @@ export async function PATCH(req: Request) {
 
   try {
     const body = await req.json();
-    const { calendar_type, calendarType, theme, language, avatar_url, avatarUrl, heightCm } = body;
+    const { 
+      calendar_type, 
+      calendarType, 
+      theme, 
+      language, 
+      avatar_url, 
+      avatarUrl, 
+      heightCm,
+      notificationPrefs, // <--- دریافت ترجیحات اعلان‌ها
+    } = body;
 
     const calType = calendarType || calendar_type;
     const avUrl = avatarUrl !== undefined ? avatarUrl : avatar_url;
@@ -68,6 +79,7 @@ export async function PATCH(req: Request) {
         language: language || 'fa',
         avatarUrl: avUrl || null,
         heightCm: heightCm !== undefined ? Number(heightCm) : 0,
+        notificationPrefs: notificationPrefs || undefined,
       },
       update: {
         calendarType: calType || undefined,
@@ -75,6 +87,7 @@ export async function PATCH(req: Request) {
         language: language || undefined,
         avatarUrl: avUrl !== undefined ? avUrl : undefined,
         heightCm: heightCm !== undefined ? Number(heightCm) : undefined,
+        notificationPrefs: notificationPrefs !== undefined ? notificationPrefs : undefined,
       },
     });
 
@@ -88,6 +101,8 @@ export async function PATCH(req: Request) {
       calendar_type: updated.calendarType,
       calendarType: updated.calendarType,
       heightCm: updated.heightCm ?? 0,
+      timezone: updated.timezone,
+      notificationPrefs: updated.notificationPrefs,
     });
   } catch (error: any) {
     console.error('Profile PATCH error:', error);

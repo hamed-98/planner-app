@@ -1,13 +1,24 @@
+// components/dashboard/settings/NotificationSettingsCard.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Bell, Send, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { 
+  Bell, 
+  Send, 
+  CheckCircle2, 
+  AlertCircle, 
+  Loader2, 
+  Pill, 
+  Calendar, 
+  Flame 
+} from 'lucide-react';
 import {
   isPushNotificationSupported,
   getPushSubscription,
   registerPushSubscription,
   unsubscribePushNotification,
 } from '@/lib/notifications/client';
+import { getProfile, updateProfile } from '@/lib/api/profiles';
 
 export default function NotificationSettingsCard() {
   const [isSupported, setIsSupported] = useState(false);
@@ -16,16 +27,33 @@ export default function NotificationSettingsCard() {
   const [testLoading, setTestLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
+  // ترجیحات ۳ کانال اعلان
+  const [prefs, setPrefs] = useState({
+    medicines: true,
+    events: true,
+    habits: true,
+  });
+
   useEffect(() => {
-    async function checkSub() {
+    async function checkSubAndPrefs() {
       const supported = await isPushNotificationSupported();
       setIsSupported(supported);
       if (supported) {
         const sub = await getPushSubscription();
         setIsSubscribed(!!sub);
       }
+
+      // بارگذاری ترجیحات ذخیره‌شده کاربر از دیتابیس
+      const profile = await getProfile();
+      if (profile?.notificationPrefs) {
+        setPrefs({
+          medicines: profile.notificationPrefs.medicines ?? true,
+          events: profile.notificationPrefs.events ?? true,
+          habits: profile.notificationPrefs.habits ?? true,
+        });
+      }
     }
-    checkSub();
+    checkSubAndPrefs();
   }, []);
 
   const handleTogglePush = async () => {
@@ -49,6 +77,17 @@ export default function NotificationSettingsCard() {
       setStatusMsg({ text: e.message || 'خطا در تغییر وضعیت اعلان', type: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePrefChange = async (key: 'medicines' | 'events' | 'habits', val: boolean) => {
+    const nextPrefs = { ...prefs, [key]: val };
+    setPrefs(nextPrefs);
+    try {
+      await updateProfile({ notificationPrefs: nextPrefs });
+      setStatusMsg({ text: 'ترجیحات یادآوری با موفقیت به‌روزرسانی شد.', type: 'success' });
+    } catch {
+      setStatusMsg({ text: 'خطا در ذخیره ترجیحات در سرور.', type: 'error' });
     }
   };
 
@@ -82,8 +121,9 @@ export default function NotificationSettingsCard() {
   }
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-5 text-right" dir="rtl">
+      {/* ردیف دکمه اصلی فعال‌سازی */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 flex items-center justify-center">
             <Bell className="w-5 h-5" />
@@ -108,8 +148,9 @@ export default function NotificationSettingsCard() {
         </button>
       </div>
 
+      {/* بخش وضعیت اتصال و تست فوری */}
       {isSubscribed && (
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <span className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
             دستگاه شما به سیستم نوتیفیکیشن متصل است.
@@ -125,6 +166,53 @@ export default function NotificationSettingsCard() {
           </button>
         </div>
       )}
+
+      {/* تاگل‌های تفکیک‌شده ۳ کانال اعلان */}
+      <div className="pt-2 space-y-3">
+        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+          کانال‌های یادآوری فعال برای شما:
+        </span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <label className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 cursor-pointer">
+            <div className="flex items-center gap-2.5">
+              <Pill className="w-4 h-4 text-emerald-500" />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">یادآوری داروها</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={prefs.medicines}
+              onChange={(e) => handlePrefChange('medicines', e.target.checked)}
+              className="w-4 h-4 accent-teal-500 rounded cursor-pointer"
+            />
+          </label>
+
+          <label className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 cursor-pointer">
+            <div className="flex items-center gap-2.5">
+              <Calendar className="w-4 h-4 text-cyan-500" />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">رویدادهای تقویم</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={prefs.events}
+              onChange={(e) => handlePrefChange('events', e.target.checked)}
+              className="w-4 h-4 accent-teal-500 rounded cursor-pointer"
+            />
+          </label>
+
+          <label className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 cursor-pointer">
+            <div className="flex items-center gap-2.5">
+              <Flame className="w-4 h-4 text-amber-500" />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">هشدار عادات</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={prefs.habits}
+              onChange={(e) => handlePrefChange('habits', e.target.checked)}
+              className="w-4 h-4 accent-teal-500 rounded cursor-pointer"
+            />
+          </label>
+        </div>
+      </div>
 
       {statusMsg && (
         <div className={`p-3 rounded-xl text-xs font-bold text-center ${

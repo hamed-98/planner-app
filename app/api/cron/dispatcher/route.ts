@@ -71,8 +71,13 @@ async function handleDispatch(req: Request) {
       return NextResponse.json({
         success: true,
         message: 'هیچ اعلانی در صف اجرا وجود ندارد.',
-        producedMedicines,
-        processedCount: 0,
+        producedCounts: {
+          medicines: producedMedicines,
+          events: producedEvents,
+          habits: producedHabits,
+        },
+        claimedCount: 0,
+        sentCount: 0,
       });
     }
 

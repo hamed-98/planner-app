@@ -2,10 +2,24 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Save, AlertCircle, Sparkles, Shield, Wrench, Zap } from 'lucide-react';
+import { 
+  Save, 
+  AlertCircle, 
+  Sparkles, 
+  Shield, 
+  Wrench, 
+  Zap, 
+  Bell, 
+  Layers, 
+  Sliders 
+} from 'lucide-react';
 import AiProvidersManager from '@/components/admin/AiProvidersManager';
+import NotificationPoliciesManager from '@/components/admin/NotificationPoliciesManager';
+
+type SettingsTab = 'notifications' | 'ai' | 'general';
 
 export default function SettingsManagement() {
+  const [activeTab, setActiveTab] = useState<SettingsTab>('notifications');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -59,7 +73,7 @@ export default function SettingsManagement() {
       });
 
       if (!res.ok) throw new Error('پاسخ ناموفق از سرور');
-      setToastMsg({ text: 'تنظیمات و سهمیه‌های سیستم با موفقیت ذخیره و اعمال شدند.', type: 'success' });
+      setToastMsg({ text: 'کلیدهای کنترلی سیستم با موفقیت اعمال شدند.', type: 'success' });
     } catch (err: any) {
       setToastMsg({ text: `خطا در ذخیره‌سازی: ${err.message}`, type: 'error' });
     } finally {
@@ -69,134 +83,196 @@ export default function SettingsManagement() {
   };
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto p-4 sm:p-6" dir="rtl">
+    <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6" dir="rtl">
+      {/* هدر بخش تنظیمات */}
       <header className="pb-4 border-b border-slate-800">
-        <h1 className="text-2xl font-black text-white">تنظیمات و پیکربندی سامانه</h1>
-        <p className="text-xs text-slate-400 mt-1">مدیریت زنجیره هوش مصنوعی، سهمیه‌ها و کلیدهای کنترل سراسری اپلیکیشن</p>
+        <h1 className="text-2xl font-black text-white">پیکربندی و تنظیمات سامانه</h1>
+        <p className="text-xs text-slate-400 mt-1">
+          مدیریت یکپارچه درگاه هوش مصنوعی، زمان‌بندی و سیاست‌های اعلان، و کلیدهای کنترل سراسری
+        </p>
       </header>
 
-      <AiProvidersManager />
+      {/* نوار جابه‌جایی تب‌ها */}
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setActiveTab('notifications')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'notifications'
+              ? 'bg-teal-500/10 text-teal-400 border border-teal-500/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
+          }`}
+        >
+          <Bell className="w-4 h-4" />
+          <span>سیاست‌های اعلان (Push Center)</span>
+        </button>
 
-      <form onSubmit={handleSave} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-6 text-right">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
-              <AlertCircle className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-black text-white">کلیدهای کنترل سراسری (Feature Flags)</h3>
-              <p className="text-xs text-slate-400">تنظیم محدودیت‌ها و سوییچ‌های لحظه‌ای سیستم</p>
-            </div>
-          </div>
+        <button
+          type="button"
+          onClick={() => setActiveTab('ai')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'ai'
+              ? 'bg-teal-500/10 text-teal-400 border border-teal-500/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>درگاه هوش مصنوعی (AI Gateway)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('general')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'general'
+              ? 'bg-teal-500/10 text-teal-400 border border-teal-500/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>کلیدهای کنترلی (Feature Flags)</span>
+        </button>
+      </div>
+
+      {/* محتوای تب انتخاب‌شده */}
+      {activeTab === 'notifications' && (
+        <div className="animate-in fade-in duration-200">
+          <NotificationPoliciesManager />
         </div>
+      )}
 
-        {toastMsg && (
-          <div
-            className={`p-3.5 rounded-xl text-xs font-bold text-center ${
-              toastMsg.type === 'success'
-                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
-                : 'bg-rose-950/80 text-rose-300 border border-rose-800'
-            }`}
-          >
-            {toastMsg.text}
-          </div>
-        )}
+      {activeTab === 'ai' && (
+        <div className="animate-in fade-in duration-200">
+          <AiProvidersManager />
+        </div>
+      )}
 
-        {loading ? (
-          <div className="text-xs text-slate-400 font-bold py-6 text-center animate-pulse">در حال فراخوانی تنظیمات...</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
-              <div className="space-y-1">
-                <span className="text-xs font-black text-white flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-teal-400" />
-                  <span>سرویس دستیار هوش مصنوعی</span>
-                </span>
-                <span className="text-[11px] text-slate-400 block">فعال/غیرفعال‌سازی کلی چت و فرامین هوشمند</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={featureFlags.enable_ai_assistant}
-                onChange={(e) => setFeatureFlags({ ...featureFlags, enable_ai_assistant: e.target.checked })}
-                className="w-5 h-5 text-teal-600 rounded-lg accent-teal-500 cursor-pointer"
-              />
-            </label>
-
-            <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
-              <div className="space-y-1">
-                <span className="text-xs font-black text-white flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-indigo-400" />
-                  <span>سپر نجات Gemini سرور (Fallback)</span>
-                </span>
-                <span className="text-[11px] text-slate-400 block">سوئیچ خودکار به جمینای در صورت خرابی سایر مدل‌ها</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={featureFlags.enable_gemini_fallback}
-                onChange={(e) => setFeatureFlags({ ...featureFlags, enable_gemini_fallback: e.target.checked })}
-                className="w-5 h-5 text-indigo-600 rounded-lg accent-indigo-500 cursor-pointer"
-              />
-            </label>
-
-            <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between">
-              <div className="space-y-1">
-                <span className="text-xs font-black text-white flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-amber-400" />
-                  <span>سقف روزانه پلن رایگان</span>
-                </span>
-                <span className="text-[11px] text-slate-400 block">تعداد مجاز پیام کاربر عادی در ۲۴ ساعت</span>
-              </div>
-              <div className="flex items-center gap-1.5 font-mono">
-                <input
-                  type="number"
-                  min="1"
-                  max="200"
-                  value={featureFlags.free_tier_daily_limit}
-                  onChange={(e) =>
-                    setFeatureFlags({
-                      ...featureFlags,
-                      free_tier_daily_limit: Math.max(1, parseInt(e.target.value, 10) || 1),
-                    })
-                  }
-                  className="w-16 px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-center text-white text-xs font-bold focus:outline-none focus:border-teal-500"
-                />
-                <span className="text-[10px] text-slate-400">پیام</span>
+      {activeTab === 'general' && (
+        <div className="animate-in fade-in duration-200">
+          <form onSubmit={handleSave} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-6 text-right">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">کلیدهای کنترل سراسری (Feature Flags)</h3>
+                  <p className="text-xs text-slate-400">تنظیم محدودیت‌ها و سوییچ‌های لحظه‌ای سیستم</p>
+                </div>
               </div>
             </div>
 
-            <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
-              <div className="space-y-1">
-                <span className="text-xs font-black text-white flex items-center gap-2">
-                  <Wrench className="w-4 h-4 text-rose-400" />
-                  <span>حالت تعمیر و ارتقای سامانه</span>
-                </span>
-                <span className="text-[11px] text-slate-400 block">نمایش اعلان حالت نگهداری به کاربران</span>
+            {toastMsg && (
+              <div
+                className={`p-3.5 rounded-xl text-xs font-bold text-center ${
+                  toastMsg.type === 'success'
+                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
+                    : 'bg-rose-950/80 text-rose-300 border border-rose-800'
+                }`}
+              >
+                {toastMsg.text}
               </div>
-              <input
-                type="checkbox"
-                checked={featureFlags.maintenance_mode}
-                onChange={(e) => setFeatureFlags({ ...featureFlags, maintenance_mode: e.target.checked })}
-                className="w-5 h-5 text-rose-600 rounded-lg accent-rose-500 cursor-pointer"
-              />
-            </label>
-          </div>
-        )}
-
-        <div className="flex items-center gap-4 pt-4 border-t border-slate-800">
-          <button
-            type="submit"
-            disabled={saving || loading}
-            className="flex items-center gap-2 px-6 py-3 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-md shadow-teal-600/20"
-          >
-            {saving ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
             )}
-            <span>ذخیره کلیدهای کنترلی</span>
-          </button>
+
+            {loading ? (
+              <div className="text-xs text-slate-400 font-bold py-6 text-center animate-pulse">
+                در حال فراخوانی تنظیمات...
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
+                  <div className="space-y-1">
+                    <span className="text-xs font-black text-white flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-teal-400" />
+                      <span>سرویس دستیار هوش مصنوعی</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400 block">فعال/غیرفعال‌سازی کلی چت و فرامین هوشمند</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={featureFlags.enable_ai_assistant}
+                    onChange={(e) => setFeatureFlags({ ...featureFlags, enable_ai_assistant: e.target.checked })}
+                    className="w-5 h-5 text-teal-600 rounded-lg accent-teal-500 cursor-pointer"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
+                  <div className="space-y-1">
+                    <span className="text-xs font-black text-white flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-indigo-400" />
+                      <span>سپر نجات Gemini سرور (Fallback)</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400 block">سوئیچ خودکار به جمینای در صورت خرابی سایر مدل‌ها</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={featureFlags.enable_gemini_fallback}
+                    onChange={(e) => setFeatureFlags({ ...featureFlags, enable_gemini_fallback: e.target.checked })}
+                    className="w-5 h-5 text-indigo-600 rounded-lg accent-indigo-500 cursor-pointer"
+                  />
+                </label>
+
+                <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between">
+                  <div className="space-y-1">
+                    <span className="text-xs font-black text-white flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-amber-400" />
+                      <span>سقف روزانه پلن رایگان</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400 block">تعداد مجاز پیام کاربر عادی در ۲۴ ساعت</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 font-mono">
+                    <input
+                      type="number"
+                      min="1"
+                      max="200"
+                      value={featureFlags.free_tier_daily_limit}
+                      onChange={(e) =>
+                        setFeatureFlags({
+                          ...featureFlags,
+                          free_tier_daily_limit: Math.max(1, parseInt(e.target.value, 10) || 1),
+                        })
+                      }
+                      className="w-16 px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-center text-white text-xs font-bold focus:outline-none focus:border-teal-500"
+                    />
+                    <span className="text-[10px] text-slate-400">پیام</span>
+                  </div>
+                </div>
+
+                <label className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer hover:border-slate-700 transition-colors">
+                  <div className="space-y-1">
+                    <span className="text-xs font-black text-white flex items-center gap-2">
+                      <Wrench className="w-4 h-4 text-rose-400" />
+                      <span>حالت تعمیر و ارتقای سامانه</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400 block">نمایش اعلان حالت نگهداری به کاربران</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={featureFlags.maintenance_mode}
+                    onChange={(e) => setFeatureFlags({ ...featureFlags, maintenance_mode: e.target.checked })}
+                    className="w-5 h-5 text-rose-600 rounded-lg accent-rose-500 cursor-pointer"
+                  />
+                </label>
+              </div>
+            )}
+
+            <div className="flex items-center gap-4 pt-4 border-t border-slate-800">
+              <button
+                type="submit"
+                disabled={saving || loading}
+                className="flex items-center gap-2 px-6 py-3 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-md shadow-teal-600/20"
+              >
+                {saving ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                <span>ذخیره کلیدهای کنترلی</span>
+              </button>
+            </div>
+          </form>
         </div>
-      </form>
+      )}
     </div>
   );
 }
