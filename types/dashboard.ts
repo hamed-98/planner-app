@@ -46,6 +46,7 @@ export interface Task {
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
   dueDate: string;
   subtasks?: Subtask[];
+  updatedAt?: string;
 }
 
 export interface HealthMetrics {

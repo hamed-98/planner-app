@@ -72,13 +72,47 @@ export async function PATCH(req: Request) {
 
   try {
     const body = await req.json();
-    const { id, title, description, priority, status, dueDate, subtasks } = body;
+    const { id, title, description, priority, status, dueDate, subtasks, expectedUpdatedAt } = body;
 
     if (!id || typeof id !== 'string') {
       return NextResponse.json({ error: 'شناسه تسک الزامی است' }, { status: 400 });
     }
 
-    // ساخت داینامیک فیلدهای نیازمند بروزرسانی بدون اجبار به وجود title
+    const db = getScopedDb(user.id);
+
+    // ۱. بررسی وجود رکورد و کنترل تعارض نسخه (OCC)
+    const existing = await db.task.findUnique({
+      where: {
+        id_userId: {
+          id: id.trim(),
+          userId: user.id,
+        },
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'تسک مورد نظر یافت نشد' }, { status: 404 });
+    }
+
+    // اگر کلاینت زمان آخرین نسخه‌ای که دیده بود را فرستاده و سرور جدیدتر از آن است
+    if (expectedUpdatedAt && existing.updatedAt) {
+      const clientSeenTime = new Date(expectedUpdatedAt).getTime();
+      const serverCurrentTime = new Date(existing.updatedAt).getTime();
+
+      // اختلاف بیش از ۱ ثانیه برای چشم‌پوشی از تأخیرهای ناچیز شبکه
+      if (serverCurrentTime - clientSeenTime > 1000) {
+        return NextResponse.json(
+          {
+            error: 'CONFLICT',
+            message: 'این تسک روی دستگاه دیگری ویرایش شده است.',
+            serverRecord: existing,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    // ۲. ساخت داینامیک فیلدهای نیازمند بروزرسانی بدون اجبار به وجود title
     const updateData: Record<string, any> = {};
 
     if (title !== undefined) {
@@ -94,7 +128,6 @@ export async function PATCH(req: Request) {
     if (dueDate !== undefined) updateData.dueDate = dueDate || null;
     if (subtasks !== undefined) updateData.subtasks = subtasks;
 
-    const db = getScopedDb(user.id);
     const updatedTask = await db.task.update({
       where: {
         id_userId: {
@@ -107,15 +140,10 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json(updatedTask);
   } catch (error: any) {
-    console.error('Task PATCH error:', error);
-    // اگر رکورد وجود نداشت یا متعلق به کاربر نبود
-    if (error.code === 'P2025') {
-      return NextResponse.json({ error: 'تسک مورد نظر یافت نشد' }, { status: 404 });
-    }
-    return NextResponse.json({ error: error.message || 'خطا در ویرایش تسک' }, { status: 500 });
+    console.error('Error updating task:', error);
+    return NextResponse.json({ error: 'خطای سرور در ویرایش تسک' }, { status: 500 });
   }
 }
-
 // حذف تسک (DELETE)
 export async function DELETE(req: Request) {
   const user = await getCurrentUser();

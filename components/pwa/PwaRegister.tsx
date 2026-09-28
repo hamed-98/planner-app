@@ -8,20 +8,24 @@ export default function PwaRegister() {
   const [showOnlineToast, setShowOnlineToast] = useState(false);
 
   useEffect(() => {
+    // فقط برای تست موقت true کنید و بعد برگردونید false
+     const FORCE_SW_IN_DEV = true; 
+    //  const FORCE_SW_IN_DEV = false; 
+
     // ۱. در محیط توسعه (dev)، سرویس‌ورکر را کلاً پاک کن تا مانع تغییرات لحظه‌ای نشود
-    // if (process.env.NODE_ENV === 'development') {
-    //   if ('serviceWorker' in navigator) {
-    //     navigator.serviceWorker.getRegistrations().then((registrations) => {
-    //       for (const reg of registrations) {
-    //         reg.unregister();
-    //       }
-    //     });
-    //     caches.keys().then((keys) => {
-    //       keys.forEach((key) => caches.delete(key));
-    //     });
-    //   }
-    //   return;
-    // }
+    if (process.env.NODE_ENV === 'development' && !FORCE_SW_IN_DEV) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const reg of registrations) {
+            reg.unregister();
+          }
+        });
+        caches.keys().then((keys) => {
+          keys.forEach((key) => caches.delete(key));
+        });
+      }
+      return;
+    }
 
     // ۲. در محیط پروداکشن: ثبت سرویس‌ورکر و مدیریت به‌روزرسانی خودکار
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {

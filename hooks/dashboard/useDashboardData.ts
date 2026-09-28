@@ -144,47 +144,100 @@ export function enqueueOfflineAction(item: Omit<OfflineQueueItem, 'id' | 'timest
   localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(filtered));
 }
 
+// فلگ قفل برای جلوگیری از اجرای هم‌زمان فلاش
+let isQueueFlushing = false;
+
 export async function flushOfflineQueue() {
-  if (typeof window === 'undefined' || !navigator.onLine) return;
-  await flushBrainGymOfflineQueue();
-  const queue = getOfflineQueue();
-  if (queue.length === 0) return;
+  if (typeof window === 'undefined' || !navigator.onLine || isQueueFlushing) return;
+  isQueueFlushing = true;
 
-  const remaining: OfflineQueueItem[] = [];
+  try {
+    await flushBrainGymOfflineQueue();
+    const snapshot = getOfflineQueue();
+    if (snapshot.length === 0) return;
 
-  for (const item of queue) {
-    try {
-      if (item.entity === 'events') {
-        if (item.action === 'create') await dbAddEvent(item.payload);
-        if (item.action === 'delete') await dbDeleteEvent(item.payload.id);
-      } else if (item.entity === 'tasks') {
-        if (item.action === 'create') await dbAddTask(item.payload);
-        if (item.action === 'update') await dbUpdateTask(item.payload.id, item.payload.updates);
-        if (item.action === 'delete') await dbDeleteTask(item.payload.id);
-      } else if (item.entity === 'notes') {
-        if (item.action === 'create') await dbAddNote(item.payload);
-        if (item.action === 'update') await dbUpdateNote(item.payload.id, item.payload.updates);
-        if (item.action === 'delete') await dbDeleteNote(item.payload.id);
-      } else if (item.entity === 'habits') {
-        if (item.action === 'create') await dbAddHabit(item.payload.id, item.payload.name);
-        if (item.action === 'delete') await dbDeleteHabit(item.payload.id);
-        if (item.action === 'toggle') await toggleHabitLog(item.payload.habitId, item.payload.dateISO, item.payload.completed);
-      } else if (item.entity === 'medicines') {
-        if (item.action === 'create') await dbAddMedicine(item.payload);
-        if (item.action === 'delete') await dbDeleteMedicine(item.payload.id);
-        if (item.action === 'updateLog') await updateMedicineLog(item.payload.id, item.payload.completedDates);
-      } else if (item.entity === 'health') {
-        if (item.action === 'save') await saveHealthLog(item.payload.dateISO, item.payload.data);
-      }else if (item.entity === 'profile') {
-        if (item.action === 'update') await updateProfile(item.payload);
+    const processedIds = new Set<string>();
+    const failedRetryableItems: OfflineQueueItem[] = [];
+
+    for (const item of snapshot) {
+      try {
+        let result: any = true;
+
+        if (item.entity === 'events') {
+          if (item.action === 'create') result = await dbAddEvent(item.payload);
+          if (item.action === 'delete') result = await dbDeleteEvent(item.payload.id);
+        } else if (item.entity === 'tasks') {
+          if (item.action === 'create') result = await dbAddTask(item.payload);
+          if (item.action === 'update') {
+            result = await dbUpdateTask(item.payload.id, item.payload.updates);
+          }
+          if (item.action === 'delete') result = await dbDeleteTask(item.payload.id);
+        } else if (item.entity === 'notes') {
+          if (item.action === 'create') result = await dbAddNote(item.payload);
+          if (item.action === 'update') result = await dbUpdateNote(item.payload.id, item.payload.updates);
+          if (item.action === 'delete') result = await dbDeleteNote(item.payload.id);
+        } else if (item.entity === 'habits') {
+          if (item.action === 'create') result = await dbAddHabit(item.payload.id, item.payload.name);
+          if (item.action === 'delete') result = await dbDeleteHabit(item.payload.id);
+          if (item.action === 'toggle') await toggleHabitLog(item.payload.habitId, item.payload.dateISO, item.payload.completed);
+        } else if (item.entity === 'medicines') {
+          if (item.action === 'create') result = await dbAddMedicine(item.payload);
+          if (item.action === 'delete') result = await dbDeleteMedicine(item.payload.id);
+          if (item.action === 'updateLog') await updateMedicineLog(item.payload.id, item.payload.completedDates);
+        } else if (item.entity === 'health') {
+          if (item.action === 'save') result = await saveHealthLog(item.payload.dateISO, item.payload.data);
+        } else if (item.entity === 'profile') {
+          if (item.action === 'update') result = await updateProfile(item.payload);
+        }
+
+        // اگر تابع به جای throw کردن، null یا false برگردانده باشد
+        if (result === false || (result === null && item.action !== 'toggle' && item.action !== 'updateLog')) {
+          throw new Error('درخواست به سرور نرسید یا با خطا مواجه شد');
+        }
+
+        // عملیات با موفقیت انجام شد
+        processedIds.add(item.id);
+      } catch (err: any) {
+        const status = err?.status;
+
+        // تمام خطاهای ماندگار کلاینت (4xx به جز 408 و 429)
+        const isPermanentClientError =
+          typeof status === 'number' &&
+          status >= 400 &&
+          status < 500 &&
+          status !== 408 &&
+          status !== 429;
+
+        if (isPermanentClientError) {
+          console.warn(`[Offline Sync] آیتم ${item.id} به دلیل خطای کلاینت (${status}) از صف خارج شد.`);
+          processedIds.add(item.id);
+        } else {
+          // خطای قطعی شبکه یا خطای سرور (5xx): تلاش مجدد تا سقف ۵ بار
+          const currentAttempts = (item as any).attempts || 0;
+          if (currentAttempts < 5) {
+            failedRetryableItems.push({
+              ...item,
+              attempts: currentAttempts + 1,
+            } as any);
+          } else {
+            console.warn(`[Offline Sync] آیتم ${item.id} پس از ۵ بار تلاش ناموفق از صف دور انداخته شد.`);
+            processedIds.add(item.id);
+          }
+        }
       }
-    } catch (err) {
-      console.warn('[Offline Sync] خطا در ارسال آیتم صف، در صف باقی می‌ماند:', item, err);
-      remaining.push(item);
     }
-  }
 
-  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
+    // ادغام بدون از دست رفتن آیتم‌هایی که در زمان پردازش حلقه به صف اضافه شده‌اند
+    const latestQueue = getOfflineQueue();
+    const untouchedItems = latestQueue.filter(
+      (q) => !snapshot.some((s) => s.id === q.id) && !processedIds.has(q.id)
+    );
+    const finalQueue = [...untouchedItems, ...failedRetryableItems];
+
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(finalQueue));
+  } finally {
+    isQueueFlushing = false;
+  }
 }
 
 
