@@ -1,20 +1,33 @@
 // lib/api/events.ts
 import { CalendarEvent } from '@/components/Dashboard';
+import { getLocalDateString, getLocalTimeString } from '@/lib/utils/timezone';
+
+// تایم‌زون واقعی مرورگر کاربر (نه ساعت خام UTC ذخیره‌شده در دیتابیس)
+function getBrowserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Tehran';
+  } catch {
+    return 'Asia/Tehran';
+  }
+}
 
 export async function getEvents(): Promise<CalendarEvent[] | null> {
   try {
     const res = await fetch('/api/events', { cache: 'no-store' });
     if (!res.ok) return null;
     const data = await res.json();
+    const tz = getBrowserTimeZone();
 
     return data.map((e: any) => {
       const startDate = new Date(e.startTime);
+      // به‌جای خواندن اجزای خام UTC (که قبلاً باعث می‌شد رویداد با ساعتی متفاوت از چیزی که
+      // کاربر واقعاً ثبت کرده بود نمایش داده شود)، همان زمان محلی واقعی کاربر نمایش داده می‌شود.
       return {
         id: e.id,
         title: e.title,
         desc: e.description || '',
-        date: startDate.toISOString().split('T')[0],
-        time: startDate.toISOString().split('T')[1]?.substring(0, 5) || '12:00',
+        date: getLocalDateString(startDate, tz),
+        time: getLocalTimeString(startDate, tz),
         category: e.color || 'personal',
         recurrence: e.recurrenceRule || 'none',
       };
@@ -43,13 +56,14 @@ export async function addEvent(event: CalendarEvent): Promise<CalendarEvent | nu
     if (!res.ok) return null;
     const resData = await res.json();
     const finalStartDate = new Date(resData.startTime);
+    const tz = getBrowserTimeZone();
 
     return {
       id: resData.id,
       title: resData.title,
       desc: resData.description || '',
-      date: finalStartDate.toISOString().split('T')[0],
-      time: finalStartDate.toISOString().split('T')[1]?.substring(0, 5) || '12:00',
+      date: getLocalDateString(finalStartDate, tz),
+      time: getLocalTimeString(finalStartDate, tz),
       category: resData.color || 'personal',
       recurrence: resData.recurrenceRule || 'none',
     } as CalendarEvent;

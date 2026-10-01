@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
 import { getScopedDb } from '@/lib/db/scoped';
+import { prisma } from '@/lib/db/prisma';
+import { localTimeToUtc } from '@/lib/utils/timezone';
 
 // دریافت تمام رویدادهای کاربر
 export async function GET() {
@@ -43,8 +45,15 @@ export async function POST(req: Request) {
     const eventDate = date || new Date().toISOString().split('T')[0];
     const eventTime = time || '12:00';
 
-    // تبدیل به فرمت استاندارد تاریخ با پسوند Z جهت پیشگیری از تغییر روز در اختلاف تایم‌زون
-    const startTime = new Date(`${eventDate}T${eventTime}:00Z`);
+    // تاریخ و ساعتی که از کلاینت می‌رسد، ساعت محلی خودِ کاربر است (مثلاً برای ایران UTC+03:30)
+    // نه UTC؛ قبلاً اینجا با اضافه‌کردن مستقیم "Z" این رشته به‌اشتباه به‌عنوان UTC تفسیر می‌شد که باعث
+    // می‌شد رویداد ۳ ساعت و نیم زودتر/دیرتر از زمان واقعی موردنظر کاربر ثبت و یادآوری‌گذاری شود.
+    // اینجا از همان سرویس مشترک تبدیل زمان (lib/utils/timezone) استفاده می‌کنیم که producerهای
+    // دارو/عادت هم استفاده می‌کنند، تا منطق تبدیل زمان در کل پروژه یکسان و در یک‌جا باشد.
+    const profile = await prisma.profile.findUnique({ where: { id: user.id } });
+    const userTz = profile?.timezone || 'Asia/Tehran';
+
+    const startTime = localTimeToUtc(eventDate, eventTime, userTz);
     const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // پیش‌فرض ۱ ساعت
 
     const db = getScopedDb(user.id);

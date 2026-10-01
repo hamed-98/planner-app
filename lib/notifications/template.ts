@@ -1,4 +1,5 @@
 // lib/notifications/template.ts
+import { getLocalTimeString } from '@/lib/utils/timezone';
 
 export interface NotificationPolicy {
   channels: {
@@ -82,6 +83,8 @@ export function isValidTimeZone(tz: string): boolean {
 
 /**
  * بررسی اینکه آیا ساعت مشخصی در تایمزون محلی درون بازه ساعات سکوت است یا خیر
+ * محاسبه ساعت محلی از سرویس مشترک lib/utils/timezone گرفته می‌شود تا منطق تبدیل زمان
+ * فقط در یک جا (نه اینجا و نه هر پرودیوسر جدا) نوشته شده باشد.
  */
 export function isWithinQuietHours(
   localDate: Date,
@@ -90,15 +93,9 @@ export function isWithinQuietHours(
   endStr: string    // "07:30"
 ): boolean {
   try {
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    });
-    const parts = formatter.formatToParts(localDate);
-    const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
-    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+    const [hourStr, minuteStr] = getLocalTimeString(localDate, timeZone).split(':');
+    const hour = parseInt(hourStr, 10);
+    const minute = parseInt(minuteStr, 10);
     const currentMins = hour * 60 + minute;
 
     const [startH, startM] = startStr.split(':').map(Number);

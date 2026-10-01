@@ -1,6 +1,6 @@
 // lib/notifications/producers/medicines.ts
 import { prisma } from '@/lib/db/prisma';
-import { getLocalDateString, localTimeToUtc } from '../timezone';
+import { getLocalDateString, localTimeToUtc } from '@/lib/utils/timezone';
 import { renderTemplate, DEFAULT_NOTIFICATION_POLICIES, NotificationPolicy } from '../template';
 
 /**
@@ -79,39 +79,48 @@ export async function produceMedicineNotifications(policies?: NotificationPolicy
       });
 
       const payload = {
-        title: 'یادآوری مصرف دارو 💊',
+        title: "یادآوری مصرف دارو 💊",
         body: renderedBody,
-        icon: '/icons/icon-192.png',
+        icon: "/icons/icon-192.png",
         url: `/dashboard?action=med_done&id=${med.id}`,
         actions: [
-          { action: 'MARK_DONE', title: 'مصرف کردم ✅' },
-          { action: 'SNOOZE_10', title: '۱۰ دقیقه بعد ⏳' },
+          { action: "MARK_DONE", title: "مصرف کردم ✅" },
+          { action: "SNOOZE_10", title: "۱۰ دقیقه بعد ⏳" },
         ],
         payload: {
-          channel: 'medicines',
+          channel: "medicines",
           refId: med.id,
           dedupeKey,
           url: `/dashboard?action=med_done&id=${med.id}`,
         },
       };
 
-      try {
-        await prisma.scheduledNotification.create({
-          data: {
-            userId: user.id,
-            channel: 'medicines',
-            refId: med.id,
-            dedupeKey,
-            payload,
-            runAt,
-            status: 'pending',
-          },
-        });
-        createdCount++;
-      } catch (err: any) {
-        // نادیده گرفتن خطای تکراری بودن P2002
-        if (err.code !== 'P2002') {
-          console.error(`[Medicine Producer] Error scheduling for med ${med.id}:`, err);
+      const existing = await prisma.scheduledNotification.findUnique({
+        where: { dedupeKey },
+        select: { id: true },
+      });
+
+      if (!existing) {
+        try {
+          await prisma.scheduledNotification.create({
+            data: {
+              userId: user.id,
+              channel: "medicines",
+              refId: med.id,
+              dedupeKey,
+              payload,
+              runAt,
+              status: "pending",
+            },
+          });
+          createdCount++;
+        } catch (err: any) {
+          if (err.code !== "P2002") {
+            console.error(
+              `[Medicine Producer] Error scheduling for med ${med.id}:`,
+              err,
+            );
+          }
         }
       }
     }

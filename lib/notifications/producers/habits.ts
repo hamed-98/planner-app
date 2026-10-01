@@ -1,6 +1,6 @@
 // lib/notifications/producers/habits.ts
 import { prisma } from '@/lib/db/prisma';
-import { getLocalDateString, localTimeToUtc } from '../timezone';
+import { getLocalDateString, localTimeToUtc } from '@/lib/utils/timezone';
 import { renderTemplate, DEFAULT_NOTIFICATION_POLICIES, NotificationPolicy } from '../template';
 
 /**
@@ -12,7 +12,7 @@ export async function produceHabitNotifications(policies?: NotificationPolicy): 
     return 0;
   }
 
-  const triggerHourLocal = policy.channels.habits.triggerHourLocal || '21:00';
+  const triggerHourLocal = policy.channels.habits.triggerHourLocal || "21:00";
   const template = policy.channels.habits.template;
   const now = new Date();
   let createdCount = 0;
@@ -35,12 +35,15 @@ export async function produceHabitNotifications(policies?: NotificationPolicy): 
   for (const user of users) {
     if (!user || user.pushSubscriptions.length === 0) continue;
 
-    const prefs = user.profile?.notificationPrefs as Record<string, boolean> | null;
+    const prefs = user.profile?.notificationPrefs as Record<
+      string,
+      boolean
+    > | null;
     if (prefs && prefs.habits === false) {
       continue;
     }
 
-    const tz = user.profile?.timezone || 'Asia/Tehran';
+    const tz = user.profile?.timezone || "Asia/Tehran";
     const dateLocal = getLocalDateString(now, tz);
     const runAt = localTimeToUtc(dateLocal, triggerHourLocal, tz);
 
@@ -64,10 +67,14 @@ export async function produceHabitNotifications(policies?: NotificationPolicy): 
     });
 
     const completedHabitIdSet = new Set(completedLogs.map((l) => l.habitId));
-    const pendingRegularHabits = user.habits.filter((h) => !completedHabitIdSet.has(h.id)).length;
+    const pendingRegularHabits = user.habits.filter(
+      (h) => !completedHabitIdSet.has(h.id),
+    ).length;
 
     // بررسی عادات نورونی تکمیل‌نشده
-    const pendingNeuroHabits = user.neuroHabits.filter((nh) => !nh.completed).length;
+    const pendingNeuroHabits = user.neuroHabits.filter(
+      (nh) => !nh.completed,
+    ).length;
 
     const totalPending = pendingRegularHabits + pendingNeuroHabits;
 
@@ -82,34 +89,44 @@ export async function produceHabitNotifications(policies?: NotificationPolicy): 
     });
 
     const payload = {
-      title: 'حفظ استریک و عادات روزانه 🔥',
+      title: "حفظ استریک و عادات روزانه 🔥",
       body: renderedBody,
-      icon: '/icons/icon-192.png',
-      url: '/dashboard?tab=overview',
+      icon: "/icons/icon-192.png",
+      url: "/dashboard?tab=overview",
       payload: {
-        channel: 'habits',
+        channel: "habits",
         refId: user.id,
         dedupeKey,
-        url: '/dashboard?tab=overview',
+        url: "/dashboard?tab=overview",
       },
     };
 
     try {
-      await prisma.scheduledNotification.create({
-        data: {
-          userId: user.id,
-          channel: 'habits',
-          refId: user.id,
-          dedupeKey,
-          payload,
-          runAt,
-          status: 'pending',
-        },
+      const existing = await prisma.scheduledNotification.findUnique({
+        where: { dedupeKey },
+        select: { id: true },
       });
-      createdCount++;
+
+      if (!existing) {
+        await prisma.scheduledNotification.create({
+          data: {
+            userId: user.id,
+            channel: "habits",
+            refId: user.id,
+            dedupeKey,
+            payload,
+            runAt,
+            status: "pending",
+          },
+        });
+        createdCount++;
+      }
     } catch (err: any) {
-      if (err.code !== 'P2002') {
-        console.error(`[Habits Producer] Error scheduling for user ${user.id}:`, err);
+      if (err.code !== "P2002") {
+        console.error(
+          `[Habits Producer] Error scheduling for user ${user.id}:`,
+          err,
+        );
       }
     }
   }
